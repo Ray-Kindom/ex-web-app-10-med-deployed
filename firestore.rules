@@ -83,6 +83,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // 16. /access_requests/{requestId} - Google Login Owner Approval Requests
+    match /access_requests/{requestId} {
+      allow read, write: if true;
+    }
+
     // Catch-all for any other regiment data collections
     match /{document=**} {
       allow read, write: if true;

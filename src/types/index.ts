@@ -331,6 +331,23 @@ export interface UserAccount {
   email?: string;
   avatar?: string;
   lastLogin?: string;
+  isApproved?: boolean;
+  approvedAt?: string;
+  approvedBy?: string;
+}
+
+export interface GoogleAccessRequest {
+  id: string;
+  email: string;
+  name: string;
+  photoURL?: string;
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  assignedRole?: Role;
+  assignedRank?: string;
+  assignedBattery?: Battery;
+  reviewedBy?: string;
+  reviewedAt?: string;
 }
 
 export interface DutyAssignment {

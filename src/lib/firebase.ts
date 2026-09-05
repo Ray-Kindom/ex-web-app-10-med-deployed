@@ -19,7 +19,11 @@ import {
   deleteDoc,
   getDocs,
   serverTimestamp,
+  setLogLevel,
 } from 'firebase/firestore';
+
+// Silence Firestore internal network retry warnings to prevent console flood
+setLogLevel('silent');
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App instance
@@ -169,6 +173,7 @@ export {
   updateDoc,
   deleteDoc,
   getDocs,
+  getDocFromServer,
   onSnapshot,
   serverTimestamp,
   onAuthStateChanged,

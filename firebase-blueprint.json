@@ -222,9 +222,28 @@
         "assignments": { "type": "array" }
       },
       "required": ["date", "sessionType", "assignments"]
+    },
+    "AccessRequest": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "requestedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "assignedRole": { "type": "string" },
+        "assignedRank": { "type": "string" },
+        "assignedBattery": { "type": "string" }
+      },
+      "required": ["id", "email", "name", "requestedAt", "status"]
     }
   },
   "firestore": {
+    "/access_requests/{requestId}": {
+      "schema": "AccessRequest",
+      "description": "Google sign-in access requests waiting for Owner approval"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "Registered system user accounts and roles"

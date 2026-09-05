@@ -27,6 +27,7 @@ import {
   RankCategory,
   isOfficerRank,
   isBsmRole,
+  GoogleAccessRequest,
 } from '../types';
 import {
   INITIAL_PERSONNEL,
@@ -56,10 +57,16 @@ import {
   deleteDoc,
   onSnapshot,
   onAuthStateChanged,
+  getDocFromServer,
   FirebaseUser,
   handleFirestoreError,
   OperationType,
 } from '../lib/firebase';
+
+export const OWNER_EMAILS: string[] = [
+  'mdraiyan1512@gmail.com',
+  '10medclk@gmail.com',
+];
 
 interface AppContextType {
   currentUser: UserAccount;
@@ -238,7 +245,18 @@ interface AppContextType {
   firebaseUser: FirebaseUser | null;
   isFirebaseReady: boolean;
   cloudPermissionDenied: boolean;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string; code?: string; domain?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string; code?: string; domain?: string; isPending?: boolean }>;
+
+  // Google Owner Approval & Whitelist
+  accessRequests: GoogleAccessRequest[];
+  pendingGoogleUser: { email: string; name?: string; photoURL?: string; uid?: string } | null;
+  clearPendingGoogleUser: () => void;
+  approveGoogleRequest: (requestId: string, role: Role, rank: string, name: string, battery?: Battery) => Promise<void>;
+  rejectGoogleRequest: (requestId: string) => Promise<void>;
+  preApproveGoogleUser: (email: string, name: string, rank: string, role: Role, battery?: Battery) => Promise<void>;
+  revokeGoogleUserApproval: (userIdOrEmail: string) => Promise<void>;
+  checkPendingApprovalStatus: () => Promise<boolean>;
+  isOwnerUser: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -248,6 +266,7 @@ const STORAGE_KEYS = {
   USER: '10med_currentUser_v1',
   REAL_USER: '10med_real_user_v2',
   USERS_LIST: '10med_users_v2',
+  ACCESS_REQUESTS: '10med_access_requests_v1',
   DUTY: '10med_duty_v1',
   LOGS: '10med_logs_v1',
   LOGO: '10med_custom_logo_v1',
@@ -510,6 +529,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_PARADE_POINTS;
   });
 
+  // Google Access Requests & Pending Approval State
+  const [accessRequests, setAccessRequests] = useState<GoogleAccessRequest[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.ACCESS_REQUESTS);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<{
+    email: string;
+    name?: string;
+    photoURL?: string;
+    uid?: string;
+  } | null>(() => {
+    const saved = localStorage.getItem('10med_pending_google_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify(accessRequests));
+  }, [accessRequests]);
+
+  useEffect(() => {
+    if (pendingGoogleUser) {
+      localStorage.setItem('10med_pending_google_user', JSON.stringify(pendingGoogleUser));
+    } else {
+      localStorage.removeItem('10med_pending_google_user');
+    }
+  }, [pendingGoogleUser]);
+
   // Session Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
@@ -554,7 +611,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })?.catch?.((err: any) => {
         if (err?.code === 'permission-denied' || String(err).includes('permission-denied')) {
           setCloudPermissionDenied(true);
-          console.warn(`[Cloud Sync] Firebase rules require allow read, write: if true; for: ${description}`);
         } else {
           console.error(`[Cloud Sync] Write error for: ${description}`, err);
         }
@@ -1766,66 +1822,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.PARADE_POINTS, JSON.stringify(dailyParadePoints));
   }, [dailyParadePoints]);
 
-  // Firebase Auth listener
+  // Firebase Auth listener with Owner Approval enforcement
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
-      if (user) {
-        setIsAuthenticated(true);
-        // Link with existing user or create/update profile
-        setUsersList((prev) => {
-          const existing = prev.find((u) => u.email === user.email || u.id === user.uid);
-          if (existing) {
-            const isLead =
-              user.email === '10medclk@gmail.com' ||
-              user.email === 'mdraiyan1512@gmail.com' ||
-              user.email === 'backupray12145@gmail.com' ||
-              user.email === 'mdray12145@gmail.com' ||
-              existing.role === 'Admin';
-            if (isLead) {
-              existing.role = 'Admin';
-              existing.rank = 'Col';
-            }
-            setCurrentUserState(existing);
-            setRealUser(existing);
-            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(existing));
-            localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(existing));
-            syncDoc(
-              setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(existing), { merge: true }),
-              'update user profile'
-            );
-            return prev;
+      if (user && user.email) {
+        const emailLower = user.email.toLowerCase();
+        const isOwner = OWNER_EMAILS.some((o) => o.toLowerCase() === emailLower);
+
+        // Check if explicitly approved in usersList
+        const existingApproved = usersList.find(
+          (u) => u.email?.toLowerCase() === emailLower && u.isApproved !== false
+        );
+
+        // Check if access request was approved
+        const approvedReq = accessRequests.find(
+          (r) => r.email.toLowerCase() === emailLower && r.status === 'approved'
+        );
+
+        if (isOwner || existingApproved || approvedReq) {
+          setIsAuthenticated(true);
+          setPendingGoogleUser(null);
+          localStorage.removeItem('10med_pending_google_user');
+
+          let acct: UserAccount;
+          if (isOwner) {
+            acct = {
+              id: user.uid,
+              username: 'owner',
+              name: user.displayName || 'Regiment Owner',
+              rank: 'Owner / Admin',
+              role: 'Admin',
+              assignedBattery: 'HQ Bty',
+              assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+              email: user.email,
+              avatar: user.photoURL || undefined,
+              isApproved: true,
+              approvedBy: 'System / Owner',
+              approvedAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            };
+          } else if (existingApproved) {
+            acct = {
+              ...existingApproved,
+              avatar: user.photoURL || existingApproved.avatar,
+              isApproved: true,
+              lastLogin: new Date().toISOString(),
+            };
+          } else {
+            acct = {
+              id: user.uid,
+              username: user.email.split('@')[0],
+              name: approvedReq?.name || user.displayName || 'Authorized Personnel',
+              rank: approvedReq?.assignedRank || 'Capt',
+              role: approvedReq?.assignedRole || 'Offr',
+              assignedBattery: approvedReq?.assignedBattery || 'HQ Bty',
+              assignedBatteries:
+                approvedReq?.assignedRole === 'CO' || approvedReq?.assignedRole === 'Admin' || approvedReq?.assignedRole === 'Offr' || approvedReq?.assignedRole === 'RSM'
+                  ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+                  : [approvedReq?.assignedBattery || 'HQ Bty'],
+              email: user.email,
+              avatar: user.photoURL || undefined,
+              isApproved: true,
+              approvedBy: approvedReq?.reviewedBy || 'Owner',
+              approvedAt: approvedReq?.reviewedAt || new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            };
           }
-          const isLeadAdmin =
-            user.email === '10medclk@gmail.com' ||
-            user.email === 'mdraiyan1512@gmail.com' ||
-            user.email === 'backupray12145@gmail.com' ||
-            Boolean(user.email);
-          const newAcct: UserAccount = {
-            id: user.uid,
-            username: user.email ? user.email.split('@')[0] : `user_${user.uid.slice(0, 5)}`,
-            name: user.displayName || 'Authorized Admin',
-            rank: 'Col',
-            role: 'Admin',
-            assignedBattery: 'HQ Bty',
-            assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
-            email: user.email || undefined,
-            avatar: user.photoURL || undefined,
-            lastLogin: new Date().toISOString(),
+
+          setCurrentUserState(acct);
+          setRealUser(acct);
+          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(acct));
+          localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(acct));
+          localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+
+          setUsersList((prev) => {
+            const filtered = prev.filter((u) => u.email?.toLowerCase() !== emailLower && u.id !== user.uid);
+            return [acct, ...filtered];
+          });
+          syncDoc(setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(acct), { merge: true }), 'sync approved user');
+        } else {
+          // Not approved! Enforce access block and register pending request
+          setIsAuthenticated(false);
+          const pendingObj = {
+            email: user.email,
+            name: user.displayName || user.email.split('@')[0],
+            photoURL: user.photoURL || undefined,
+            uid: user.uid,
           };
-          setCurrentUserState(newAcct);
-          setRealUser(newAcct);
-          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newAcct));
-          localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(newAcct));
-          // Persist user to Firestore
-          syncDoc(setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(newAcct)), 'new user account');
-          return [newAcct, ...prev];
-        });
+          setPendingGoogleUser(pendingObj);
+          localStorage.setItem('10med_pending_google_user', JSON.stringify(pendingObj));
+
+          const reqDoc: GoogleAccessRequest = {
+            id: user.uid,
+            email: user.email,
+            name: user.displayName || user.email.split('@')[0],
+            photoURL: user.photoURL || undefined,
+            requestedAt: new Date().toISOString(),
+            status: 'pending',
+          };
+          syncDoc(setDoc(doc(db, 'access_requests', user.uid), sanitizeForFirestore(reqDoc), { merge: true }), 'save pending access request');
+        }
       }
     });
 
     return () => unsubscribeAuth();
-  }, []);
+  }, [usersList, accessRequests]);
 
   // Real-time Firestore Listeners & Database bootstrapping
   // Runs continuously in background for all users (ID/Password & Google Login)
@@ -1841,7 +1943,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const handleSnapError = (err: any, col: string) => {
       if (err?.code === 'permission-denied' || String(err).includes('permission-denied')) {
         setCloudPermissionDenied(true);
-        console.warn(`[Cloud Sync] Firestore rules permission denied on: ${col}`);
       } else {
         console.warn(`[Cloud Sync] Snapshot note on ${col}:`, err);
       }
@@ -2160,6 +2261,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (err) => handleSnapError(err, 'parade_duty_assignments')
     );
 
+    // 16. /access_requests listener
+    const unsubAccessRequests = onSnapshot(
+      collection(db, 'access_requests'),
+      (snapshot) => {
+        setCloudPermissionDenied(false);
+        if (!snapshot.empty) {
+          const remoteReqs = snapshot.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          })) as GoogleAccessRequest[];
+          setAccessRequests(remoteReqs);
+        }
+      },
+      (err) => handleSnapError(err, 'access_requests')
+    );
+
     return () => {
       unsubUsers();
       unsubPersonnel();
@@ -2176,6 +2293,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubAuth();
       unsubCalc();
       unsubParadeDutyAssignments();
+      unsubAccessRequests();
     };
   }, [currentUser.role, isRealAdmin, firebaseUser]);
 
@@ -2186,14 +2304,128 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 4000);
   };
 
-  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string; code?: string; domain?: string }> => {
+  const isOwnerUser = Boolean(
+    (firebaseUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === firebaseUser.email!.toLowerCase())) ||
+    (currentUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === currentUser.email!.toLowerCase())) ||
+    (realUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === realUser.email!.toLowerCase()))
+  );
+
+  const clearPendingGoogleUser = () => {
+    setPendingGoogleUser(null);
+    localStorage.removeItem('10med_pending_google_user');
+  };
+
+  const loginWithGoogle = async (): Promise<{
+    success: boolean;
+    error?: string;
+    code?: string;
+    domain?: string;
+    isPending?: boolean;
+  }> => {
     try {
       const user = await signInWithGoogle();
-      setIsAuthenticated(true);
-      setActivePage('main_dashboard');
-      showNotification(`Signed in with Google: ${user.displayName || user.email}`);
-      addAuditLog('Google OAuth Login', `User authenticated: ${user.email}`, 'SECURITY');
-      return { success: true };
+      if (!user || !user.email) {
+        return { success: false, error: 'গুগল অ্যাকাউন্ট থেকে কোনো ইমেইল পাওয়া যায়নি।' };
+      }
+      const emailLower = user.email.toLowerCase();
+      const isOwner = OWNER_EMAILS.some((o) => o.toLowerCase() === emailLower);
+
+      // Check if user is already approved in usersList
+      const existingUser = usersList.find((u) => u.email?.toLowerCase() === emailLower);
+      const isExplicitlyApproved = existingUser && existingUser.isApproved !== false;
+
+      // Check if existing access request is approved
+      const existingReq = accessRequests.find((r) => r.email.toLowerCase() === emailLower);
+      const isReqApproved = existingReq?.status === 'approved';
+
+      if (isOwner || isExplicitlyApproved || isReqApproved) {
+        const userRole: Role = isOwner ? 'Admin' : (existingUser?.role || existingReq?.assignedRole || 'Offr');
+        const userRank: string = isOwner ? 'Owner / Admin' : (existingUser?.rank || existingReq?.assignedRank || 'Capt');
+        const userBattery: Battery = isOwner
+          ? 'HQ Bty'
+          : (existingUser?.assignedBattery || existingReq?.assignedBattery || 'HQ Bty');
+
+        const activeAcct: UserAccount = {
+          id: user.uid,
+          username: existingUser?.username || user.email.split('@')[0],
+          name: isOwner
+            ? (user.displayName || 'Regiment Owner')
+            : (existingUser?.name || existingReq?.name || user.displayName || 'Authorized Personnel'),
+          rank: userRank,
+          role: userRole,
+          assignedBattery: userBattery,
+          assignedBatteries:
+            userRole === 'Admin' || userRole === 'CO' || userRole === 'Offr' || userRole === 'RSM'
+              ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+              : [userBattery],
+          email: user.email,
+          avatar: user.photoURL || existingUser?.avatar || undefined,
+          isApproved: true,
+          approvedBy: isOwner ? 'System / Owner' : (existingUser?.approvedBy || existingReq?.reviewedBy || 'Owner'),
+          approvedAt: existingUser?.approvedAt || new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+        };
+
+        setCurrentUserState(activeAcct);
+        setRealUser(activeAcct);
+        setIsAuthenticated(true);
+        setPendingGoogleUser(null);
+        localStorage.removeItem('10med_pending_google_user');
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(activeAcct));
+        localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(activeAcct));
+        localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+
+        setUsersList((prev) => {
+          const filtered = prev.filter((u) => u.email?.toLowerCase() !== emailLower && u.id !== user.uid);
+          return [activeAcct, ...filtered];
+        });
+        syncDoc(setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(activeAcct), { merge: true }), 'sync google user');
+
+        if (activeAcct.role === 'CO') setActivePage('co_dashboard');
+        else if (activeAcct.role === 'Offr') setActivePage('offr_dashboard');
+        else if (activeAcct.role === 'RSM') setActivePage('rsm_dashboard');
+        else if (activeAcct.role === 'Admin') setActivePage('admin_panel');
+        else if (isBsmRole(activeAcct.role)) setActivePage('battery_dashboard');
+        else setActivePage('main_dashboard');
+
+        showNotification(`স্বাগতম! ${activeAcct.rank} ${activeAcct.name} (${activeAcct.role}) হিসেবে সফলভাবে লগইন হয়েছে।`);
+        addAuditLog('Google Auth Login', `User approved & authenticated: ${user.email}`, 'SECURITY');
+        return { success: true };
+      }
+
+      // If NOT approved: Register request and show waiting approval screen
+      const newReq: GoogleAccessRequest = {
+        id: user.uid,
+        email: user.email,
+        name: user.displayName || user.email.split('@')[0],
+        photoURL: user.photoURL || undefined,
+        requestedAt: new Date().toISOString(),
+        status: existingReq?.status === 'rejected' ? 'rejected' : 'pending',
+      };
+
+      setAccessRequests((prev) => {
+        const filtered = prev.filter((r) => r.email.toLowerCase() !== emailLower && r.id !== user.uid);
+        return [newReq, ...filtered];
+      });
+      syncDoc(setDoc(doc(db, 'access_requests', user.uid), sanitizeForFirestore(newReq), { merge: true }), 'save access request');
+
+      const pendingObj = {
+        email: user.email,
+        name: user.displayName || user.email.split('@')[0],
+        photoURL: user.photoURL || undefined,
+        uid: user.uid,
+      };
+      setPendingGoogleUser(pendingObj);
+      localStorage.setItem('10med_pending_google_user', JSON.stringify(pendingObj));
+      setIsAuthenticated(false);
+
+      showNotification('আপনার গুগল অ্যাকাউন্টটি ওনারের অনুমোদনের অপেক্ষায় রয়েছে।');
+      return {
+        success: false,
+        isPending: true,
+        code: 'auth/pending-approval',
+        error: 'আপনার গুগল অ্যাকাউন্টটি এখনো রেজিমেন্ট ওনার দ্বারা অনুমোদিত হয়নি। ওনারের নিকট অনুমোদনের অনুরোধ পাঠানো হয়েছে।',
+      };
     } catch (err: any) {
       const code = err?.code || 'auth/unknown';
       const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -2216,6 +2448,295 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         error: err?.message || 'Authentication failed',
       };
     }
+  };
+
+  const approveGoogleRequest = async (
+    requestId: string,
+    role: Role,
+    rank: string,
+    name: string,
+    battery?: Battery
+  ) => {
+    const targetReq = accessRequests.find((r) => r.id === requestId);
+    if (!targetReq) return;
+
+    const assignedBat = battery || (isBsmRole(role) ? ((role.split(' ')[0] + ' Bty') as Battery) : 'HQ Bty');
+    const updatedReq: GoogleAccessRequest = {
+      ...targetReq,
+      name: name || targetReq.name,
+      status: 'approved',
+      assignedRole: role,
+      assignedRank: rank,
+      assignedBattery: assignedBat,
+      reviewedBy: currentUser.email || 'Owner',
+      reviewedAt: new Date().toISOString(),
+    };
+
+    setAccessRequests((prev) => prev.map((r) => (r.id === requestId ? updatedReq : r)));
+    syncDoc(setDoc(doc(db, 'access_requests', requestId), sanitizeForFirestore(updatedReq), { merge: true }), 'approve request');
+
+    const approvedUser: UserAccount = {
+      id: requestId,
+      username: targetReq.email.split('@')[0],
+      name: name || targetReq.name,
+      rank: rank,
+      role: role,
+      assignedBattery: assignedBat,
+      assignedBatteries:
+        role === 'Admin' || role === 'CO' || role === 'Offr' || role === 'RSM'
+          ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+          : [assignedBat],
+      email: targetReq.email,
+      avatar: targetReq.photoURL,
+      isApproved: true,
+      approvedBy: currentUser.email || 'Owner',
+      approvedAt: new Date().toISOString(),
+      lastLogin: 'Never',
+    };
+
+    setUsersList((prev) => {
+      const filtered = prev.filter((u) => u.email?.toLowerCase() !== targetReq.email.toLowerCase() && u.id !== requestId);
+      return [approvedUser, ...filtered];
+    });
+    syncDoc(setDoc(doc(db, 'users', requestId), sanitizeForFirestore(approvedUser), { merge: true }), 'add approved user');
+
+    showNotification(`গুগল অ্যাকাউন্ট (${targetReq.email}) সফলভাবে অনুমোদিত হয়েছে। পদবি: ${rank}, রোল: ${role}`);
+    addAuditLog('Owner Approval', `Owner approved Google user ${targetReq.email} as ${rank} (${role})`, 'SECURITY');
+  };
+
+  const rejectGoogleRequest = async (requestId: string) => {
+    const targetReq = accessRequests.find((r) => r.id === requestId);
+    if (!targetReq) return;
+
+    const updatedReq: GoogleAccessRequest = {
+      ...targetReq,
+      status: 'rejected',
+      reviewedBy: currentUser.email || 'Owner',
+      reviewedAt: new Date().toISOString(),
+    };
+
+    setAccessRequests((prev) => prev.map((r) => (r.id === requestId ? updatedReq : r)));
+    syncDoc(setDoc(doc(db, 'access_requests', requestId), sanitizeForFirestore(updatedReq), { merge: true }), 'reject request');
+
+    setUsersList((prev) =>
+      prev.map((u) => (u.email?.toLowerCase() === targetReq.email.toLowerCase() ? { ...u, isApproved: false } : u))
+    );
+
+    showNotification(`গুগল অ্যাকাউন্ট (${targetReq.email})-এর অনুরোধ প্রত্যাখ্যান করা হয়েছে।`);
+    addAuditLog('Owner Rejection', `Owner rejected Google user ${targetReq.email}`, 'SECURITY');
+  };
+
+  const preApproveGoogleUser = async (
+    email: string,
+    name: string,
+    rank: string,
+    role: Role,
+    battery?: Battery
+  ) => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      showNotification('অনুগ্রহ করে সঠিক জিমেইল অ্যাড্রেস লিখুন।');
+      return;
+    }
+
+    const assignedBat = battery || (isBsmRole(role) ? ((role.split(' ')[0] + ' Bty') as Battery) : 'HQ Bty');
+    const newId = `approved_${Date.now()}`;
+    const approvedUser: UserAccount = {
+      id: newId,
+      username: cleanEmail.split('@')[0],
+      name: name.trim() || cleanEmail.split('@')[0],
+      rank: rank,
+      role: role,
+      assignedBattery: assignedBat,
+      assignedBatteries:
+        role === 'Admin' || role === 'CO' || role === 'Offr' || role === 'RSM'
+          ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+          : [assignedBat],
+      email: cleanEmail,
+      isApproved: true,
+      approvedBy: currentUser.email || 'Owner',
+      approvedAt: new Date().toISOString(),
+      lastLogin: 'Never',
+    };
+
+    setUsersList((prev) => {
+      const filtered = prev.filter((u) => u.email?.toLowerCase() !== cleanEmail);
+      return [approvedUser, ...filtered];
+    });
+    syncDoc(setDoc(doc(db, 'users', newId), sanitizeForFirestore(approvedUser), { merge: true }), 'pre-approve user');
+
+    const preApprovedReq: GoogleAccessRequest = {
+      id: newId,
+      email: cleanEmail,
+      name: name.trim() || cleanEmail.split('@')[0],
+      requestedAt: new Date().toISOString(),
+      status: 'approved',
+      assignedRole: role,
+      assignedRank: rank,
+      assignedBattery: assignedBat,
+      reviewedBy: currentUser.email || 'Owner',
+      reviewedAt: new Date().toISOString(),
+    };
+    setAccessRequests((prev) => {
+      const filtered = prev.filter((r) => r.email.toLowerCase() !== cleanEmail);
+      return [preApprovedReq, ...filtered];
+    });
+    syncDoc(setDoc(doc(db, 'access_requests', newId), sanitizeForFirestore(preApprovedReq), { merge: true }), 'pre-approve request');
+
+    showNotification(`জিমেইল (${cleanEmail}) সফলভাবে অগ্রিম অনুমোদন করা হয়েছে।`);
+    addAuditLog('Pre-Approve Google Email', `Owner pre-approved ${cleanEmail} as ${rank} (${role})`, 'SECURITY');
+  };
+
+  const revokeGoogleUserApproval = async (userIdOrEmail: string) => {
+    const clean = userIdOrEmail.toLowerCase();
+    setUsersList((prev) =>
+      prev.map((u) => {
+        if (u.id === userIdOrEmail || u.email?.toLowerCase() === clean) {
+          return { ...u, isApproved: false };
+        }
+        return u;
+      })
+    );
+    setAccessRequests((prev) =>
+      prev.map((r) => {
+        if (r.id === userIdOrEmail || r.email.toLowerCase() === clean) {
+          return { ...r, status: 'rejected' };
+        }
+        return r;
+      })
+    );
+    showNotification(`ব্যবহারকারীর অ্যাক্সেস অনুমোদন প্রত্যাহার করা হয়েছে।`);
+    addAuditLog('Revoke Google Access', `Access revoked for ${userIdOrEmail}`, 'SECURITY');
+  };
+
+  const checkPendingApprovalStatus = async (): Promise<boolean> => {
+    if (!pendingGoogleUser?.email) return false;
+    const emailLower = pendingGoogleUser.email.toLowerCase();
+
+    if (OWNER_EMAILS.some((o) => o.toLowerCase() === emailLower)) {
+      const ownerAcct: UserAccount = {
+        id: pendingGoogleUser.uid || 'u-owner',
+        username: 'owner',
+        name: pendingGoogleUser.name || 'Regiment Owner',
+        rank: 'Owner / Admin',
+        role: 'Admin',
+        assignedBattery: 'HQ Bty',
+        assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+        email: pendingGoogleUser.email,
+        avatar: pendingGoogleUser.photoURL,
+        isApproved: true,
+        approvedBy: 'System / Owner',
+        approvedAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+      };
+      setCurrentUserState(ownerAcct);
+      setRealUser(ownerAcct);
+      setIsAuthenticated(true);
+      setPendingGoogleUser(null);
+      localStorage.removeItem('10med_pending_google_user');
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(ownerAcct));
+      localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(ownerAcct));
+      localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+      setActivePage('admin_panel');
+      showNotification('ওনার হিসেবে প্রবেশাধিকার উন্মুক্ত করা হয়েছে!');
+      return true;
+    }
+
+    try {
+      if (pendingGoogleUser.uid) {
+        const docSnap = await getDocFromServer(doc(db, 'access_requests', pendingGoogleUser.uid));
+        if (docSnap.exists()) {
+          const reqData = docSnap.data() as GoogleAccessRequest;
+          if (reqData.status === 'approved') {
+            const assignedBat = reqData.assignedBattery || 'HQ Bty';
+            const approvedAcct: UserAccount = {
+              id: pendingGoogleUser.uid,
+              username: pendingGoogleUser.email.split('@')[0],
+              name: reqData.name || pendingGoogleUser.name || 'Authorized Personnel',
+              rank: reqData.assignedRank || 'Capt',
+              role: reqData.assignedRole || 'Offr',
+              assignedBattery: assignedBat,
+              assignedBatteries:
+                reqData.assignedRole === 'CO' || reqData.assignedRole === 'Admin' || reqData.assignedRole === 'Offr' || reqData.assignedRole === 'RSM'
+                  ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+                  : [assignedBat],
+              email: pendingGoogleUser.email,
+              avatar: pendingGoogleUser.photoURL,
+              isApproved: true,
+              approvedBy: reqData.reviewedBy || 'Owner',
+              approvedAt: reqData.reviewedAt || new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            };
+            setCurrentUserState(approvedAcct);
+            setRealUser(approvedAcct);
+            setIsAuthenticated(true);
+            setPendingGoogleUser(null);
+            localStorage.removeItem('10med_pending_google_user');
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(approvedAcct));
+            localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(approvedAcct));
+            localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+
+            if (approvedAcct.role === 'CO') setActivePage('co_dashboard');
+            else if (approvedAcct.role === 'Offr') setActivePage('offr_dashboard');
+            else if (approvedAcct.role === 'RSM') setActivePage('rsm_dashboard');
+            else if (approvedAcct.role === 'Admin') setActivePage('admin_panel');
+            else if (isBsmRole(approvedAcct.role)) setActivePage('battery_dashboard');
+            else setActivePage('main_dashboard');
+
+            showNotification('আপনার অ্যাকাউন্টটি ওনার কর্তৃক অনুমোদিত হয়েছে! সিস্টেমে স্বাগতম।');
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch doc from server:', e);
+    }
+
+    const localReq = accessRequests.find((r) => r.email.toLowerCase() === emailLower);
+    const localApprovedUser = usersList.find((u) => u.email?.toLowerCase() === emailLower && u.isApproved !== false);
+
+    if (localApprovedUser || localReq?.status === 'approved') {
+      const assignedRole = localApprovedUser?.role || localReq?.assignedRole || 'Offr';
+      const assignedRank = localApprovedUser?.rank || localReq?.assignedRank || 'Capt';
+      const assignedBat = localApprovedUser?.assignedBattery || localReq?.assignedBattery || 'HQ Bty';
+      const approvedAcct: UserAccount = {
+        id: localApprovedUser?.id || localReq?.id || pendingGoogleUser.uid || `u-${Date.now()}`,
+        username: pendingGoogleUser.email.split('@')[0],
+        name: localApprovedUser?.name || localReq?.name || pendingGoogleUser.name || 'Authorized Personnel',
+        rank: assignedRank,
+        role: assignedRole,
+        assignedBattery: assignedBat,
+        assignedBatteries:
+          assignedRole === 'CO' || assignedRole === 'Admin' || assignedRole === 'Offr' || assignedRole === 'RSM'
+            ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+            : [assignedBat],
+        email: pendingGoogleUser.email,
+        avatar: pendingGoogleUser.photoURL,
+        isApproved: true,
+        lastLogin: new Date().toISOString(),
+      };
+      setCurrentUserState(approvedAcct);
+      setRealUser(approvedAcct);
+      setIsAuthenticated(true);
+      setPendingGoogleUser(null);
+      localStorage.removeItem('10med_pending_google_user');
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(approvedAcct));
+      localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(approvedAcct));
+      localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+
+      if (approvedAcct.role === 'CO') setActivePage('co_dashboard');
+      else if (approvedAcct.role === 'Offr') setActivePage('offr_dashboard');
+      else if (approvedAcct.role === 'RSM') setActivePage('rsm_dashboard');
+      else if (approvedAcct.role === 'Admin') setActivePage('admin_panel');
+      else if (isBsmRole(approvedAcct.role)) setActivePage('battery_dashboard');
+      else setActivePage('main_dashboard');
+
+      showNotification('আপনার অ্যাকাউন্টটি অনুমোদিত হয়েছে! সিস্টেমে স্বাগতম।');
+      return true;
+    }
+
+    showNotification('আপনার অ্যাকাউন্টটি এখনও ওনারের অনুমোদনের অপেক্ষায় রয়েছে।');
+    return false;
   };
 
   const loginWithCredentials = (
@@ -2313,6 +2834,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setIsAuthenticated(false);
     setRealUser(null);
+    setPendingGoogleUser(null);
+    localStorage.removeItem('10med_pending_google_user');
     localStorage.removeItem(STORAGE_KEYS.REAL_USER);
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
@@ -3206,6 +3729,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cloudPermissionDenied,
         loginWithGoogle,
         logout,
+
+        // Owner-Approval Google Auth
+        isOwnerUser,
+        accessRequests,
+        pendingGoogleUser,
+        approveGoogleRequest,
+        rejectGoogleRequest,
+        preApproveGoogleUser,
+        revokeGoogleUserApproval,
+        clearPendingGoogleUser,
+        checkPendingApprovalStatus,
       }}
     >
       {children}
