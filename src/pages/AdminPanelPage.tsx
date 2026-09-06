@@ -8,6 +8,11 @@ import { ParadeStateManagementTab } from '../components/admin/ParadeStateManagem
 import { AuthEstablishmentTab } from '../components/admin/AuthEstablishmentTab';
 import { SubUnitsAndRanksTab } from '../components/admin/SubUnitsAndRanksTab';
 import { CalculationRulesTab } from '../components/admin/CalculationRulesTab';
+import { GoogleWhitelistTab } from '../components/admin/GoogleWhitelistTab';
+import { SystemSettingsTab } from '../components/admin/SystemSettingsTab';
+import { MasterDatabaseHubTab } from '../components/admin/MasterDatabaseHubTab';
+import { PersonnelDatabaseTab } from '../components/admin/PersonnelDatabaseTab';
+import { DutyDatabaseTab } from '../components/admin/DutyDatabaseTab';
 import {
   Settings,
   Shield,
@@ -36,6 +41,7 @@ import {
   Calculator,
   Award,
   Cloud,
+  Clock,
 } from 'lucide-react';
 
 export const AdminPanelPage: React.FC = () => {
@@ -58,17 +64,20 @@ export const AdminPanelPage: React.FC = () => {
     isSimulating,
     exitSimulation,
     isGuest,
+    accessRequests,
   } = useApp();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<
-    'CATEGORIES' | 'PARADE_STATES' | 'ESTABLISHMENT' | 'SUB_UNITS' | 'CALCULATIONS' | 'ROLES' | 'AUDIT' | 'LOGO' | 'FIREBASE'
-  >('CATEGORIES');
+    'DATABASE_HUB' | 'PERSONNEL_DB' | 'DUTY_DB' | 'SYSTEM_SETTINGS' | 'CATEGORIES' | 'PARADE_STATES' | 'ESTABLISHMENT' | 'SUB_UNITS' | 'CALCULATIONS' | 'ROLES' | 'GOOGLE_WHITELIST' | 'AUDIT' | 'LOGO' | 'FIREBASE'
+  >('DATABASE_HUB');
   const [userSearch, setUserSearch] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('All');
   const [isUserModalOpen, setIsUserModalOpen] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserAccount | null>(null);
+
+  const pendingGoogleCount = accessRequests.filter((r) => r.status === 'pending').length;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -234,6 +243,54 @@ export const AdminPanelPage: React.FC = () => {
         {/* Tab Navigation */}
         <div className="flex items-center gap-1.5 pt-2 border-t border-slate-800/80 flex-wrap">
           <button
+            onClick={() => setActiveTab('DATABASE_HUB')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'DATABASE_HUB'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/50'
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5 text-amber-400" />
+            <span>Master Database Hub (সকল ডাটাবেজ হাব)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('PERSONNEL_DB')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'PERSONNEL_DB'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/50'
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-rose-400" />
+            <span>Personnel Nominal Roll (পার্সোনেল ডাটাবেজ)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('DUTY_DB')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'DUTY_DB'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/50'
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-orange-400" />
+            <span>Duty & Security Board (ডিউটি ডাটাবেজ)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('SYSTEM_SETTINGS')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'SYSTEM_SETTINGS'
+                ? 'bg-rose-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white bg-slate-900'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Master System Controls (সবকিছু নিয়ন্ত্রণ)</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('CATEGORIES')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'CATEGORIES'
@@ -306,6 +363,23 @@ export const AdminPanelPage: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('GOOGLE_WHITELIST')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'GOOGLE_WHITELIST'
+                ? 'bg-rose-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white bg-slate-900'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Google Whitelist & Approvals</span>
+            {pendingGoogleCount > 0 && (
+              <span className="px-1.5 py-0.2 text-[10px] bg-amber-500 text-slate-950 font-black rounded-full animate-pulse">
+                {pendingGoogleCount}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('LOGO')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'LOGO'
@@ -342,6 +416,20 @@ export const AdminPanelPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Master Database Operations Hub Tab */}
+      {activeTab === 'DATABASE_HUB' && (
+        <MasterDatabaseHubTab onNavigateTab={(tab) => setActiveTab(tab as any)} />
+      )}
+
+      {/* Regimental Personnel Database Tab */}
+      {activeTab === 'PERSONNEL_DB' && <PersonnelDatabaseTab />}
+
+      {/* Duty Allocation & Security Board Database Tab */}
+      {activeTab === 'DUTY_DB' && <DutyDatabaseTab />}
+
+      {/* Master System Controls Tab */}
+      {activeTab === 'SYSTEM_SETTINGS' && <SystemSettingsTab />}
 
       {/* Dynamic Categories Tab */}
       {activeTab === 'CATEGORIES' && <CategoryManagementTab />}
@@ -504,10 +592,17 @@ export const AdminPanelPage: React.FC = () => {
                           {/* Username & Auth */}
                           <td className="p-3 font-mono">
                             <div className="text-slate-200 font-semibold">@{u.username}</div>
-                            <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                              <Lock className="w-2.5 h-2.5 text-slate-400" />
-                              <span>Passkey Set</span>
-                            </div>
+                            {u.email ? (
+                              <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5 truncate max-w-[170px]" title={u.email}>
+                                <Cloud className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="truncate">{u.email}</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                <Lock className="w-2.5 h-2.5 text-slate-400" />
+                                <span>Passkey Set</span>
+                              </div>
+                            )}
                           </td>
 
                           {/* Service ID */}
@@ -585,6 +680,9 @@ export const AdminPanelPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Google Whitelist & Approvals Tab */}
+      {activeTab === 'GOOGLE_WHITELIST' && <GoogleWhitelistTab />}
 
       {/* Tab 2: Unit Logo Management (Strictly Admin Authorized) */}
       {activeTab === 'LOGO' && (

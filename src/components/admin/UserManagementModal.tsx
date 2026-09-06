@@ -21,6 +21,8 @@ import {
   Camera,
   Upload,
   Trash2,
+  Cloud,
+  Mail,
 } from 'lucide-react';
 
 interface UserManagementModalProps {
@@ -145,6 +147,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [snkNo, setSnkNo] = useState('');
   const [assignedBatteries, setAssignedBatteries] = useState<Battery[]>(['P Bty']);
   const [avatar, setAvatar] = useState<string | undefined>(undefined);
+  const [email, setEmail] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
@@ -155,6 +158,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       setAccessLevel(editUser.accessLevel || '');
       setUsername(editUser.username || '');
       setPassword(editUser.password || '');
+      setEmail(editUser.email || '');
       setSnkNo(editUser.snkNo || '');
       setAvatar(editUser.avatar || undefined);
       if (editUser.assignedBatteries && editUser.assignedBatteries.length > 0) {
@@ -174,6 +178,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       setAccessLevel('Regimental Officer Access & Battery Review');
       setUsername('');
       setPassword('');
+      setEmail('');
       setSnkNo('');
       setAvatar(undefined);
       setAssignedBatteries(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty']);
@@ -351,6 +356,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       password: password.trim() || (editUser?.password ?? ''),
       snkNo: snkNo.trim() || undefined,
       avatar: avatar || undefined,
+      email: email.trim() ? email.trim().toLowerCase() : undefined,
+      isApproved: email.trim() ? true : (editUser?.isApproved ?? true),
       assignedBatteries,
       assignedBattery: assignedBatteries[0] || 'P Bty',
     };
@@ -664,6 +671,30 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 <p className="text-[10px] text-rose-400 mt-1">{errors.password}</p>
               )}
             </div>
+          </div>
+
+          {/* Row 4.5: Google Account Email (Gmail) for 1-Click Authorized Sign-In */}
+          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Authorized Google Account (Gmail)</span>
+              </label>
+              <span className="text-[10px] text-emerald-400 font-mono">1-Click Google Sign-In</span>
+            </div>
+            <div className="relative">
+              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. officer.10med@gmail.com (Optional)"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              এখানে জিমেইল যুক্ত রাখলে কর্মকর্তা সরাসরি "Sign in with Google" দিয়ে অনুমোদিত হয়ে লগইন করতে পারবেন।
+            </p>
           </div>
 
           {/* Row 5: Assigned Battery Access (Multi-Battery Assignment) */}

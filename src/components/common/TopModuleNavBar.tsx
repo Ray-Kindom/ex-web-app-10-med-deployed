@@ -17,6 +17,7 @@ export const TopModuleNavBar: React.FC = () => {
     currentUser,
     setDailyParadeModalOpen,
     isRealAdmin,
+    systemSettings,
   } = useApp();
 
   const role = currentUser.role;
@@ -150,7 +151,8 @@ export const TopModuleNavBar: React.FC = () => {
     });
   }
 
-  if (isRealAdmin && !tabs.some((t) => t.id === 'admin_panel')) {
+  const canAccessAdmin = isRealAdmin || Boolean(systemSettings?.modulePermissions?.admin_panel?.includes(role));
+  if (canAccessAdmin && !tabs.some((t) => t.id === 'admin_panel')) {
     tabs.push({
       id: 'admin_panel',
       label: 'Admin Panel',
@@ -159,10 +161,21 @@ export const TopModuleNavBar: React.FC = () => {
     });
   }
 
+  const displayTabs = tabs.filter((tab) => {
+    if (isRealAdmin && tab.id === 'admin_panel') return true;
+    if (systemSettings?.modulePermissions) {
+      const allowedRoles = systemSettings.modulePermissions[tab.id as keyof typeof systemSettings.modulePermissions];
+      if (Array.isArray(allowedRoles)) {
+        return allowedRoles.includes(role);
+      }
+    }
+    return true;
+  });
+
   return (
     <div className="sticky top-12 sm:top-13 z-20 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-4 py-1 mb-2">
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[1700px] mx-auto">
-        {tabs.map((tab) => {
+        {displayTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activePage === tab.id;
           return (

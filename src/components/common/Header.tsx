@@ -40,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
     isGuest,
     isSimulating,
     exitSimulation,
+    systemSettings,
   } = useApp();
 
   const [militaryTime, setMilitaryTime] = useState<string>('');
@@ -154,14 +155,19 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="hidden sm:flex flex-col">
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-slate-100 group-hover:text-white tracking-wide text-xs sm:text-sm font-sans leading-none">
-                    10 Med Regt Arty
+                    {systemSettings?.unitName || '10 Med Regt Arty'}
                   </span>
                   <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded">
-                    Born Destroyer
+                    {systemSettings?.unitMotto || 'Born Destroyer'}
                   </span>
+                  {systemSettings?.maintenanceMode && (
+                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded animate-pulse">
+                      Maintenance Mode
+                    </span>
+                  )}
                 </div>
                 <span className="text-[10px] text-slate-400 font-medium">
-                  Smart Parade State System
+                  {systemSettings?.tagline || 'Smart Parade State System'}
                 </span>
               </div>
             </div>

@@ -281,6 +281,10 @@ export interface ParadeDutyAssignment {
   sessionType: string;
   assignedAt?: string;
   assignedBy?: string;
+  location?: string;
+  dutyTime?: string;
+  weaponOrAmmo?: string;
+  remarks?: string;
 }
 
 export interface DateWiseParadeRecord {
@@ -476,4 +480,127 @@ export interface CalculationConfig {
   lastUpdated?: string;
   updatedBy?: string;
 }
+
+export interface SystemSettings {
+  unitName: string;
+  unitMotto: string;
+  tagline: string;
+  station: string;
+  coName?: string;
+  supportContact?: string;
+  allowGuestMode: boolean;
+  allowPasskeyLogin: boolean;
+  maintenanceMode: boolean;
+  maintenanceMessage?: string;
+  requireGoogleApproval: boolean;
+  modulePermissions?: Record<string, Record<string, boolean>>;
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
+export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
+  unitName: '10 MED REGT ARTY',
+  unitMotto: 'Born Destroyer',
+  tagline: 'Smart Dashboard & Parade State System',
+  station: 'Savar Cantonment',
+  coName: 'Commanding Officer',
+  supportContact: 'Regimental Headquarters',
+  allowGuestMode: true,
+  allowPasskeyLogin: true,
+  maintenanceMode: false,
+  maintenanceMessage: 'রেজিমেন্টের সিস্টেম আপডেট ও সিকিউরিটি রক্ষণাবেক্ষণ চলছে। শুধুমাত্র অথরাইজড অ্যাডমিনদের প্রবেশাধিকার রয়েছে।',
+  requireGoogleApproval: true,
+  modulePermissions: {
+    Admin: {
+      main_dashboard: true,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: true,
+      roll_simulator: true,
+      out_of_unit: true,
+      admin_panel: true,
+    },
+    CO: {
+      main_dashboard: true,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: true,
+      roll_simulator: true,
+      out_of_unit: true,
+      admin_panel: false,
+    },
+    Offr: {
+      main_dashboard: true,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: true,
+      roll_simulator: true,
+      out_of_unit: true,
+      admin_panel: false,
+    },
+    RSM: {
+      main_dashboard: true,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: true,
+      roll_simulator: true,
+      out_of_unit: true,
+      admin_panel: false,
+    },
+    'P BSM': {
+      main_dashboard: false,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: false,
+      roll_simulator: false,
+      out_of_unit: true,
+      admin_panel: false,
+    },
+    'Q BSM': {
+      main_dashboard: false,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: false,
+      roll_simulator: false,
+      out_of_unit: true,
+      admin_panel: false,
+    },
+    'R BSM': {
+      main_dashboard: false,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: false,
+      roll_simulator: false,
+      out_of_unit: true,
+      admin_panel: false,
+    },
+    'HQ BSM': {
+      main_dashboard: false,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: false,
+      roll_simulator: false,
+      out_of_unit: true,
+      admin_panel: false,
+    },
+    Guest: {
+      main_dashboard: true,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: true,
+      roll_simulator: true,
+      out_of_unit: true,
+      admin_panel: true,
+    },
+  },
+};
 
