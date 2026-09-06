@@ -101,7 +101,9 @@ export const GoogleWhitelistTab: React.FC = () => {
     approvedAccountsMap.set(ownerEmail.toLowerCase(), {
       email: ownerEmail.toLowerCase(),
       name:
-        ownerEmail.toLowerCase() === '10medclk@gmail.com'
+        ownerEmail.toLowerCase() === 'int10med2026@gmail.com'
+          ? 'Regimental System Owner'
+          : ownerEmail.toLowerCase() === '10medclk@gmail.com'
           ? 'Regimental Head Clerk'
           : ownerEmail.toLowerCase() === 'mdraiyan1512@gmail.com'
           ? 'Chief System Architect'

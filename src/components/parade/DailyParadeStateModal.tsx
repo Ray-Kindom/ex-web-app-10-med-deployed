@@ -1361,12 +1361,13 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                 {isBsm && (
                   <button
                     onClick={() => {
-                      const bty = activeTab === 'Consolidated' ? ((currentUser.assignedBattery as Battery) || 'P Bty') : activeTab;
+                      const bty = activeTab === 'Consolidated' ? ((currentUser.assignedBattery as Battery) || 'P Bty') : (activeTab as Battery);
                       const btyCounts: Record<string, ParadePointCount> = {};
                       visiblePoints.forEach((pt) => {
                         btyCounts[pt.id] = countsBuffer[pt.id]?.[bty] || pt.counts[bty] || { offr: 0, jco: 0, or: 0 };
                       });
                       saveParadeRecordCounts(activeDate, sessionType, bty, btyCounts, 'Submitted');
+                      showNotification(`✅ ${bty} ${sessionType} স্টেট RSM-এর কাছে দাখিল ও সফলভাবে সংরক্ষিত হয়েছে।`);
                       onClose();
                     }}
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
@@ -1379,7 +1380,13 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                 {isRsmOrAdmin && activeTab !== 'Consolidated' && (
                   <button
                     onClick={() => {
-                      confirmBatteryParadeRecord(activeDate, sessionType, activeTab as Battery);
+                      const bty = activeTab as Battery;
+                      const btyCounts: Record<string, ParadePointCount> = {};
+                      visiblePoints.forEach((pt) => {
+                        btyCounts[pt.id] = countsBuffer[pt.id]?.[bty] || pt.counts[bty] || { offr: 0, jco: 0, or: 0 };
+                      });
+                      saveParadeRecordCounts(activeDate, sessionType, bty, btyCounts, 'Confirmed');
+                      confirmBatteryParadeRecord(activeDate, sessionType, bty);
                     }}
                     className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
                   >
@@ -1391,6 +1398,13 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                 {isRsmOrAdmin && (
                   <button
                     onClick={() => {
+                      ALL_BATTERIES.forEach((bty) => {
+                        const btyCounts: Record<string, ParadePointCount> = {};
+                        visiblePoints.forEach((pt) => {
+                          btyCounts[pt.id] = countsBuffer[pt.id]?.[bty] || pt.counts[bty] || { offr: 0, jco: 0, or: 0 };
+                        });
+                        saveParadeRecordCounts(activeDate, sessionType, bty, btyCounts, 'Finalized');
+                      });
                       finalizeParadeType(activeDate, sessionType);
                       onClose();
                     }}
@@ -1403,13 +1417,21 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
 
                 <button
                   onClick={() => {
-                    showNotification('✅ Parade State Updated & Synchronized successfully.');
+                    ALL_BATTERIES.forEach((bty) => {
+                      const btyCounts: Record<string, ParadePointCount> = {};
+                      visiblePoints.forEach((pt) => {
+                        btyCounts[pt.id] = countsBuffer[pt.id]?.[bty] || pt.counts[bty] || { offr: 0, jco: 0, or: 0 };
+                      });
+                      const existing = getParadeRecord(activeDate, sessionType, bty);
+                      saveParadeRecordCounts(activeDate, sessionType, bty, btyCounts, existing.status);
+                    });
+                    showNotification(`✅ ${sessionType} প্যারেড স্টেট (${activeDate}) সফলভাবে সংরক্ষিত ও ক্লাউডে সিঙ্ক হয়েছে।`);
                     onClose();
                   }}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all border border-slate-700 cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
                 >
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span>Save Changes</span>
+                  <Check className="w-4 h-4 text-white" />
+                  <span>Save Changes / সংরক্ষণ করুন</span>
                 </button>
               </>
             )}

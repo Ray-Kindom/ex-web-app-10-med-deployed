@@ -66,6 +66,7 @@ import {
 } from '../lib/firebase';
 
 export const OWNER_EMAILS: string[] = [
+  'int10med2026@gmail.com',
   'mdraiyan1512@gmail.com',
   '10medclk@gmail.com',
   'backupray12145@gmail.com',
@@ -459,13 +460,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // isRealAdmin stays true for the genuine logged-in Administrator regardless of simulated role
   const isRealAdmin = !isGuest && Boolean(
     realUser?.role === 'Admin' ||
-    realUser?.email === '10medclk@gmail.com' ||
-    realUser?.email === 'mdraiyan1512@gmail.com' ||
-    realUser?.email === 'backupray12145@gmail.com' ||
+    (realUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === realUser.email!.toLowerCase())) ||
     realUser?.username?.toLowerCase() === 'admin' ||
-    (currentUser.email === '10medclk@gmail.com' && !realUser) ||
-    (currentUser.email === 'mdraiyan1512@gmail.com' && !realUser) ||
-    (currentUser.email === 'backupray12145@gmail.com' && !realUser) ||
+    (currentUser.email && OWNER_EMAILS.some((o) => o.toLowerCase() === currentUser.email!.toLowerCase()) && !realUser) ||
     (!realUser && currentUser.role === 'Admin')
   );
 
@@ -497,9 +494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isAdmin =
     !isGuest &&
     (currentUser.role === 'Admin' ||
-      currentUser.email === '10medclk@gmail.com' ||
-      currentUser.email === 'mdraiyan1512@gmail.com' ||
-      currentUser.email === 'backupray12145@gmail.com' ||
+      (currentUser.email && OWNER_EMAILS.some((o) => o.toLowerCase() === currentUser.email!.toLowerCase())) ||
       isRealAdmin);
   const isRSM = !isGuest && currentUser.role === 'RSM';
 
@@ -1960,8 +1955,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isAuthorizedAdmin =
       currentUser.role === 'Admin' ||
       isRealAdmin ||
-      firebaseUser?.email === '10medclk@gmail.com' ||
-      firebaseUser?.email === 'mdraiyan1512@gmail.com';
+      Boolean(firebaseUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === firebaseUser.email!.toLowerCase()));
 
     const handleSnapError = (err: any, col: string) => {
       if (err?.code === 'permission-denied' || String(err).includes('permission-denied')) {
@@ -2832,8 +2826,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (
         user.role === 'Admin' ||
         user.username.toLowerCase() === 'admin' ||
-        user.email === 'mdraiyan1512@gmail.com' ||
-        user.email === '10medclk@gmail.com'
+        (user.email && OWNER_EMAILS.some((o) => o.toLowerCase() === user.email!.toLowerCase()))
       ) {
         validPassword = 'admin123';
       } else if (user.role === 'Guest' || user.username.toLowerCase() === 'guest') {
