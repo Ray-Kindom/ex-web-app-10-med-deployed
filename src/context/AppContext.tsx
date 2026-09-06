@@ -65,12 +65,8 @@ import {
   OperationType,
 } from '../lib/firebase';
 
-export const OWNER_EMAILS: string[] = [
-  'int10med2026@gmail.com',
-  'mdraiyan1512@gmail.com',
-  '10medclk@gmail.com',
-  'backupray12145@gmail.com',
-];
+export const MASTER_ADMIN_EMAIL = 'int10med2026@gmail.com';
+export const OWNER_EMAILS: string[] = [MASTER_ADMIN_EMAIL];
 
 interface AppContextType {
   currentUser: UserAccount;
@@ -259,6 +255,7 @@ interface AppContextType {
   rejectGoogleRequest: (requestId: string) => Promise<void>;
   preApproveGoogleUser: (email: string, name: string, rank: string, role: Role, battery?: Battery) => Promise<void>;
   revokeGoogleUserApproval: (userIdOrEmail: string) => Promise<void>;
+  updateGoogleUserRole: (email: string, newRole: Role, newBattery?: Battery) => Promise<void>;
   checkPendingApprovalStatus: () => Promise<boolean>;
   isOwnerUser: boolean;
 
@@ -359,7 +356,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (
           u &&
           (u.role === 'Admin' ||
-            u.email === '10medclk@gmail.com' ||
+            (u.email && u.email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase()) ||
             u.username?.toLowerCase() === 'admin' ||
             u.role === 'Guest' ||
             u.username?.toLowerCase() === 'guest')
@@ -1865,19 +1862,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           let acct: UserAccount;
           if (isOwner) {
+            const roleToUse: Role = existingApproved?.role || approvedReq?.assignedRole || 'Admin';
+            const rankToUse: string = existingApproved?.rank || approvedReq?.assignedRank || 'Owner / Admin';
+            const batToUse: Battery = existingApproved?.assignedBattery || approvedReq?.assignedBattery || 'HQ Bty';
             acct = {
               id: user.uid,
-              username: 'owner',
-              name: user.displayName || 'Regiment Owner',
-              rank: 'Owner / Admin',
-              role: 'Admin',
-              assignedBattery: 'HQ Bty',
-              assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+              username: existingApproved?.username || 'owner',
+              name: existingApproved?.name || user.displayName || 'Regiment Owner',
+              rank: rankToUse,
+              role: roleToUse,
+              assignedBattery: batToUse,
+              assignedBatteries: existingApproved?.assignedBatteries || ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
               email: user.email,
-              avatar: user.photoURL || undefined,
+              avatar: user.photoURL || existingApproved?.avatar || undefined,
               isApproved: true,
               approvedBy: 'System / Owner',
-              approvedAt: new Date().toISOString(),
+              approvedAt: existingApproved?.approvedAt || new Date().toISOString(),
               lastLogin: new Date().toISOString(),
             };
           } else if (existingApproved) {
@@ -2374,18 +2374,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const isReqApproved = existingReq?.status === 'approved';
 
       if (isOwner || isExplicitlyApproved || isReqApproved) {
-        const userRole: Role = isOwner ? 'Admin' : (existingUser?.role || existingReq?.assignedRole || 'Offr');
-        const userRank: string = isOwner ? 'Owner / Admin' : (existingUser?.rank || existingReq?.assignedRank || 'Capt');
-        const userBattery: Battery = isOwner
-          ? 'HQ Bty'
-          : (existingUser?.assignedBattery || existingReq?.assignedBattery || 'HQ Bty');
+        const userRole: Role = existingUser?.role || existingReq?.assignedRole || (isOwner ? 'Admin' : 'Offr');
+        const userRank: string = existingUser?.rank || existingReq?.assignedRank || (isOwner ? 'Owner / Admin' : 'Capt');
+        const userBattery: Battery =
+          existingUser?.assignedBattery || existingReq?.assignedBattery || 'HQ Bty';
 
         const activeAcct: UserAccount = {
           id: user.uid,
           username: existingUser?.username || user.email.split('@')[0],
-          name: isOwner
-            ? (user.displayName || 'Regiment Owner')
-            : (existingUser?.name || existingReq?.name || user.displayName || 'Authorized Personnel'),
+          name:
+            existingUser?.name || existingReq?.name || user.displayName || (isOwner ? 'Regiment Owner' : 'Authorized Personnel'),
           rank: userRank,
           role: userRole,
           assignedBattery: userBattery,
@@ -2644,19 +2642,94 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('Revoke Google Access', `Access revoked for ${userIdOrEmail}`, 'SECURITY');
   };
 
+  const updateGoogleUserRole = async (email: string, newRole: Role, newBattery?: Battery) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const assignedBat =
+      newBattery || (isBsmRole(newRole) ? ((newRole.split(' ')[0] + ' Bty') as Battery) : 'HQ Bty');
+
+    setUsersList((prev) => {
+      const match = prev.find((u) => u.email?.toLowerCase() === cleanEmail);
+      if (match) {
+        const updated: UserAccount = {
+          ...match,
+          role: newRole,
+          assignedBattery: assignedBat,
+          assignedBatteries:
+            newRole === 'CO' || newRole === 'Admin' || newRole === 'Offr' || newRole === 'RSM'
+              ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+              : [assignedBat],
+        };
+        if (currentUser.email?.toLowerCase() === cleanEmail) {
+          setCurrentUserState(updated);
+          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
+        }
+        syncDoc(setDoc(doc(db, 'users', match.id), sanitizeForFirestore(updated), { merge: true }), 'update user role');
+        return prev.map((u) => (u.id === match.id ? updated : u));
+      } else {
+        const newId = `user_${Date.now()}`;
+        const newAcct: UserAccount = {
+          id: newId,
+          username: cleanEmail.split('@')[0],
+          name: cleanEmail.split('@')[0],
+          rank: newRole === 'Admin' ? 'Admin' : isBsmRole(newRole) ? 'Sgt' : 'Capt',
+          role: newRole,
+          assignedBattery: assignedBat,
+          assignedBatteries:
+            newRole === 'CO' || newRole === 'Admin' || newRole === 'Offr' || newRole === 'RSM'
+              ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+              : [assignedBat],
+          email: cleanEmail,
+          isApproved: true,
+          approvedBy: currentUser.email || 'Owner',
+          approvedAt: new Date().toISOString(),
+          lastLogin: 'Never',
+        };
+        if (currentUser.email?.toLowerCase() === cleanEmail) {
+          setCurrentUserState(newAcct);
+          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newAcct));
+        }
+        syncDoc(setDoc(doc(db, 'users', newId), sanitizeForFirestore(newAcct), { merge: true }), 'create user role');
+        return [newAcct, ...prev];
+      }
+    });
+
+    setAccessRequests((prev) =>
+      prev.map((r) => {
+        if (r.email.toLowerCase() === cleanEmail) {
+          const updatedReq: GoogleAccessRequest = {
+            ...r,
+            status: 'approved',
+            assignedRole: newRole,
+            assignedBattery: assignedBat,
+          };
+          syncDoc(setDoc(doc(db, 'access_requests', r.id), sanitizeForFirestore(updatedReq), { merge: true }), 'update req role');
+          return updatedReq;
+        }
+        return r;
+      })
+    );
+
+    showNotification(`গুগল ব্যবহারকারীর রোল পরিবর্তন করে "${newRole}" করা হয়েছে।`);
+    addAuditLog('Role Update', `Changed role for ${cleanEmail} to ${newRole}`, 'SECURITY');
+  };
+
   const checkPendingApprovalStatus = async (): Promise<boolean> => {
     if (!pendingGoogleUser?.email) return false;
     const emailLower = pendingGoogleUser.email.toLowerCase();
 
     if (OWNER_EMAILS.some((o) => o.toLowerCase() === emailLower)) {
+      const existing = usersList.find((u) => u.email?.toLowerCase() === emailLower);
+      const chosenRole: Role = existing?.role || 'Admin';
+      const chosenRank: string = existing?.rank || 'Owner / Admin';
+      const chosenBat: Battery = existing?.assignedBattery || 'HQ Bty';
       const ownerAcct: UserAccount = {
         id: pendingGoogleUser.uid || 'u-owner',
-        username: 'owner',
-        name: pendingGoogleUser.name || 'Regiment Owner',
-        rank: 'Owner / Admin',
-        role: 'Admin',
-        assignedBattery: 'HQ Bty',
-        assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+        username: existing?.username || 'owner',
+        name: existing?.name || pendingGoogleUser.name || 'Regiment Owner',
+        rank: chosenRank,
+        role: chosenRole,
+        assignedBattery: chosenBat,
+        assignedBatteries: existing?.assignedBatteries || ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
         email: pendingGoogleUser.email,
         avatar: pendingGoogleUser.photoURL,
         isApproved: true,
@@ -3298,8 +3371,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((u) => {
         if (u.id === id) {
           finalUpdated = { ...u, ...updated };
-          if (currentUser.id === id) {
+          if (currentUser.id === id || (currentUser.email && u.email && currentUser.email.toLowerCase() === u.email.toLowerCase())) {
             setCurrentUserState(finalUpdated);
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(finalUpdated));
           }
           return finalUpdated;
         }
@@ -3311,6 +3385,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Sync to Firestore
     if (finalUpdated) {
       syncDoc(setDoc(doc(db, 'users', id), sanitizeForFirestore(finalUpdated), { merge: true }), 'update user');
+      const uEmail = (finalUpdated as UserAccount).email;
+      if (uEmail) {
+        setAccessRequests((prev) =>
+          prev.map((r) => {
+            if (r.email.toLowerCase() === uEmail.toLowerCase()) {
+              const updatedReq: GoogleAccessRequest = {
+                ...r,
+                assignedRole: (finalUpdated as UserAccount).role,
+                assignedRank: (finalUpdated as UserAccount).rank,
+                assignedBattery: (finalUpdated as UserAccount).assignedBattery,
+              };
+              syncDoc(setDoc(doc(db, 'access_requests', r.id), sanitizeForFirestore(updatedReq), { merge: true }), 'sync user to req');
+              return updatedReq;
+            }
+            return r;
+          })
+        );
+      }
     }
   };
 
@@ -3998,6 +4090,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rejectGoogleRequest,
         preApproveGoogleUser,
         revokeGoogleUserApproval,
+        updateGoogleUserRole,
         clearPendingGoogleUser,
         checkPendingApprovalStatus,
 

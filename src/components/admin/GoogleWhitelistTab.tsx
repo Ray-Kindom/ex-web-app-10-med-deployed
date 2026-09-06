@@ -57,6 +57,7 @@ export const GoogleWhitelistTab: React.FC = () => {
     rejectGoogleRequest,
     preApproveGoogleUser,
     revokeGoogleUserApproval,
+    updateGoogleUserRole,
     showNotification,
   } = useApp();
 
@@ -96,23 +97,16 @@ export const GoogleWhitelistTab: React.FC = () => {
     }
   >();
 
-  // 1. Add Master Owners
+  // 1. Add Master Owner (Single Master Admin: int10med2026@gmail.com)
   OWNER_EMAILS.forEach((ownerEmail) => {
     approvedAccountsMap.set(ownerEmail.toLowerCase(), {
       email: ownerEmail.toLowerCase(),
-      name:
-        ownerEmail.toLowerCase() === 'int10med2026@gmail.com'
-          ? 'Regimental System Owner'
-          : ownerEmail.toLowerCase() === '10medclk@gmail.com'
-          ? 'Regimental Head Clerk'
-          : ownerEmail.toLowerCase() === 'mdraiyan1512@gmail.com'
-          ? 'Chief System Architect'
-          : 'Regiment Master Owner',
+      name: 'Regimental Master Admin',
       rank: 'Owner / Admin',
       role: 'Admin',
       battery: 'All Btys',
       isOwner: true,
-      approvedBy: 'System Core',
+      approvedBy: 'Permanent Master Owner',
       approvedAt: 'Permanent Master',
       source: 'owner',
     });
@@ -512,21 +506,28 @@ export const GoogleWhitelistTab: React.FC = () => {
                     </td>
 
                     <td className="p-3">
-                      <span
-                        className={`font-bold text-xs font-mono px-2 py-0.5 rounded border ${
+                      <select
+                        value={acc.role}
+                        onChange={(e) => updateGoogleUserRole(acc.email, e.target.value as Role)}
+                        className={`font-bold text-xs font-mono px-2 py-1 rounded border cursor-pointer focus:outline-none transition-colors ${
                           acc.role === 'Admin'
-                            ? 'bg-rose-950/50 text-rose-300 border-rose-600/40'
+                            ? 'bg-rose-950/80 text-rose-300 border-rose-600/60 focus:border-rose-400'
                             : acc.role === 'CO'
-                            ? 'bg-amber-950/50 text-amber-300 border-amber-600/40'
+                            ? 'bg-amber-950/80 text-amber-300 border-amber-600/60 focus:border-amber-400'
                             : acc.role === 'Offr'
-                            ? 'bg-blue-950/50 text-blue-300 border-blue-600/40'
+                            ? 'bg-blue-950/80 text-blue-300 border-blue-600/60 focus:border-blue-400'
                             : acc.role === 'RSM'
-                            ? 'bg-purple-950/50 text-purple-300 border-purple-600/40'
-                            : 'bg-emerald-950/50 text-emerald-300 border-emerald-600/40'
+                            ? 'bg-purple-950/80 text-purple-300 border-purple-600/60 focus:border-purple-400'
+                            : 'bg-emerald-950/80 text-emerald-300 border-emerald-600/60 focus:border-emerald-400'
                         }`}
+                        title="ক্লিক করে রোল পরিবর্তন করুন (Click to change role)"
                       >
-                        {acc.role}
-                      </span>
+                        {ROLES_LIST.map((r) => (
+                          <option key={r.role} value={r.role} className="bg-slate-900 text-white font-sans">
+                            {r.role} - {r.label}
+                          </option>
+                        ))}
+                      </select>
                     </td>
 
                     <td className="p-3 font-mono text-slate-300">
