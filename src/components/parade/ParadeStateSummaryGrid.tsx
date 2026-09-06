@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { Battery } from '../../types';
+import { Battery, OutOfUnitCategory } from '../../types';
 import { Building, CheckCircle2, AlertTriangle, Layers, ExternalLink } from 'lucide-react';
 
 interface ParadeStateSummaryGridProps {
@@ -22,9 +22,26 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
   onOpenSickModal,
   onOpenComdModal,
 }) => {
-  const { getBatterySummaries, getRegimentalTotals } = useApp();
+  const {
+    getBatterySummaries,
+    getRegimentalTotals,
+    setOutOfUnitModalOpen,
+    setActiveOutOfUnitCategory,
+  } = useApp();
+
   const summaries = getBatterySummaries();
   const totals = getRegimentalTotals();
+
+  const handleOpenCategory = (cat: OutOfUnitCategory) => {
+    setActiveOutOfUnitCategory(cat);
+    setOutOfUnitModalOpen(true);
+  };
+
+  const handleSick = onOpenSickModal || (() => handleOpenCategory('CMH'));
+  const handleLeave = onOpenLeaveModal || (() => handleOpenCategory('P/Lve'));
+  const handleCourse = onOpenCourseModal || (() => handleOpenCategory('Course'));
+  const handleComd = onOpenComdModal || (() => handleOpenCategory('Comd'));
+  const handleAttached = () => handleOpenCategory('Att');
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
@@ -51,51 +68,54 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
               <th className="p-3 text-center bg-emerald-950/30 text-emerald-300">Present</th>
               <th className="p-3 text-center bg-blue-950/30 text-blue-300">On Duty</th>
               <th
-                onClick={onOpenSickModal}
+                onClick={handleSick}
                 className="p-3 text-center text-amber-400 hover:bg-amber-950/30 cursor-pointer transition-colors"
                 title="Click to view CMH & Sic Nominal List"
               >
                 <div className="inline-flex items-center gap-1">
                   <span>CMH/Sick</span>
-                  {onOpenSickModal && <ExternalLink className="w-2.5 h-2.5 opacity-60" />}
+                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                 </div>
               </th>
               <th
-                onClick={onOpenLeaveModal}
+                onClick={handleLeave}
                 className="p-3 text-center text-purple-400 hover:bg-purple-950/30 cursor-pointer transition-colors"
                 title="Click to view P/Lve & C/Lve Nominal List"
               >
                 <div className="inline-flex items-center gap-1">
                   <span>Lve</span>
-                  {onOpenLeaveModal && <ExternalLink className="w-2.5 h-2.5 opacity-60" />}
+                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                 </div>
               </th>
               <th
-                onClick={onOpenCourseModal}
+                onClick={handleCourse}
                 className="p-3 text-center text-cyan-400 hover:bg-cyan-950/30 cursor-pointer transition-colors"
                 title="Click to view Course Details Nominal List"
               >
                 <div className="inline-flex items-center gap-1">
                   <span>Course</span>
-                  {onOpenCourseModal && <ExternalLink className="w-2.5 h-2.5 opacity-60" />}
+                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                 </div>
               </th>
               <th
-                onClick={onOpenComdModal}
+                onClick={handleComd}
                 className="p-3 text-center text-indigo-400 hover:bg-indigo-950/30 cursor-pointer transition-colors"
                 title="Click to view Command Duty (COMD) List"
               >
                 <div className="inline-flex items-center gap-1">
                   <span>COMD (TD)</span>
-                  {onOpenComdModal && <ExternalLink className="w-2.5 h-2.5 opacity-60" />}
+                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                 </div>
               </th>
               <th
-                onClick={onOpenComdModal}
+                onClick={handleAttached}
                 className="p-3 text-center text-teal-400 hover:bg-teal-950/30 cursor-pointer transition-colors"
                 title="Click to view Attached Out List"
               >
-                <span>Attached</span>
+                <div className="inline-flex items-center gap-1">
+                  <span>Attached</span>
+                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                </div>
               </th>
               <th className="p-3 text-center text-rose-400">AWOL</th>
               <th className="p-3 text-center font-bold">Effective %</th>
@@ -144,13 +164,13 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
 
                   <td
                     onClick={(e) => {
-                      if (summary.sick > 0 && onOpenSickModal) {
+                      if (summary.sick > 0) {
                         e.stopPropagation();
-                        onOpenSickModal();
+                        handleSick();
                       }
                     }}
                     className={`p-3 text-center font-mono text-amber-400 ${
-                      summary.sick > 0 ? 'hover:underline hover:font-bold' : ''
+                      summary.sick > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
                     {summary.sick > 0 ? summary.sick : '-'}
@@ -158,13 +178,13 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
 
                   <td
                     onClick={(e) => {
-                      if (summary.leave > 0 && onOpenLeaveModal) {
+                      if (summary.leave > 0) {
                         e.stopPropagation();
-                        onOpenLeaveModal();
+                        handleLeave();
                       }
                     }}
                     className={`p-3 text-center font-mono text-purple-400 ${
-                      summary.leave > 0 ? 'hover:underline hover:font-bold' : ''
+                      summary.leave > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
                     {summary.leave > 0 ? summary.leave : '-'}
@@ -172,13 +192,13 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
 
                   <td
                     onClick={(e) => {
-                      if (summary.course > 0 && onOpenCourseModal) {
+                      if (summary.course > 0) {
                         e.stopPropagation();
-                        onOpenCourseModal();
+                        handleCourse();
                       }
                     }}
                     className={`p-3 text-center font-mono text-cyan-400 ${
-                      summary.course > 0 ? 'hover:underline hover:font-bold' : ''
+                      summary.course > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
                     {summary.course > 0 ? summary.course : '-'}
@@ -186,13 +206,13 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
 
                   <td
                     onClick={(e) => {
-                      if (summary.tempDuty > 0 && onOpenComdModal) {
+                      if (summary.tempDuty > 0) {
                         e.stopPropagation();
-                        onOpenComdModal();
+                        handleComd();
                       }
                     }}
                     className={`p-3 text-center font-mono text-indigo-400 ${
-                      summary.tempDuty > 0 ? 'hover:underline hover:font-bold' : ''
+                      summary.tempDuty > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
                     {summary.tempDuty > 0 ? summary.tempDuty : '-'}
@@ -200,13 +220,13 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
 
                   <td
                     onClick={(e) => {
-                      if (summary.attached > 0 && onOpenComdModal) {
+                      if (summary.attached > 0) {
                         e.stopPropagation();
-                        onOpenComdModal();
+                        handleAttached();
                       }
                     }}
                     className={`p-3 text-center font-mono text-teal-400 ${
-                      summary.attached > 0 ? 'hover:underline hover:font-bold' : ''
+                      summary.attached > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
                     {summary.attached > 0 ? summary.attached : '-'}
@@ -257,31 +277,31 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                 {totals.totalDuty}
               </td>
               <td
-                onClick={onOpenSickModal}
+                onClick={handleSick}
                 className="p-3 text-center font-mono text-amber-400 cursor-pointer hover:bg-amber-950/30"
               >
                 {totals.totalSick}
               </td>
               <td
-                onClick={onOpenLeaveModal}
+                onClick={handleLeave}
                 className="p-3 text-center font-mono text-purple-400 cursor-pointer hover:bg-purple-950/30"
               >
                 {totals.totalLeave}
               </td>
               <td
-                onClick={onOpenCourseModal}
+                onClick={handleCourse}
                 className="p-3 text-center font-mono text-cyan-400 cursor-pointer hover:bg-cyan-950/30"
               >
                 {totals.totalCourse}
               </td>
               <td
-                onClick={onOpenComdModal}
+                onClick={handleComd}
                 className="p-3 text-center font-mono text-indigo-400 cursor-pointer hover:bg-indigo-950/30"
               >
                 {totals.totalTempDuty}
               </td>
               <td
-                onClick={onOpenComdModal}
+                onClick={handleAttached}
                 className="p-3 text-center font-mono text-teal-400 cursor-pointer hover:bg-teal-950/30"
               >
                 {totals.totalAttached}

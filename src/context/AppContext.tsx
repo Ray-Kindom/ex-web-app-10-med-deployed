@@ -267,6 +267,7 @@ interface AppContextType {
   exportSystemBackup: () => void;
   importSystemBackup: (backupData: any) => boolean;
   resetSystemToDefaults: () => void;
+  hasModulePermission: (moduleKey: string, userRole?: string) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -3819,6 +3820,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return calculateSimpleParadeState(personnelList, rawDuty, batteryScope);
   };
 
+  const hasModulePermission = (moduleKey: string, userRole?: string): boolean => {
+    const role = userRole || currentUser.role;
+    // Master Regimental Admin has absolute access to everything
+    if (role === 'Admin' || isRealAdmin) return true;
+
+    // Normalization for role-specific dashboard views
+    let normalizedModule = moduleKey;
+    if (moduleKey === 'co_dashboard' || moduleKey === 'offr_dashboard' || moduleKey === 'rsm_dashboard') {
+      normalizedModule = 'main_dashboard';
+    }
+
+    const permissions = systemSettings?.modulePermissions;
+    if (!permissions) return true;
+
+    // Find permissions for current role
+    let rolePerms = permissions[role];
+    if (!rolePerms && isBsmRole(role)) {
+      rolePerms = permissions['BSM'] || permissions['P BSM'];
+    }
+
+    if (rolePerms) {
+      if (typeof rolePerms[moduleKey] === 'boolean') {
+        return rolePerms[moduleKey];
+      }
+      if (typeof rolePerms[normalizedModule] === 'boolean') {
+        return rolePerms[normalizedModule];
+      }
+    }
+
+    return true;
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -3981,6 +4014,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exportSystemBackup,
         importSystemBackup,
         resetSystemToDefaults,
+        hasModulePermission,
       }}
     >
       {children}

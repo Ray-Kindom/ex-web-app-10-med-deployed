@@ -2,9 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
 import { ParadeActionControls } from '../components/parade/ParadeActionControls';
-import { LeaveModal } from '../components/parade/LeaveModal';
-import { CourseModal } from '../components/parade/CourseModal';
-import { SickModal } from '../components/parade/SickModal';
 import { DailyParadeStateModal } from '../components/parade/DailyParadeStateModal';
 import { ParadeStateSummaryModal } from '../components/parade/ParadeStateSummaryModal';
 import { Personnel, Battery, isOfficerRank } from '../types';
@@ -70,11 +67,6 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
   const [newTypeName, setNewTypeName] = useState('Ni trg');
   const [selectedTypePreset, setSelectedTypePreset] = useState<string>('Ni trg');
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState<boolean>(false);
-
-  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
-  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
-  const [isSickModalOpen, setIsSickModalOpen] = useState(false);
-  const [isComdModalOpen, setIsComdModalOpen] = useState(false);
   const [selectedDutySession, setSelectedDutySession] = useState<string>('Morning');
 
   const totals = getRegimentalTotals();
@@ -383,45 +375,16 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
         </button>
       </div>
 
-      {/* Updt Out Of Unit Action Control Box (Only accessible to RSM and BSM) */}
-      {(isBsm || isRsm) && (
-        <ParadeActionControls battery={isBsm ? assignedBty : undefined} />
+      {/* Updt Out Of Unit Action Control Box (Only accessible to RSM and Admin) */}
+      {isRsm && (
+        <ParadeActionControls battery={undefined} />
       )}
 
       {/* Battery-Wise Matrix */}
       <ParadeStateSummaryGrid
         onOpenPrintModal={onOpenPrintModal}
-        onOpenLeaveModal={() => setIsLeaveModalOpen(true)}
-        onOpenCourseModal={() => setIsCourseModalOpen(true)}
-        onOpenSickModal={() => setIsSickModalOpen(true)}
-        onOpenComdModal={() => setIsComdModalOpen(true)}
       />
 
-      {/* Category Modals */}
-      <LeaveModal
-        isOpen={isLeaveModalOpen}
-        onClose={() => setIsLeaveModalOpen(false)}
-        onSelectPersonnel={(p) => {
-          setIsLeaveModalOpen(false);
-          onViewDossier(p);
-        }}
-      />
-      <CourseModal
-        isOpen={isCourseModalOpen}
-        onClose={() => setIsCourseModalOpen(false)}
-        onSelectPersonnel={(p) => {
-          setIsCourseModalOpen(false);
-          onViewDossier(p);
-        }}
-      />
-      <SickModal
-        isOpen={isSickModalOpen}
-        onClose={() => setIsSickModalOpen(false)}
-        onSelectPersonnel={(p) => {
-          setIsSickModalOpen(false);
-          onViewDossier(p);
-        }}
-      />
       {/* Active Session ParadeStateSummaryModal (Morning, Second Period, Games, Roll Call etc.) - Read Only Summary */}
       {activeModalSession && (
         <ParadeStateSummaryModal

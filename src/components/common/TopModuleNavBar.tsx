@@ -17,10 +17,22 @@ export const TopModuleNavBar: React.FC = () => {
     currentUser,
     setDailyParadeModalOpen,
     isRealAdmin,
-    systemSettings,
+    hasModulePermission,
   } = useApp();
 
   const role = currentUser.role;
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(role);
+  const assignedBty =
+    currentUser.assignedBattery ||
+    (role === 'P BSM'
+      ? 'P Bty'
+      : role === 'Q BSM'
+      ? 'Q Bty'
+      : role === 'R BSM'
+      ? 'R Bty'
+      : role === 'HQ BSM'
+      ? 'HQ Bty'
+      : 'P Bty');
 
   interface NavTab {
     id: string;
@@ -28,148 +40,91 @@ export const TopModuleNavBar: React.FC = () => {
     icon: React.FC<{ className?: string }>;
     badge?: string;
     action?: () => void;
+    permissionKey: string;
   }
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(role);
-  const isCoOrOffr = role === 'CO' || role === 'Offr';
-  const isRsm = role === 'RSM';
-
-  const tabs: NavTab[] = [];
-
-  if (isBsm) {
-    tabs.push({
-      id: 'battery_dashboard',
-      label: 'Bty Dashboard',
-      icon: Building2,
-      badge: currentUser.assignedBattery || 'Bty',
-    });
-    tabs.push({
+  // Candidate tabs based on role
+  const candidateTabs: NavTab[] = [
+    {
+      id:
+        role === 'CO'
+          ? 'co_dashboard'
+          : role === 'Offr'
+          ? 'offr_dashboard'
+          : role === 'RSM'
+          ? 'rsm_dashboard'
+          : isBsm
+          ? 'battery_dashboard'
+          : 'main_dashboard',
+      label:
+        role === 'CO'
+          ? 'CO Console'
+          : role === 'Offr'
+          ? 'Offr Console'
+          : role === 'RSM'
+          ? 'RSM Console'
+          : isBsm
+          ? 'Bty Dashboard'
+          : 'Main Dashboard',
+      icon: isBsm ? Building2 : LayoutDashboard,
+      badge: isBsm ? assignedBty : undefined,
+      permissionKey: isBsm ? 'battery_dashboard' : 'main_dashboard',
+    },
+    // Sub-unit battery dashboard for non-BSM users
+    ...(!isBsm
+      ? [
+          {
+            id: 'battery_dashboard',
+            label: 'Bty Dashboard',
+            icon: Building2,
+            permissionKey: 'battery_dashboard',
+          },
+        ]
+      : []),
+    {
       id: 'parade_state',
       label: 'Parade State',
       icon: ClipboardList,
-    });
-    tabs.push({
-      id: 'master_personnel',
-      label: 'Regt Nominal',
-      icon: Users,
-    });
-    tabs.push({
-      id: 'data_update',
-      label: 'Data Update',
-      icon: Edit3,
-      badge: 'Edit',
-      action: () => setDailyParadeModalOpen(true),
-    });
-  } else if (isRsm) {
-    tabs.push({
-      id: 'main_dashboard',
-      label: 'Main Dashboard',
-      icon: LayoutDashboard,
-    });
-    tabs.push({
-      id: 'parade_state',
-      label: 'Parade State',
-      icon: ClipboardList,
-    });
-    tabs.push({
+      permissionKey: 'parade_state',
+    },
+    {
       id: 'duty_detail',
       label: 'Duty Detailing',
       icon: ShieldAlert,
-    });
-    tabs.push({
+      permissionKey: 'duty_detail',
+    },
+    {
       id: 'master_personnel',
-      label: 'Regt Nominal',
+      label: isBsm ? 'Bty Nominal' : 'Regt Nominal',
       icon: Users,
-    });
-    tabs.push({
-      id: 'data_update',
-      label: 'Data Update',
-      icon: Edit3,
-      badge: 'Muster',
-      action: () => setDailyParadeModalOpen(true),
-    });
-  } else if (isCoOrOffr) {
-    tabs.push({
-      id: 'main_dashboard',
-      label: 'Main Dashboard',
-      icon: LayoutDashboard,
-    });
-    tabs.push({
-      id: 'battery_dashboard',
-      label: 'Bty Dashboard',
-      icon: Building2,
-    });
-    tabs.push({
-      id: 'parade_state',
-      label: 'Parade State',
-      icon: ClipboardList,
-    });
-    tabs.push({
-      id: 'master_personnel',
-      label: 'Regt Nominal',
-      icon: Users,
-    });
-  } else {
-    // Admin
-    tabs.push({
-      id: 'main_dashboard',
-      label: 'Main Dashboard',
-      icon: LayoutDashboard,
-    });
-    tabs.push({
-      id: 'battery_dashboard',
-      label: 'Bty Dashboard',
-      icon: Building2,
-    });
-    tabs.push({
-      id: 'parade_state',
-      label: 'Parade State',
-      icon: ClipboardList,
-    });
-    tabs.push({
-      id: 'duty_detail',
-      label: 'Duty Detailing',
-      icon: ShieldAlert,
-    });
-    tabs.push({
-      id: 'master_personnel',
-      label: 'Regt Nominal',
-      icon: Users,
-    });
-    tabs.push({
-      id: 'data_update',
-      label: 'Data Update',
-      icon: Edit3,
-      badge: 'Edit',
-      action: () => setDailyParadeModalOpen(true),
-    });
-    tabs.push({
+      badge: isBsm ? assignedBty : undefined,
+      permissionKey: 'master_personnel',
+    },
+    ...(!isBsm
+      ? [
+          {
+            id: 'data_update',
+            label: 'Data Update',
+            icon: Edit3,
+            badge: 'Muster',
+            action: () => setDailyParadeModalOpen(true),
+            permissionKey: 'out_of_unit',
+          },
+        ]
+      : []),
+    {
       id: 'admin_panel',
       label: 'Admin Panel',
       icon: Settings,
       badge: 'Admin',
-    });
-  }
+      permissionKey: 'admin_panel',
+    },
+  ];
 
-  const canAccessAdmin = isRealAdmin || Boolean(systemSettings?.modulePermissions?.admin_panel?.includes(role));
-  if (canAccessAdmin && !tabs.some((t) => t.id === 'admin_panel')) {
-    tabs.push({
-      id: 'admin_panel',
-      label: 'Admin Panel',
-      icon: Settings,
-      badge: 'Admin',
-    });
-  }
-
-  const displayTabs = tabs.filter((tab) => {
-    if (isRealAdmin && tab.id === 'admin_panel') return true;
-    if (systemSettings?.modulePermissions) {
-      const allowedRoles = systemSettings.modulePermissions[tab.id as keyof typeof systemSettings.modulePermissions];
-      if (Array.isArray(allowedRoles)) {
-        return allowedRoles.includes(role);
-      }
-    }
-    return true;
+  // Dynamically filter tabs based on Admin RBAC matrix permissions
+  const displayTabs = candidateTabs.filter((tab) => {
+    if (tab.permissionKey === 'admin_panel' && isRealAdmin) return true;
+    return hasModulePermission(tab.permissionKey);
   });
 
   return (
@@ -177,7 +132,11 @@ export const TopModuleNavBar: React.FC = () => {
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[1700px] mx-auto">
         {displayTabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activePage === tab.id;
+          const isDashboardTab =
+            tab.permissionKey === 'main_dashboard' &&
+            ['main_dashboard', 'co_dashboard', 'offr_dashboard', 'rsm_dashboard'].includes(activePage);
+          const isActive = activePage === tab.id || isDashboardTab;
+
           return (
             <button
               key={tab.id}

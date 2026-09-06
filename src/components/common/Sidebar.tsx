@@ -34,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     isSimulating,
     exitSimulation,
     systemSettings,
+    hasModulePermission,
   } = useApp();
 
   const totals = getRegimentalTotals();
@@ -237,7 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   // If real admin is currently simulating another role or permitted by RBAC matrix, ensure Admin Panel is accessible
-  const canAccessAdmin = isRealAdmin || Boolean(systemSettings?.modulePermissions?.admin_panel?.includes(role));
+  const canAccessAdmin = isRealAdmin || hasModulePermission('admin_panel');
   if (canAccessAdmin && !items.some((i) => i.id === 'admin_panel')) {
     items.push({
       id: 'admin_panel',
@@ -252,13 +253,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Filter navigation items dynamically based on systemSettings RBAC matrix
   const displayItems = items.filter((item) => {
     if (isRealAdmin && item.id === 'admin_panel') return true;
-    if (systemSettings?.modulePermissions) {
-      const allowedRoles = systemSettings.modulePermissions[item.id as keyof typeof systemSettings.modulePermissions];
-      if (Array.isArray(allowedRoles)) {
-        return allowedRoles.includes(role);
-      }
-    }
-    return true;
+    const permKey = item.id === 'data_update' ? 'out_of_unit' : item.id;
+    return hasModulePermission(permKey);
   });
 
   const handleNavClick = (item: NavItem) => {

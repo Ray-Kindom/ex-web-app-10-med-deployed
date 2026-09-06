@@ -159,7 +159,61 @@ export const SystemSettingsTab: React.FC = () => {
     { key: 'admin_panel', label: 'Admin Panel' },
   ];
 
-  const rolesToConfigure: string[] = ['CO', 'Offr', 'RSM', 'P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'Guest'];
+  const rolesToConfigure: string[] = [
+    'CO',
+    'Offr',
+    'RSM',
+    'BSM',
+    'P BSM',
+    'Q BSM',
+    'R BSM',
+    'HQ BSM',
+    'Guest',
+  ];
+
+  const roleLabels: Record<string, { bn: string; desc: string }> = {
+    CO: { bn: 'অধিনায়ক (CO)', desc: 'Commanding Officer Executive Console' },
+    Offr: { bn: 'অফিসারবৃন্দ (Officer)', desc: 'Officers & Battery Commanders' },
+    RSM: { bn: 'আরএসএম (RSM)', desc: 'Regimental Sergeant Major Console' },
+    BSM: { bn: 'বিএসএম (Generic BSM)', desc: 'Battery Sergeant Major Common Role' },
+    'P BSM': { bn: 'পি ব্যাটারি বিএসএম', desc: '1st Gun Battery BSM' },
+    'Q BSM': { bn: 'কিউ ব্যাটারি বিএসএম', desc: '2nd Gun Battery BSM' },
+    'R BSM': { bn: 'আর ব্যাটারি বিএসএম', desc: '3rd Gun Battery BSM' },
+    'HQ BSM': { bn: 'এইচকিউ ব্যাটারি বিএসএম', desc: 'Headquarters Battery BSM' },
+    Guest: { bn: 'গেস্ট / পরিদর্শক', desc: 'Read-only Visitor Access' },
+  };
+
+  const handleSelectAllForRole = (role: string) => {
+    setFormData((prev) => {
+      const allTrue: Record<string, boolean> = {};
+      moduleKeys.forEach((m) => {
+        allTrue[m.key] = true;
+      });
+      return {
+        ...prev,
+        modulePermissions: {
+          ...prev.modulePermissions,
+          [role]: allTrue,
+        },
+      };
+    });
+  };
+
+  const handleClearAllForRole = (role: string) => {
+    setFormData((prev) => {
+      const allFalse: Record<string, boolean> = {};
+      moduleKeys.forEach((m) => {
+        allFalse[m.key] = false;
+      });
+      return {
+        ...prev,
+        modulePermissions: {
+          ...prev.modulePermissions,
+          [role]: allFalse,
+        },
+      };
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -567,7 +621,7 @@ export const SystemSettingsTab: React.FC = () => {
                 <span>রোল ভিত্তিক মডিউল অনুমতি ম্যাট্রিক্স (RBAC Matrix)</span>
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                কোন পদের অফিসার কোন কোন মডিউল দেখতে বা এক্সেস করতে পারবেন তা টিকচিহ্ন দিয়ে নির্ধারণ করুন।
+                সিও, অফিসার, আরএসএম ও বিএসএম কোন কোন মডিউল দেখতে পাবেন তা নির্ধারণ করুন। বিএসএম শুধুমাত্র নিজ ব্যাটারির ডাটা দেখতে পারবে।
               </p>
             </div>
 
@@ -581,10 +635,11 @@ export const SystemSettingsTab: React.FC = () => {
                     CO: { main_dashboard: true, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: true, out_of_unit: true, admin_panel: false },
                     Offr: { main_dashboard: true, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: true, out_of_unit: true, admin_panel: false },
                     RSM: { main_dashboard: true, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: true, out_of_unit: true, admin_panel: false },
-                    'P BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: false, roll_simulator: false, out_of_unit: true, admin_panel: false },
-                    'Q BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: false, roll_simulator: false, out_of_unit: true, admin_panel: false },
-                    'R BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: false, roll_simulator: false, out_of_unit: true, admin_panel: false },
-                    'HQ BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: false, roll_simulator: false, out_of_unit: true, admin_panel: false },
+                    BSM: { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: false, out_of_unit: false, admin_panel: false },
+                    'P BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: false, out_of_unit: false, admin_panel: false },
+                    'Q BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: false, out_of_unit: false, admin_panel: false },
+                    'R BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: false, out_of_unit: false, admin_panel: false },
+                    'HQ BSM': { main_dashboard: false, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: false, out_of_unit: false, admin_panel: false },
                     Guest: { main_dashboard: true, battery_dashboard: true, parade_state: true, master_personnel: true, duty_detail: true, roll_simulator: true, out_of_unit: true, admin_panel: true },
                   },
                 }));
@@ -600,9 +655,9 @@ export const SystemSettingsTab: React.FC = () => {
             <table className="w-full text-left text-xs border border-slate-800 rounded-xl overflow-hidden">
               <thead className="bg-slate-900/90 text-slate-300 font-mono text-[11px] border-b border-slate-800">
                 <tr>
-                  <th className="p-3">Role / পদবি</th>
+                  <th className="p-3">Role / পদবি ও দ্রুত বাটন</th>
                   {moduleKeys.map((m) => (
-                    <th key={m.key} className="p-3 text-center">
+                    <th key={m.key} className="p-3 text-center whitespace-nowrap">
                       {m.label}
                     </th>
                   ))}
@@ -611,11 +666,49 @@ export const SystemSettingsTab: React.FC = () => {
               <tbody className="divide-y divide-slate-800/60 bg-slate-950/40">
                 {rolesToConfigure.map((role) => {
                   const rolePerms = formData.modulePermissions?.[role] || {};
+                  const labelInfo = roleLabels[role];
                   return (
                     <tr key={role} className="hover:bg-slate-900/50 transition-colors">
-                      <td className="p-3 font-bold text-white font-mono flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-rose-500" />
-                        <span>{role}</span>
+                      <td className="p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-bold text-white font-mono flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-rose-500" />
+                              <span>{role}</span>
+                              {labelInfo && (
+                                <span className="text-[11px] font-normal text-slate-400 font-sans">
+                                  ({labelInfo.bn})
+                                </span>
+                              )}
+                            </div>
+                            {labelInfo && (
+                              <div className="text-[10px] text-slate-500 pl-3.5">
+                                {labelInfo.desc}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 font-mono text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllForRole(role)}
+                              disabled={isGuest}
+                              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+                              title="সব মডিউল চালু করুন"
+                            >
+                              All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleClearAllForRole(role)}
+                              disabled={isGuest}
+                              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+                              title="সব মডিউল বন্ধ করুন"
+                            >
+                              None
+                            </button>
+                          </div>
+                        </div>
                       </td>
                       {moduleKeys.map((m) => {
                         const isChecked = rolePerms[m.key] !== false;

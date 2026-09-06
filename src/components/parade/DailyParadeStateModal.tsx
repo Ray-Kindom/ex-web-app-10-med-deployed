@@ -83,7 +83,8 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
     (currentUser.role as string) === 'Officer' ||
     isOfficerRank(currentUser.rank);
 
-  const isReadOnly = isOfficerOrCo || isGuest;
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
+  const isReadOnly = isOfficerOrCo || isGuest || isBsm;
 
   const isRsmOrAdmin =
     !isReadOnly &&
@@ -91,8 +92,6 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
       currentUser.role === 'Admin' ||
       isAdmin ||
       isRSM);
-
-  const isBsm = !isReadOnly && ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
 
   // Combine dynamic categories with daily parade points so any ADMIN category changes reflect here automatically
   const dynamicParadePoints = useMemo<DailyParadePoint[]>(() => {

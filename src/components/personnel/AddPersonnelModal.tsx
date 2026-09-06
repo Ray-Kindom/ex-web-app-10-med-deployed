@@ -131,6 +131,7 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
       medicalCategory,
       nokName: nokName.trim() || undefined,
       phone: phone.trim() || undefined,
+      mobileNo: phone.trim() || undefined,
     });
 
     // Reset fields

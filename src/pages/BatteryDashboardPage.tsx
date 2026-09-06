@@ -41,9 +41,24 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
     setActiveOutOfUnitCategory,
   } = useApp();
 
-  const [activeBattery, setActiveBattery] = useState<Battery>(
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
+  const assignedBty: Battery =
     currentUser.assignedBattery ||
-      (selectedBatteryFilter !== 'All' ? selectedBatteryFilter : 'P Bty')
+    (currentUser.role === 'P BSM'
+      ? 'P Bty'
+      : currentUser.role === 'Q BSM'
+      ? 'Q Bty'
+      : currentUser.role === 'R BSM'
+      ? 'R Bty'
+      : currentUser.role === 'HQ BSM'
+      ? 'HQ Bty'
+      : 'P Bty');
+
+  const [activeBattery, setActiveBattery] = useState<Battery>(
+    isBsm
+      ? assignedBty
+      : currentUser.assignedBattery ||
+        (selectedBatteryFilter !== 'All' ? selectedBatteryFilter : 'P Bty')
   );
 
   // Modal for showing drilldown list when stat box is clicked
@@ -53,10 +68,12 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    if (selectedBatteryFilter !== 'All') {
+    if (isBsm) {
+      setActiveBattery(assignedBty);
+    } else if (selectedBatteryFilter !== 'All') {
       setActiveBattery(selectedBatteryFilter);
     }
-  }, [selectedBatteryFilter]);
+  }, [isBsm, assignedBty, selectedBatteryFilter]);
 
   // Battery serial: P, Q, R, HQ
   const batteries: { id: Battery; name: string; role: string; commander: string; bsm: string }[] = [
@@ -121,9 +138,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
     return details.includes('ere') || loc.includes('ere') || rem.includes('ere');
   }).length;
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
   const isRsm = currentUser.role === 'RSM' || currentUser.role === 'Admin';
-  const canManageOutOfUnit = !isGuest && (isBsm || isRsm);
+  const canManageOutOfUnit = !isGuest && isRsm;
 
   // Personnel for popup modal
   const modalPersonnel = selectedStatFilter

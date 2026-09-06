@@ -8,6 +8,7 @@ import { ParadeStatePrintSheet } from './components/parade/ParadeStatePrintSheet
 import { DailyParadeStateModal } from './components/parade/DailyParadeStateModal';
 import { OutOfUnitManagerModal } from './components/parade/OutOfUnitManagerModal';
 import { Personnel } from './types';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 // Pages
 import { LoginPage } from './pages/LoginPage';
@@ -24,7 +25,10 @@ import { DutyDetailPage } from './pages/DutyDetailPage';
 const AppContent: React.FC = () => {
   const {
     activePage,
+    setActivePage,
+    currentUser,
     isAuthenticated,
+    hasModulePermission,
     dailyParadeModalOpen,
     setDailyParadeModalOpen,
     outOfUnitModalOpen,
@@ -44,10 +48,91 @@ const AppContent: React.FC = () => {
   };
 
   const renderActivePage = () => {
+    // Normalization of permission keys
+    const permKey =
+      activePage === 'co_dashboard' ||
+      activePage === 'offr_dashboard' ||
+      activePage === 'rsm_dashboard'
+        ? 'main_dashboard'
+        : activePage;
+
+    // RBAC Security Check
+    if (activePage !== 'login' && !hasModulePermission(permKey)) {
+      return (
+        <div className="max-w-2xl mx-auto my-12 p-8 rounded-2xl bg-slate-900/95 border border-rose-500/30 text-center space-y-5 shadow-2xl backdrop-blur-xl">
+          <div className="w-16 h-16 mx-auto rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-white font-sans">
+              অ্যাক্সেস অনুমোদিত নয় / Access Restricted
+            </h2>
+            <p className="text-sm text-slate-300">
+              আপনার বর্তমান রোল <strong className="text-rose-400 font-mono">[{currentUser.role}]</strong>-এর জন্য এই মডিউলটি (<span className="text-amber-400 font-mono">{activePage}</span>) দেখার এক্সেস অনুমোদিত নয়।
+            </p>
+            <p className="text-xs text-slate-500">
+              নিরাপত্তা ও ডাটা পৃথকীকরণ নীতি অনুযায়ী অ্যাডমিন কর্তৃক এই মডিউলটি সীমাবদ্ধ রাখা হয়েছে।
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                if (currentUser.role === 'CO') setActivePage('co_dashboard');
+                else if (currentUser.role === 'Offr') setActivePage('offr_dashboard');
+                else if (currentUser.role === 'RSM') setActivePage('rsm_dashboard');
+                else if (['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role))
+                  setActivePage('battery_dashboard');
+                else setActivePage('main_dashboard');
+              }}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-rose-900/30 inline-flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>অনুমোদিত ড্যাশবোর্ডে ফিরে যান (Return to Allowed Dashboard)</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     switch (activePage) {
       case 'login':
         return <LoginPage />;
       case 'main_dashboard':
+        if (currentUser.role === 'CO') {
+          return (
+            <CoDashboardPage
+              onViewDossier={handleViewDossier}
+              onOpenPrintModal={() => setIsPrintModalOpen(true)}
+            />
+          );
+        }
+        if (currentUser.role === 'Offr') {
+          return (
+            <OffrDashboardPage
+              onViewDossier={handleViewDossier}
+              onOpenAddModal={() => setIsAddModalOpen(true)}
+              onOpenPrintModal={() => setIsPrintModalOpen(true)}
+            />
+          );
+        }
+        if (currentUser.role === 'RSM') {
+          return (
+            <RsmDashboardPage
+              onViewDossier={handleViewDossier}
+              onOpenAddModal={() => setIsAddModalOpen(true)}
+              onOpenPrintModal={() => setIsPrintModalOpen(true)}
+            />
+          );
+        }
+        if (['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role)) {
+          return (
+            <BatteryDashboardPage
+              onViewDossier={handleViewDossier}
+              onOpenAddModal={() => setIsAddModalOpen(true)}
+              onOpenPrintModal={() => setIsPrintModalOpen(true)}
+            />
+          );
+        }
         return (
           <MainDashboardPage
             onViewDossier={handleViewDossier}
@@ -176,6 +261,7 @@ const AppContent: React.FC = () => {
         isOpen={outOfUnitModalOpen}
         onClose={() => setOutOfUnitModalOpen(false)}
         defaultCategory={activeOutOfUnitCategory}
+        onViewDossier={handleViewDossier}
       />
     </div>
   );

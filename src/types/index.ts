@@ -29,7 +29,7 @@ export const isJCORank = (rank?: string): boolean => {
   return JCO_RANKS.includes(rank);
 };
 
-export const OR_RANKS: string[] = ['Sgt', 'Cpl', 'Lcpl', 'Snk', 'Gnr', 'SNK DMT)'];
+export const OR_RANKS: string[] = ['Sgt', 'Cpl', 'Lcpl', 'Snk', 'Gnr', 'Snk (DMT)', 'SNK (DMT)'];
 
 export const isORRank = (rank?: string): boolean => {
   if (!rank) return false;
@@ -163,7 +163,9 @@ export interface Personnel {
   status: ParadeStatus;
   statusDetails?: string;
   rmk?: string;
+  remarks?: string;
   phone?: string;
+  mobileNo?: string;
   bloodGroup?: string;
   enlistmentDate?: string;
   joiningDate?: string; // Joining Dt in unit
@@ -543,6 +545,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     },
     RSM: {
       main_dashboard: true,
+      rsm_dashboard: true,
       battery_dashboard: true,
       parade_state: true,
       master_personnel: true,
@@ -551,14 +554,24 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       out_of_unit: true,
       admin_panel: false,
     },
+    BSM: {
+      main_dashboard: false,
+      battery_dashboard: true,
+      parade_state: true,
+      master_personnel: true,
+      duty_detail: true,
+      roll_simulator: false,
+      out_of_unit: false,
+      admin_panel: false,
+    },
     'P BSM': {
       main_dashboard: false,
       battery_dashboard: true,
       parade_state: true,
       master_personnel: true,
-      duty_detail: false,
+      duty_detail: true,
       roll_simulator: false,
-      out_of_unit: true,
+      out_of_unit: false,
       admin_panel: false,
     },
     'Q BSM': {
@@ -566,9 +579,9 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       battery_dashboard: true,
       parade_state: true,
       master_personnel: true,
-      duty_detail: false,
+      duty_detail: true,
       roll_simulator: false,
-      out_of_unit: true,
+      out_of_unit: false,
       admin_panel: false,
     },
     'R BSM': {
@@ -576,9 +589,9 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       battery_dashboard: true,
       parade_state: true,
       master_personnel: true,
-      duty_detail: false,
+      duty_detail: true,
       roll_simulator: false,
-      out_of_unit: true,
+      out_of_unit: false,
       admin_panel: false,
     },
     'HQ BSM': {
@@ -586,9 +599,9 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       battery_dashboard: true,
       parade_state: true,
       master_personnel: true,
-      duty_detail: false,
+      duty_detail: true,
       roll_simulator: false,
-      out_of_unit: true,
+      out_of_unit: false,
       admin_panel: false,
     },
     Guest: {

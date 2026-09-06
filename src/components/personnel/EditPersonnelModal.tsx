@@ -40,8 +40,8 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
       setBattery(personnel.battery || 'P Bty');
       setBloodGroup(personnel.bloodGroup || 'O+');
       setMedicalCategory(personnel.medicalCategory || 'AYE');
-      setMobileNo(personnel.mobileNo || '');
-      setRemarks(personnel.remarks || '');
+      setMobileNo(personnel.mobileNo || personnel.phone || '');
+      setRemarks(personnel.remarks || personnel.rmk || '');
     }
   }, [personnel]);
 
@@ -58,6 +58,9 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
       return;
     }
 
+    const cleanedPhone = mobileNo.trim() || undefined;
+    const cleanedRemarks = remarks.trim() || undefined;
+
     updatePersonnel(personnel.id, {
       snkNo: snkNo.trim(),
       rk: rank,
@@ -66,8 +69,10 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
       battery,
       bloodGroup: bloodGroup.trim(),
       medicalCategory,
-      mobileNo: mobileNo.trim() || undefined,
-      remarks: remarks.trim() || undefined,
+      mobileNo: cleanedPhone,
+      phone: cleanedPhone,
+      remarks: cleanedRemarks,
+      rmk: cleanedRemarks,
     });
 
     showNotification(`${rank} ${name} (${snkNo})-এর স্থায়ী তথ্য সফলভাবে আপডেট করা হয়েছে।`);
