@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   Personnel,
   UserAccount,
@@ -611,6 +611,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isFirebaseReady, setIsFirebaseReady] = useState<boolean>(false);
   const [cloudPermissionDenied, setCloudPermissionDenied] = useState<boolean>(false);
+
+  // Performance & Stability guard references (Prevents infinite re-render loops & write floods)
+  const seededCollectionsRef = useRef<Record<string, boolean>>({});
+  const lastSyncedAuthUidRef = useRef<string | null>(null);
+  const usersListRef = useRef(usersList);
+  usersListRef.current = usersList;
+  const accessRequestsRef = useRef(accessRequests);
+  accessRequestsRef.current = accessRequests;
 
   // Modals
   const [dailyParadeModalOpen, setDailyParadeModalOpen] = useState<boolean>(false);
@@ -1837,21 +1845,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.PARADE_POINTS, JSON.stringify(dailyParadePoints));
   }, [dailyParadePoints]);
 
-  // Firebase Auth listener with Owner Approval enforcement
+  // Firebase Auth listener with Owner Approval enforcement (Runs ONCE on mount with refs to avoid re-render loops)
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       if (user && user.email) {
         const emailLower = user.email.toLowerCase();
         const isOwner = OWNER_EMAILS.some((o) => o.toLowerCase() === emailLower);
+        const currentUsers = usersListRef.current;
+        const currentReqs = accessRequestsRef.current;
 
         // Check if explicitly approved in usersList
-        const existingApproved = usersList.find(
+        const existingApproved = currentUsers.find(
           (u) => u.email?.toLowerCase() === emailLower && u.isApproved !== false
         );
 
         // Check if access request was approved
-        const approvedReq = accessRequests.find(
+        const approvedReq = currentReqs.find(
           (r) => r.email.toLowerCase() === emailLower && r.status === 'approved'
         );
 
@@ -1908,17 +1918,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
           }
 
-          setCurrentUserState(acct);
-          setRealUser(acct);
-          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(acct));
-          localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(acct));
-          localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+          if (lastSyncedAuthUidRef.current !== user.uid) {
+            lastSyncedAuthUidRef.current = user.uid;
+            setCurrentUserState(acct);
+            setRealUser(acct);
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(acct));
+            localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(acct));
+            localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
 
-          setUsersList((prev) => {
-            const filtered = prev.filter((u) => u.email?.toLowerCase() !== emailLower && u.id !== user.uid);
-            return [acct, ...filtered];
-          });
-          syncDoc(setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(acct), { merge: true }), 'sync approved user');
+            setUsersList((prev) => {
+              const filtered = prev.filter((u) => u.email?.toLowerCase() !== emailLower && u.id !== user.uid);
+              return [acct, ...filtered];
+            });
+            syncDoc(setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(acct), { merge: true }), 'sync approved user');
+          }
         } else {
           // Not approved! Enforce access block and register pending request
           setIsAuthenticated(false);
@@ -1931,21 +1944,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setPendingGoogleUser(pendingObj);
           localStorage.setItem('10med_pending_google_user', JSON.stringify(pendingObj));
 
-          const reqDoc: GoogleAccessRequest = {
-            id: user.uid,
-            email: user.email,
-            name: user.displayName || user.email.split('@')[0],
-            photoURL: user.photoURL || undefined,
-            requestedAt: new Date().toISOString(),
-            status: 'pending',
-          };
-          syncDoc(setDoc(doc(db, 'access_requests', user.uid), sanitizeForFirestore(reqDoc), { merge: true }), 'save pending access request');
+          if (lastSyncedAuthUidRef.current !== 'pending_' + user.uid) {
+            lastSyncedAuthUidRef.current = 'pending_' + user.uid;
+            const reqDoc: GoogleAccessRequest = {
+              id: user.uid,
+              email: user.email,
+              name: user.displayName || user.email.split('@')[0],
+              photoURL: user.photoURL || undefined,
+              requestedAt: new Date().toISOString(),
+              status: 'pending',
+            };
+            syncDoc(setDoc(doc(db, 'access_requests', user.uid), sanitizeForFirestore(reqDoc), { merge: true }), 'save pending access request');
+          }
         }
       }
     });
 
     return () => unsubscribeAuth();
-  }, [usersList, accessRequests]);
+  }, []);
 
   // Real-time Firestore Listeners & Database bootstrapping
   // Runs continuously in background for all users (ID/Password & Google Login)
@@ -1973,7 +1989,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!snapshot.empty) {
           const remoteUsers = snapshot.docs.map((d) => d.data() as UserAccount);
           setUsersList(remoteUsers);
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.users) {
+          seededCollectionsRef.current.users = true;
           // Seed Firestore users
           INITIAL_USERS.forEach((u) => {
             syncDoc(setDoc(doc(db, 'users', u.id), sanitizeForFirestore(u)), 'seed user');
@@ -1988,10 +2005,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       collection(db, 'personnel'),
       (snapshot) => {
         setCloudPermissionDenied(false);
-        if (!snapshot.empty && snapshot.docs.length >= 500) {
+        if (!snapshot.empty) {
           const remotePersonnel = snapshot.docs.map((d) => d.data() as Personnel);
           setPersonnelList(remotePersonnel);
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.personnel) {
+          seededCollectionsRef.current.personnel = true;
           // Seed Firestore personnel with full 606 official nominal roll
           INITIAL_PERSONNEL.forEach((p) => {
             syncDoc(setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p)), 'seed personnel');
@@ -2012,7 +2030,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .map((d) => d.data() as DailyParadePoint)
             .sort((a, b) => a.order - b.order);
           setDailyParadePoints(remotePoints);
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.parade_points) {
+          seededCollectionsRef.current.parade_points = true;
           INITIAL_PARADE_POINTS.forEach((pt) => {
             syncDoc(setDoc(doc(db, 'parade_points', pt.id), sanitizeForFirestore(pt)), 'seed parade points');
           });
@@ -2029,7 +2048,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!snapshot.empty) {
           const remoteDuty = snapshot.docs.map((d) => d.data() as DutyAssignment);
           setDutyRoster(remoteDuty);
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.duty_roster) {
+          seededCollectionsRef.current.duty_roster = true;
           INITIAL_DUTY_ROSTER.forEach((d) => {
             syncDoc(setDoc(doc(db, 'duty_roster', d.id), sanitizeForFirestore(d)), 'seed duty roster');
           });
@@ -2048,7 +2068,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .map((d) => d.data() as AuditLogItem)
             .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
           setAuditLogs(remoteLogs);
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.audit_logs) {
+          seededCollectionsRef.current.audit_logs = true;
           INITIAL_AUDIT_LOGS.forEach((l) => {
             syncDoc(setDoc(doc(db, 'audit_logs', l.id), sanitizeForFirestore(l)), 'seed audit logs');
           });
@@ -2097,7 +2118,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .sort((a, b) => a.order - b.order);
           setParadeTypes(remoteTypes.length > 0 ? remoteTypes : DEFAULT_PARADE_TYPES);
           localStorage.setItem(STORAGE_KEYS.PARADE_TYPES, JSON.stringify(remoteTypes.length > 0 ? remoteTypes : DEFAULT_PARADE_TYPES));
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.parade_types) {
+          seededCollectionsRef.current.parade_types = true;
           DEFAULT_PARADE_TYPES.forEach((t) => {
             syncDoc(setDoc(doc(db, 'parade_types', t.id), sanitizeForFirestore(t)), 'seed parade types');
           });
@@ -2134,7 +2156,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .sort((a, b) => a.order - b.order);
           setCategoriesList(remoteCats);
           localStorage.setItem(STORAGE_KEYS.SYSTEM_CATEGORIES, JSON.stringify(remoteCats));
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.system_categories) {
+          seededCollectionsRef.current.system_categories = true;
           INITIAL_SYSTEM_CATEGORIES.forEach((c) => {
             syncDoc(setDoc(doc(db, 'system_categories', c.id), sanitizeForFirestore(c)), 'seed categories');
           });
@@ -2154,7 +2177,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .sort((a, b) => a.order - b.order);
           setSubUnitsList(remoteUnits);
           localStorage.setItem(STORAGE_KEYS.SUB_UNITS, JSON.stringify(remoteUnits));
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.sub_units) {
+          seededCollectionsRef.current.sub_units = true;
           INITIAL_SUB_UNITS.forEach((u) => {
             syncDoc(setDoc(doc(db, 'sub_units', u.id), sanitizeForFirestore(u)), 'seed sub units');
           });
@@ -2174,7 +2198,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .sort((a, b) => a.order - b.order);
           setRanksList(remoteRanks);
           localStorage.setItem(STORAGE_KEYS.MILITARY_RANKS, JSON.stringify(remoteRanks));
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.military_ranks) {
+          seededCollectionsRef.current.military_ranks = true;
           INITIAL_RANKS.forEach((r) => {
             syncDoc(setDoc(doc(db, 'military_ranks', r.id), sanitizeForFirestore(r)), 'seed military ranks');
           });
@@ -2194,7 +2219,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .sort((a, b) => a.order - b.order);
           setTradesList(remoteTrades);
           localStorage.setItem(STORAGE_KEYS.MILITARY_TRADES, JSON.stringify(remoteTrades));
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.military_trades) {
+          seededCollectionsRef.current.military_trades = true;
           INITIAL_TRADES.forEach((t) => {
             syncDoc(setDoc(doc(db, 'military_trades', t.id), sanitizeForFirestore(t)), 'seed military trades');
           });
@@ -2212,7 +2238,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const remoteAuth = snapshot.docs.map((d) => d.data() as AuthEstablishmentItem);
           setAuthEstablishmentList(remoteAuth);
           localStorage.setItem(STORAGE_KEYS.AUTH_ESTABLISHMENT, JSON.stringify(remoteAuth));
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.auth_establishment) {
+          seededCollectionsRef.current.auth_establishment = true;
           INITIAL_AUTH_ESTABLISHMENT.forEach((a) => {
             syncDoc(setDoc(doc(db, 'auth_establishment', a.id), sanitizeForFirestore(a)), 'seed auth establishment');
           });
@@ -2230,7 +2257,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = docSnap.data() as CalculationConfig;
           setCalculationConfig(data);
           localStorage.setItem(STORAGE_KEYS.CALCULATION_CONFIG, JSON.stringify(data));
-        } else if (isAuthorizedAdmin) {
+        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.calculation_config) {
+          seededCollectionsRef.current.calculation_config = true;
           syncDoc(
             setDoc(
               doc(db, 'calculation_config', INITIAL_CALCULATION_CONFIG.id),
@@ -2997,8 +3025,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncNominalRollToCloud = async () => {
     try {
       showNotification('Syncing 606 personnel to Firebase Cloud Firestore...');
-      for (const p of INITIAL_PERSONNEL) {
-        await setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p));
+      const chunkSize = 25;
+      for (let i = 0; i < INITIAL_PERSONNEL.length; i += chunkSize) {
+        const chunk = INITIAL_PERSONNEL.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map((p) => setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p)))
+        );
       }
       setPersonnelList(INITIAL_PERSONNEL);
       setCloudPermissionDenied(false);
@@ -3017,47 +3049,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       showNotification('রেজিমেন্টের সকল ডেটা ফায়ারবেস ক্লাউডে সিঙ্ক করা হচ্ছে...');
 
-      // 1. Sync User accounts
-      for (const u of usersList) {
-        await setDoc(doc(db, 'users', u.id), sanitizeForFirestore(u), { merge: true });
-      }
+      // 1. Sync User accounts in parallel
+      await Promise.all(usersList.map((u) => setDoc(doc(db, 'users', u.id), sanitizeForFirestore(u), { merge: true })));
 
       // 2. Sync System Categories
-      for (const c of categoriesList) {
-        await setDoc(doc(db, 'system_categories', c.id), sanitizeForFirestore(c), { merge: true });
-      }
+      await Promise.all(categoriesList.map((c) => setDoc(doc(db, 'system_categories', c.id), sanitizeForFirestore(c), { merge: true })));
 
       // 3. Sync Sub-units / Batteries
-      for (const su of subUnitsList) {
-        await setDoc(doc(db, 'sub_units', su.id), sanitizeForFirestore(su), { merge: true });
-      }
+      await Promise.all(subUnitsList.map((su) => setDoc(doc(db, 'sub_units', su.id), sanitizeForFirestore(su), { merge: true })));
 
       // 4. Sync Military Ranks
-      for (const r of ranksList) {
-        await setDoc(doc(db, 'military_ranks', r.id), sanitizeForFirestore(r), { merge: true });
-      }
+      await Promise.all(ranksList.map((r) => setDoc(doc(db, 'military_ranks', r.id), sanitizeForFirestore(r), { merge: true })));
 
       // 5. Sync Military Trades
-      for (const t of tradesList) {
-        await setDoc(doc(db, 'military_trades', t.id), sanitizeForFirestore(t), { merge: true });
-      }
+      await Promise.all(tradesList.map((t) => setDoc(doc(db, 'military_trades', t.id), sanitizeForFirestore(t), { merge: true })));
 
       // 6. Sync Auth Establishment
-      for (const ae of authEstablishmentList) {
-        await setDoc(doc(db, 'auth_establishment', ae.id), sanitizeForFirestore(ae), { merge: true });
-      }
+      await Promise.all(authEstablishmentList.map((ae) => setDoc(doc(db, 'auth_establishment', ae.id), sanitizeForFirestore(ae), { merge: true })));
 
       // 7. Sync Calculation Rules
       await setDoc(doc(db, 'calculation_config', 'default_calc_rules'), sanitizeForFirestore(calculationConfig), { merge: true });
 
       // 8. Sync Parade Types
-      for (const pt of paradeTypes) {
-        await setDoc(doc(db, 'parade_types', pt.id), sanitizeForFirestore(pt), { merge: true });
-      }
+      await Promise.all(paradeTypes.map((pt) => setDoc(doc(db, 'parade_types', pt.id), sanitizeForFirestore(pt), { merge: true })));
 
-      // 9. Sync Personnel (Nominal Roll)
-      for (const p of personnelList) {
-        await setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p), { merge: true });
+      // 9. Sync Personnel (Nominal Roll) in chunks of 25
+      const chunkSize = 25;
+      for (let i = 0; i < personnelList.length; i += chunkSize) {
+        const chunk = personnelList.slice(i, i + chunkSize);
+        await Promise.all(chunk.map((p) => setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p), { merge: true })));
       }
 
       // 10. Sync Settings
