@@ -244,7 +244,13 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
             {summaries.map((bty) => {
               const presentPct = bty.posted > 0 ? Math.round((bty.present / bty.posted) * 100) : 0;
               const isSelected = selectedBattery === bty.battery;
-              const status = paradeBatteryStatus[bty.battery] || 'Draft';
+              const btyStat = paradeBatteryStatus[bty.battery];
+              const statusText =
+                typeof btyStat === 'object' && btyStat !== null
+                  ? btyStat.status
+                  : typeof btyStat === 'string'
+                  ? btyStat
+                  : 'Draft';
 
               return (
                 <div
@@ -273,14 +279,14 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
                     </div>
                     <span
                       className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                        status === 'Approved' || status === 'Confirmed'
+                        statusText === 'Approved' || statusText === 'Confirmed'
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                          : status === 'Submitted'
+                          : statusText === 'Submitted'
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                           : 'bg-slate-800 text-slate-400 border-slate-700'
                       }`}
                     >
-                      {status}
+                      {statusText}
                     </span>
                   </div>
 

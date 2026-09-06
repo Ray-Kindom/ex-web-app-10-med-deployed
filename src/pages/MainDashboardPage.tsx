@@ -3,10 +3,6 @@ import { useApp } from '../context/AppContext';
 import { StatCard } from '../components/common/StatCard';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
 import { PersonnelTable } from '../components/personnel/PersonnelTable';
-import { LeaveModal } from '../components/parade/LeaveModal';
-import { CourseModal } from '../components/parade/CourseModal';
-import { SickModal } from '../components/parade/SickModal';
-import { ComdModal } from '../components/parade/ComdModal';
 import { Battery, Personnel } from '../types';
 import {
   Users,
@@ -56,10 +52,6 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
   } = useApp();
 
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>('All');
-  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
-  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
-  const [isSickModalOpen, setIsSickModalOpen] = useState(false);
-  const [isComdModalOpen, setIsComdModalOpen] = useState(false);
 
   const troopsSectionRef = useRef<HTMLDivElement>(null);
 
@@ -273,7 +265,10 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={Compass}
           colorScheme="indigo"
           badge={totals.totalTempDuty + totals.totalAttached > 0 ? `${totals.totalTempDuty + totals.totalAttached} Out` : 'Nil Command'}
-          onClick={() => setIsComdModalOpen(true)}
+          onClick={() => {
+            setActiveOutOfUnitCategory('Comd');
+            setOutOfUnitModalOpen(true);
+          }}
         />
         <StatCard
           title="CMH/Sick"
@@ -282,7 +277,10 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={HeartPulse}
           colorScheme="amber"
           badge={totals.totalSick > 0 ? `${totals.totalSick} Admitted` : 'Nil Sick'}
-          onClick={() => setIsSickModalOpen(true)}
+          onClick={() => {
+            setActiveOutOfUnitCategory('CMH');
+            setOutOfUnitModalOpen(true);
+          }}
         />
         <StatCard
           title="Lve"
@@ -291,7 +289,10 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={PlaneTakeoff}
           colorScheme="purple"
           badge={totals.totalLeave > 0 ? `${totals.totalLeave} Soldiers` : 'Nil Leave'}
-          onClick={() => setIsLeaveModalOpen(true)}
+          onClick={() => {
+            setActiveOutOfUnitCategory('P/Lve');
+            setOutOfUnitModalOpen(true);
+          }}
         />
         <StatCard
           title="Course"
@@ -300,7 +301,10 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={GraduationCap}
           colorScheme="cyan"
           badge={totals.totalCourse > 0 ? `${totals.totalCourse} Attending` : 'Nil Course'}
-          onClick={() => setIsCourseModalOpen(true)}
+          onClick={() => {
+            setActiveOutOfUnitCategory('Course');
+            setOutOfUnitModalOpen(true);
+          }}
         />
         <StatCard
           title="FDMN Camp"
@@ -346,10 +350,6 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           selectedBattery={selectedBattery}
           onSelectBattery={(bty) => handleSelectBatteryBox(bty)}
           onOpenPrintModal={onOpenPrintModal}
-          onOpenLeaveModal={() => setIsLeaveModalOpen(true)}
-          onOpenCourseModal={() => setIsCourseModalOpen(true)}
-          onOpenSickModal={() => setIsSickModalOpen(true)}
-          onOpenComdModal={() => setIsComdModalOpen(true)}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -359,10 +359,6 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
             selectedBattery={selectedBattery}
             onSelectBattery={(bty) => handleSelectBatteryBox(bty)}
             onOpenPrintModal={onOpenPrintModal}
-            onOpenLeaveModal={() => setIsLeaveModalOpen(true)}
-            onOpenCourseModal={() => setIsCourseModalOpen(true)}
-            onOpenSickModal={() => setIsSickModalOpen(true)}
-            onOpenComdModal={() => setIsComdModalOpen(true)}
           />
 
           {/* Sub-Unit Quick Navigation Cards (Clicking any box automatically displays that battery's nominal roll) */}
@@ -621,40 +617,6 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
         />
       </div>
       )}
-
-      {/* Popups for Lve, Course, CMH/Sick, COMD */}
-      <LeaveModal
-        isOpen={isLeaveModalOpen}
-        onClose={() => setIsLeaveModalOpen(false)}
-        onSelectPersonnel={(p) => {
-          setIsLeaveModalOpen(false);
-          onViewDossier(p);
-        }}
-      />
-      <CourseModal
-        isOpen={isCourseModalOpen}
-        onClose={() => setIsCourseModalOpen(false)}
-        onSelectPersonnel={(p) => {
-          setIsCourseModalOpen(false);
-          onViewDossier(p);
-        }}
-      />
-      <SickModal
-        isOpen={isSickModalOpen}
-        onClose={() => setIsSickModalOpen(false)}
-        onSelectPersonnel={(p) => {
-          setIsSickModalOpen(false);
-          onViewDossier(p);
-        }}
-      />
-      <ComdModal
-        isOpen={isComdModalOpen}
-        onClose={() => setIsComdModalOpen(false)}
-        onSelectPersonnel={(p) => {
-          setIsComdModalOpen(false);
-          onViewDossier(p);
-        }}
-      />
     </div>
   );
 };

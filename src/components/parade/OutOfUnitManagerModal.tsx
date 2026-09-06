@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   OutOfUnitCategory,
@@ -25,6 +25,7 @@ import {
   Award,
   Shield,
   Clock,
+  User,
 } from 'lucide-react';
 
 interface OutOfUnitManagerModalProps {
@@ -32,6 +33,7 @@ interface OutOfUnitManagerModalProps {
   onClose: () => void;
   defaultCategory?: OutOfUnitCategory;
   defaultBattery?: Battery;
+  onViewDossier?: (p: Personnel) => void;
 }
 
 export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
@@ -39,6 +41,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
   onClose,
   defaultCategory,
   defaultBattery,
+  onViewDossier,
 }) => {
   const {
     personnelList,
@@ -52,6 +55,14 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
   const [currentCategory, setCurrentCategory] = useState<OutOfUnitCategory>(
     defaultCategory || activeOutOfUnitCategory || 'Msn'
   );
+
+  useEffect(() => {
+    if (defaultCategory) {
+      setCurrentCategory(defaultCategory);
+    } else if (activeOutOfUnitCategory) {
+      setCurrentCategory(activeOutOfUnitCategory);
+    }
+  }, [defaultCategory, activeOutOfUnitCategory, isOpen]);
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>(
     defaultBattery || (currentUser.assignedBattery as Battery) || 'All'
   );
@@ -640,14 +651,30 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                           {person.outOfUnitAuthority || person.outOfUnitRemarks || person.diagnosis || person.comdAuthority || '-'}
                         </td>
                         <td className="py-3 px-3 text-right">
-                          <button
-                            onClick={() => cancelOutOfUnit(person.id)}
-                            title="Cancel Out-of-Unit & Return Soldier to Unit Parade"
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 border border-slate-700 text-[11px] font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Return to Unit</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {onViewDossier && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onClose();
+                                  onViewDossier(person);
+                                }}
+                                title="View Soldier Dossier"
+                                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <User className="w-3 h-3 text-rose-400" />
+                                <span>Dossier</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => cancelOutOfUnit(person.id)}
+                              title="Cancel Out-of-Unit & Return Soldier to Unit Parade"
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-300 border border-slate-700 text-[11px] font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Return to Unit</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

@@ -17,10 +17,9 @@ export const ParadeActionControls: React.FC<ParadeActionControlsProps> = ({ batt
     personnelList,
   } = useApp();
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
   const isRsm = currentUser.role === 'RSM' || currentUser.role === 'Admin';
 
-  if (!isBsm && !isRsm) {
+  if (!isRsm) {
     return null;
   }
 

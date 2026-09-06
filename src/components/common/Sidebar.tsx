@@ -33,6 +33,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     isRealAdmin,
     isSimulating,
     exitSimulation,
+    systemSettings,
+    hasModulePermission,
   } = useApp();
 
   const totals = getRegimentalTotals();
@@ -235,8 +237,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
   }
 
-  // If real admin is currently simulating another role, ensure Admin Panel is accessible
-  if (isRealAdmin && !items.some((i) => i.id === 'admin_panel')) {
+  // If real admin is currently simulating another role or permitted by RBAC matrix, ensure Admin Panel is accessible
+  const canAccessAdmin = isRealAdmin || hasModulePermission('admin_panel');
+  if (canAccessAdmin && !items.some((i) => i.id === 'admin_panel')) {
     items.push({
       id: 'admin_panel',
       label: 'Admin Panel',
@@ -246,6 +249,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
     });
   }
+
+  // Filter navigation items dynamically based on systemSettings RBAC matrix
+  const displayItems = items.filter((item) => {
+    if (isRealAdmin && item.id === 'admin_panel') return true;
+    const permKey = item.id === 'data_update' ? 'out_of_unit' : item.id;
+    return hasModulePermission(permKey);
+  });
 
   const handleNavClick = (item: NavItem) => {
     if (item.action) {
@@ -304,7 +314,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {items.map((item) => {
+          {displayItems.map((item) => {
             const Icon = item.icon;
             const isActive = activePage === item.id;
 

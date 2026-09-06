@@ -28,6 +28,8 @@ import {
   isOfficerRank,
   isBsmRole,
   GoogleAccessRequest,
+  SystemSettings,
+  DEFAULT_SYSTEM_SETTINGS,
 } from '../types';
 import {
   INITIAL_PERSONNEL,
@@ -64,8 +66,10 @@ import {
 } from '../lib/firebase';
 
 export const OWNER_EMAILS: string[] = [
+  'int10med2026@gmail.com',
   'mdraiyan1512@gmail.com',
   '10medclk@gmail.com',
+  'backupray12145@gmail.com',
 ];
 
 interface AppContextType {
@@ -257,6 +261,14 @@ interface AppContextType {
   revokeGoogleUserApproval: (userIdOrEmail: string) => Promise<void>;
   checkPendingApprovalStatus: () => Promise<boolean>;
   isOwnerUser: boolean;
+
+  // Master System Settings & Branding (ADMIN FULL CONTROL)
+  systemSettings: SystemSettings;
+  updateSystemSettings: (updated: Partial<SystemSettings>) => boolean;
+  exportSystemBackup: () => void;
+  importSystemBackup: (backupData: any) => boolean;
+  resetSystemToDefaults: () => void;
+  hasModulePermission: (moduleKey: string, userRole?: string) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -283,6 +295,7 @@ const STORAGE_KEYS = {
   MILITARY_TRADES: '10med_military_trades_v1',
   AUTH_ESTABLISHMENT: '10med_auth_establishment_v1',
   CALCULATION_CONFIG: '10med_calc_config_v1',
+  SYSTEM_SETTINGS: '10med_system_settings_v1',
 };
 
 // Helper to strip undefined values so Firestore does not throw serialization error
@@ -424,6 +437,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_CALCULATION_CONFIG;
   });
 
+  // Master System Configuration & Branding (ADMIN STRICT CONTROL)
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.SYSTEM_SETTINGS);
+    if (saved) {
+      try {
+        return { ...DEFAULT_SYSTEM_SETTINGS, ...JSON.parse(saved) };
+      } catch (e) {}
+    }
+    return DEFAULT_SYSTEM_SETTINGS;
+  });
+
   // Role permissions & Simulation State
   // Guest Demo Mode - Completely Read-Only
   const isGuest = Boolean(
@@ -436,13 +460,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // isRealAdmin stays true for the genuine logged-in Administrator regardless of simulated role
   const isRealAdmin = !isGuest && Boolean(
     realUser?.role === 'Admin' ||
-    realUser?.email === '10medclk@gmail.com' ||
-    realUser?.email === 'mdraiyan1512@gmail.com' ||
-    realUser?.email === 'backupray12145@gmail.com' ||
+    (realUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === realUser.email!.toLowerCase())) ||
     realUser?.username?.toLowerCase() === 'admin' ||
-    (currentUser.email === '10medclk@gmail.com' && !realUser) ||
-    (currentUser.email === 'mdraiyan1512@gmail.com' && !realUser) ||
-    (currentUser.email === 'backupray12145@gmail.com' && !realUser) ||
+    (currentUser.email && OWNER_EMAILS.some((o) => o.toLowerCase() === currentUser.email!.toLowerCase()) && !realUser) ||
     (!realUser && currentUser.role === 'Admin')
   );
 
@@ -474,9 +494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isAdmin =
     !isGuest &&
     (currentUser.role === 'Admin' ||
-      currentUser.email === '10medclk@gmail.com' ||
-      currentUser.email === 'mdraiyan1512@gmail.com' ||
-      currentUser.email === 'backupray12145@gmail.com' ||
+      (currentUser.email && OWNER_EMAILS.some((o) => o.toLowerCase() === currentUser.email!.toLowerCase())) ||
       isRealAdmin);
   const isRSM = !isGuest && currentUser.role === 'RSM';
 
@@ -1937,8 +1955,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isAuthorizedAdmin =
       currentUser.role === 'Admin' ||
       isRealAdmin ||
-      firebaseUser?.email === '10medclk@gmail.com' ||
-      firebaseUser?.email === 'mdraiyan1512@gmail.com';
+      Boolean(firebaseUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === firebaseUser.email!.toLowerCase()));
 
     const handleSnapError = (err: any, col: string) => {
       if (err?.code === 'permission-denied' || String(err).includes('permission-denied')) {
@@ -2049,6 +2066,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = docSnap.data();
           if (data?.customLogo !== undefined) {
             setCustomLogoState(data.customLogo);
+          }
+          if (data?.systemSettings) {
+            setSystemSettings((prev) => ({ ...prev, ...data.systemSettings }));
+            localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(data.systemSettings));
           }
         }
       },
@@ -2329,6 +2350,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       const emailLower = user.email.toLowerCase();
       const isOwner = OWNER_EMAILS.some((o) => o.toLowerCase() === emailLower);
+
+      if (systemSettings.maintenanceMode && !isOwner) {
+        const isAdminAcct = usersList.some(
+          (u) => u.email?.toLowerCase() === emailLower && u.role === 'Admin'
+        );
+        if (!isAdminAcct) {
+          return {
+            success: false,
+            error:
+              systemSettings.maintenanceMessage ||
+              'সিস্টেমে ইমার্জেন্সি রক্ষণাবেক্ষণ চলছে। শুধুমাত্র অ্যাডমিন লগইন অনুমোদিত।',
+          };
+        }
+      }
 
       // Check if user is already approved in usersList
       const existingUser = usersList.find((u) => u.email?.toLowerCase() === emailLower);
@@ -2763,14 +2798,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'ভুল ইউজারনেম! এই ইউজারনেমে কোনো অ্যাকাউন্ট পাওয়া যায়নি।' };
     }
 
+    // Check system access policies
+    if (user.role === 'Guest' || cleanU === 'guest') {
+      if (!systemSettings.allowGuestMode) {
+        return { success: false, error: 'গেস্ট মোড অ্যাডমিন কর্তৃক সাময়িকভাবে বন্ধ রাখা হয়েছে।' };
+      }
+    } else if (user.role !== 'Admin' && cleanU !== 'admin') {
+      if (!systemSettings.allowPasskeyLogin) {
+        return {
+          success: false,
+          error: 'পাসকি দিয়ে সরাসরি লগইন বর্তমানে নিষ্ক্রিয় রয়েছে। অনুগ্রহ করে অনুমোদিত গুগল সাইন-ইন ব্যবহার করুন।',
+        };
+      }
+      if (systemSettings.maintenanceMode) {
+        return {
+          success: false,
+          error:
+            systemSettings.maintenanceMessage ||
+            'সিস্টেমে ইমার্জেন্সি রক্ষণাবেক্ষণ চলছে। শুধুমাত্র অ্যাডমিন লগইন অনুমোদিত।',
+        };
+      }
+    }
+
     // Password verification: Admin default is admin123; Guest default is guest123
     let validPassword = user.password;
     if (!validPassword) {
       if (
         user.role === 'Admin' ||
         user.username.toLowerCase() === 'admin' ||
-        user.email === 'mdraiyan1512@gmail.com' ||
-        user.email === '10medclk@gmail.com'
+        (user.email && OWNER_EMAILS.some((o) => o.toLowerCase() === user.email!.toLowerCase()))
       ) {
         validPassword = 'admin123';
       } else if (user.role === 'Guest' || user.username.toLowerCase() === 'guest') {
@@ -2936,7 +2992,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         doc(db, 'settings', 'regiment_settings'),
         sanitizeForFirestore({
           customLogo,
-          unitName: '10 Med Regt Arty',
+          systemSettings,
+          unitName: systemSettings.unitName,
           updatedAt: new Date().toISOString(),
           syncedBy: currentUser?.username || 'admin',
         }),
@@ -2957,6 +3014,177 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return { success: false, error: e?.message || 'Sync failed' };
     }
+  };
+
+  const updateSystemSettings = (updated: Partial<SystemSettings>): boolean => {
+    if (isGuest) {
+      showNotification('Guest mode is view-only. You cannot make any changes.');
+      return false;
+    }
+    setSystemSettings((prev) => {
+      const next: SystemSettings = {
+        ...prev,
+        ...updated,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name || currentUser.username,
+      };
+      localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(next));
+      syncDoc(
+        setDoc(
+          doc(db, 'settings', 'regiment_settings'),
+          sanitizeForFirestore({ systemSettings: next, unitName: next.unitName }),
+          { merge: true }
+        ),
+        'update system settings'
+      );
+      return next;
+    });
+    addAuditLog('SYSTEM_SETTINGS_UPDATE', `Updated system configuration: ${Object.keys(updated).join(', ')}`, 'SYSTEM');
+    showNotification('সিস্টেম সেটিংস সফলভাবে আপডেট করা হয়েছে।');
+    return true;
+  };
+
+  const exportSystemBackup = () => {
+    const fullBackup = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      exportedBy: currentUser.name || currentUser.username,
+      regiment: systemSettings.unitName,
+      systemSettings,
+      personnelList,
+      usersList,
+      categoriesList,
+      subUnitsList,
+      ranksList,
+      tradesList,
+      authEstablishmentList,
+      calculationConfig,
+      dailyParadePoints,
+      paradeTypes,
+      paradeRecords,
+      paradeDutyAssignments,
+      dutySessionStatuses,
+      accessRequests,
+      auditLogs,
+      customLogo,
+    };
+    const jsonStr = JSON.stringify(fullBackup, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const cleanUnit = (systemSettings.unitName || '10_MED_REGT').replace(/[^a-zA-Z0-9]/g, '_');
+    a.download = `${cleanUnit}_BACKUP_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addAuditLog('SYSTEM_BACKUP_EXPORT', 'Exported complete database JSON backup', 'SYSTEM');
+    showNotification('পূর্ণাঙ্গ ডাটাবেজ ব্যাকআপ ফাইল ডাউনলোড সম্পন্ন হয়েছে।');
+  };
+
+  const importSystemBackup = (backupData: any): boolean => {
+    if (isGuest) {
+      showNotification('Guest mode is view-only.');
+      return false;
+    }
+    if (!backupData || typeof backupData !== 'object') {
+      showNotification('অকার্যকর ফাইল ফরম্যাট!');
+      return false;
+    }
+    try {
+      if (backupData.systemSettings) {
+        setSystemSettings(backupData.systemSettings);
+        localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(backupData.systemSettings));
+      }
+      if (Array.isArray(backupData.personnelList)) {
+        setPersonnelList(backupData.personnelList);
+        localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(backupData.personnelList));
+      }
+      if (Array.isArray(backupData.usersList)) {
+        setUsersList(backupData.usersList);
+        localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(backupData.usersList));
+      }
+      if (Array.isArray(backupData.categoriesList)) {
+        setCategoriesList(backupData.categoriesList);
+        localStorage.setItem(STORAGE_KEYS.SYSTEM_CATEGORIES, JSON.stringify(backupData.categoriesList));
+      }
+      if (Array.isArray(backupData.subUnitsList)) {
+        setSubUnitsList(backupData.subUnitsList);
+        localStorage.setItem(STORAGE_KEYS.SUB_UNITS, JSON.stringify(backupData.subUnitsList));
+      }
+      if (Array.isArray(backupData.ranksList)) {
+        setRanksList(backupData.ranksList);
+        localStorage.setItem(STORAGE_KEYS.MILITARY_RANKS, JSON.stringify(backupData.ranksList));
+      }
+      if (Array.isArray(backupData.tradesList)) {
+        setTradesList(backupData.tradesList);
+        localStorage.setItem(STORAGE_KEYS.MILITARY_TRADES, JSON.stringify(backupData.tradesList));
+      }
+      if (Array.isArray(backupData.authEstablishmentList)) {
+        setAuthEstablishmentList(backupData.authEstablishmentList);
+        localStorage.setItem(STORAGE_KEYS.AUTH_ESTABLISHMENT, JSON.stringify(backupData.authEstablishmentList));
+      }
+      if (backupData.calculationConfig) {
+        setCalculationConfig(backupData.calculationConfig);
+        localStorage.setItem(STORAGE_KEYS.CALCULATION_CONFIG, JSON.stringify(backupData.calculationConfig));
+      }
+      if (Array.isArray(backupData.dailyParadePoints)) {
+        setDailyParadePoints(backupData.dailyParadePoints);
+        localStorage.setItem(STORAGE_KEYS.PARADE_POINTS, JSON.stringify(backupData.dailyParadePoints));
+      }
+      if (Array.isArray(backupData.paradeTypes)) {
+        setParadeTypes(backupData.paradeTypes);
+        localStorage.setItem(STORAGE_KEYS.PARADE_TYPES, JSON.stringify(backupData.paradeTypes));
+      }
+      if (backupData.paradeRecords && typeof backupData.paradeRecords === 'object') {
+        setParadeRecords(backupData.paradeRecords);
+        localStorage.setItem(STORAGE_KEYS.PARADE_RECORDS, JSON.stringify(backupData.paradeRecords));
+      }
+      if (backupData.customLogo) {
+        setCustomLogoState(backupData.customLogo);
+        localStorage.setItem(STORAGE_KEYS.LOGO, backupData.customLogo);
+      }
+      addAuditLog('SYSTEM_BACKUP_RESTORE', 'Restored complete database from backup file', 'SYSTEM');
+      showNotification('ব্যাকআপ সফলভাবে রিস্টোর করা হয়েছে!');
+      return true;
+    } catch (e: any) {
+      showNotification('রিস্টোর ত্রুটি: ' + e.message);
+      return false;
+    }
+  };
+
+  const resetSystemToDefaults = () => {
+    if (isGuest) {
+      showNotification('Guest mode is view-only.');
+      return;
+    }
+    setSystemSettings(DEFAULT_SYSTEM_SETTINGS);
+    setPersonnelList(INITIAL_PERSONNEL);
+    setUsersList(INITIAL_USERS);
+    setCategoriesList(INITIAL_SYSTEM_CATEGORIES);
+    setSubUnitsList(INITIAL_SUB_UNITS);
+    setRanksList(INITIAL_RANKS);
+    setTradesList(INITIAL_TRADES);
+    setAuthEstablishmentList(INITIAL_AUTH_ESTABLISHMENT);
+    setCalculationConfig(INITIAL_CALCULATION_CONFIG);
+    setDailyParadePoints(INITIAL_PARADE_POINTS);
+    setCustomLogoState(null);
+
+    localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(DEFAULT_SYSTEM_SETTINGS));
+    localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(INITIAL_PERSONNEL));
+    localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(INITIAL_USERS));
+    localStorage.setItem(STORAGE_KEYS.SYSTEM_CATEGORIES, JSON.stringify(INITIAL_SYSTEM_CATEGORIES));
+    localStorage.setItem(STORAGE_KEYS.SUB_UNITS, JSON.stringify(INITIAL_SUB_UNITS));
+    localStorage.setItem(STORAGE_KEYS.MILITARY_RANKS, JSON.stringify(INITIAL_RANKS));
+    localStorage.setItem(STORAGE_KEYS.MILITARY_TRADES, JSON.stringify(INITIAL_TRADES));
+    localStorage.setItem(STORAGE_KEYS.AUTH_ESTABLISHMENT, JSON.stringify(INITIAL_AUTH_ESTABLISHMENT));
+    localStorage.setItem(STORAGE_KEYS.CALCULATION_CONFIG, JSON.stringify(INITIAL_CALCULATION_CONFIG));
+    localStorage.setItem(STORAGE_KEYS.PARADE_POINTS, JSON.stringify(INITIAL_PARADE_POINTS));
+    localStorage.removeItem(STORAGE_KEYS.LOGO);
+
+    addAuditLog('FACTORY_RESET', 'System was restored to factory defaults', 'SYSTEM');
+    showNotification('সিস্টেম ফ্যাক্টরি ডিফল্ট-এ সফলভাবে ফিরিয়ে নেওয়া হয়েছে।');
   };
 
   const addAuditLog = (action: string, details: string, category: AuditLogItem['category']) => {
@@ -3585,6 +3813,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return calculateSimpleParadeState(personnelList, rawDuty, batteryScope);
   };
 
+  const hasModulePermission = (moduleKey: string, userRole?: string): boolean => {
+    const role = userRole || currentUser.role;
+    // Master Regimental Admin has absolute access to everything
+    if (role === 'Admin' || isRealAdmin) return true;
+
+    // Normalization for role-specific dashboard views
+    let normalizedModule = moduleKey;
+    if (moduleKey === 'co_dashboard' || moduleKey === 'offr_dashboard' || moduleKey === 'rsm_dashboard') {
+      normalizedModule = 'main_dashboard';
+    }
+
+    const permissions = systemSettings?.modulePermissions;
+    if (!permissions) return true;
+
+    // Find permissions for current role
+    let rolePerms = permissions[role];
+    if (!rolePerms && isBsmRole(role)) {
+      rolePerms = permissions['BSM'] || permissions['P BSM'];
+    }
+
+    if (rolePerms) {
+      if (typeof rolePerms[moduleKey] === 'boolean') {
+        return rolePerms[moduleKey];
+      }
+      if (typeof rolePerms[normalizedModule] === 'boolean') {
+        return rolePerms[normalizedModule];
+      }
+    }
+
+    return true;
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -3740,6 +4000,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         revokeGoogleUserApproval,
         clearPendingGoogleUser,
         checkPendingApprovalStatus,
+
+        // Master System Settings & Backup (ADMIN FULL CONTROL)
+        systemSettings,
+        updateSystemSettings,
+        exportSystemBackup,
+        importSystemBackup,
+        resetSystemToDefaults,
+        hasModulePermission,
       }}
     >
       {children}

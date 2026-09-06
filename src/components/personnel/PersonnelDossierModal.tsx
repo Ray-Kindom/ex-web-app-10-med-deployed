@@ -244,9 +244,17 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                   <span className="text-slate-400">Medical History:</span>
                   <span className="text-slate-200 font-medium">Clear / Fit for Field Duty</span>
                 </div>
-                <div className="flex justify-between py-1">
+                <div className="flex justify-between py-1 border-b border-slate-800">
+                  <span className="text-slate-400">Mobile / Contact:</span>
+                  <span className="text-emerald-400 font-mono font-medium">{person.phone || person.mobileNo || 'Not Listed'}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Next of Kin (NOK):</span>
                   <span className="text-slate-200 font-medium">{person.nokName || 'On Regimental File'}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-slate-400">Remarks / Note:</span>
+                  <span className="text-slate-300 italic">{person.remarks || person.rmk || 'Nil'}</span>
                 </div>
               </div>
             </div>

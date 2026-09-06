@@ -42,9 +42,22 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
     (currentUser.role as string) === '2IC' ||
     (currentUser.role as string) === 'Officer' ||
     isOfficerRank(currentUser.rank);
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
-  const assignedBty = (currentUser.assignedBattery as Battery) || 'P Bty';
-  const isReadOnly = isOfficerOrCo || currentUser.role === 'Guest';
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
+  const isRsm = currentUser.role === 'RSM' || currentUser.role === 'Admin';
+  const assignedBty =
+    (currentUser.assignedBattery as Battery) ||
+    (currentUser.role === 'P BSM'
+      ? 'P Bty'
+      : currentUser.role === 'Q BSM'
+      ? 'Q Bty'
+      : currentUser.role === 'R BSM'
+      ? 'R Bty'
+      : currentUser.role === 'HQ BSM'
+      ? 'HQ Bty'
+      : 'P Bty');
+
+  // BSM is strictly read-only for now; RSM has full active control over duty detailing
+  const isReadOnly = isOfficerOrCo || currentUser.role === 'Guest' || isBsm;
 
   const [selectedDutySession, setSelectedDutySession] = useState<string>('Morning');
   const [selectedBatteryFilter, setSelectedBatteryFilter] = useState<Battery | 'Consolidated'>(
@@ -146,19 +159,21 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
 
           {/* Battery Scope */}
           <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-850">
-            <button
-              type="button"
-              id="duty-bty-filter-all"
-              onClick={() => setSelectedBatteryFilter('Consolidated')}
-              className={`px-2 py-1 rounded text-xs font-mono transition-colors cursor-pointer ${
-                selectedBatteryFilter === 'Consolidated'
-                  ? 'bg-cyan-600 text-white font-bold'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              All
-            </button>
-            {ALL_BATTERIES.map((bty) => (
+            {!isBsm && (
+              <button
+                type="button"
+                id="duty-bty-filter-all"
+                onClick={() => setSelectedBatteryFilter('Consolidated')}
+                className={`px-2 py-1 rounded text-xs font-mono transition-colors cursor-pointer ${
+                  selectedBatteryFilter === 'Consolidated'
+                    ? 'bg-cyan-600 text-white font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                All
+              </button>
+            )}
+            {(isBsm ? [assignedBty] : ALL_BATTERIES).map((bty) => (
               <button
                 key={bty}
                 type="button"
@@ -215,59 +230,66 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
             </button>
           </div>
 
-          {/* Workflow Action Buttons: Save, Edit, Sent to Adjt */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-850">
-            {/* 1. SAVE */}
-            <button
-              type="button"
-              id="btn-duty-save"
-              onClick={handleSave}
-              className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                dutyStatus.status === 'Saved'
-                  ? 'bg-blue-600/30 text-blue-300 border border-blue-500/50'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
-              }`}
-              title="Save current detailing"
-            >
-              <Save className="w-3.5 h-3.5 text-blue-400" />
-              <span>Save</span>
-            </button>
+          {/* Workflow Action Buttons: Save, Edit, Sent to Adjt (RSM/Admin exclusive) */}
+          {isBsm ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-850 text-slate-400 text-xs font-mono">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>BSM (Read-Only) • RSM Controlled</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-850">
+              {/* 1. SAVE */}
+              <button
+                type="button"
+                id="btn-duty-save"
+                onClick={handleSave}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  dutyStatus.status === 'Saved'
+                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/50'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
+                }`}
+                title="Save current detailing"
+              >
+                <Save className="w-3.5 h-3.5 text-blue-400" />
+                <span>Save</span>
+              </button>
 
-            {/* 2. EDIT */}
-            <button
-              type="button"
-              id="btn-duty-edit"
-              onClick={handleEdit}
-              className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                isEditMode || dutyStatus.status === 'Draft'
-                  ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
-              }`}
-              title="Unlock & Edit detailing"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-              <span>Edit</span>
-            </button>
+              {/* 2. EDIT */}
+              <button
+                type="button"
+                id="btn-duty-edit"
+                onClick={handleEdit}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  isEditMode || dutyStatus.status === 'Draft'
+                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
+                }`}
+                title="Unlock & Edit detailing"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                <span>Edit</span>
+              </button>
 
-            {/* 3. SENT TO ADJT */}
-            <button
-              type="button"
-              id="btn-duty-sent-to-adjt"
-              onClick={handleOpenSendToAdjt}
-              className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                dutyStatus.status === 'Sent to Adjt'
-                  ? 'bg-emerald-600/25 text-emerald-300 border border-emerald-500/50'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-              }`}
-              title="Dispatch to Adjutant"
-            >
-              <Send className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Sent to Adjt</span>
-              {dutyStatus.status === 'Sent to Adjt' && (
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-              )}
-            </button>
-          </div>
+              {/* 3. SENT TO ADJT */}
+              <button
+                type="button"
+                id="btn-duty-sent-to-adjt"
+                onClick={handleOpenSendToAdjt}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  dutyStatus.status === 'Sent to Adjt'
+                    ? 'bg-emerald-600/25 text-emerald-300 border border-emerald-500/50'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
+                title="Dispatch to Adjutant"
+              >
+                <Send className="w-3.5 h-3.5 text-emerald-300" />
+                <span>Sent to Adjt</span>
+                {dutyStatus.status === 'Sent to Adjt' && (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Print PDF */}
           <button

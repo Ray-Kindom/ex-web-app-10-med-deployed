@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 
 interface PersonnelTableProps {
@@ -23,6 +24,8 @@ interface PersonnelTableProps {
   fixedBattery?: Battery;
   onViewDossier: (person: Personnel) => void;
   onOpenAddModal?: () => void;
+  onEditPerson?: (person: Personnel) => void;
+  onDeletePerson?: (person: Personnel) => void;
   allowStatusEdits?: boolean;
   title?: string;
 }
@@ -32,6 +35,8 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
   fixedBattery,
   onViewDossier,
   onOpenAddModal,
+  onEditPerson,
+  onDeletePerson,
   allowStatusEdits = true,
   title,
 }) => {
@@ -591,13 +596,35 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
                     {/* 10. Actions */}
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <button
-                        onClick={() => onViewDossier(person)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 hover:border-slate-600 transition-colors"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-rose-400" />
-                        <span>Dossier</span>
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onViewDossier(person)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                          title="View Dossier"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-rose-400" />
+                          <span>Dossier</span>
+                        </button>
+                        {onEditPerson && (
+                          <button
+                            onClick={() => onEditPerson(person)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-amber-950/60 text-slate-300 hover:text-amber-300 text-xs font-semibold border border-slate-700 hover:border-amber-500/50 transition-colors cursor-pointer"
+                            title="Edit Personnel"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        {onDeletePerson && (
+                          <button
+                            onClick={() => onDeletePerson(person)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 text-xs font-semibold border border-slate-700 hover:border-rose-500/50 transition-colors cursor-pointer"
+                            title="Delete Personnel"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

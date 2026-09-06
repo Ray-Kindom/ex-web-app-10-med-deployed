@@ -20,13 +20,27 @@ import {
   Copy,
   Check,
   ExternalLink,
+  Clock,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { usersList, loginWithCredentials, loginWithGoogle } = useApp();
+  const {
+    usersList,
+    loginWithCredentials,
+    loginWithGoogle,
+    pendingGoogleUser,
+    clearPendingGoogleUser,
+    checkPendingApprovalStatus,
+    systemSettings,
+  } = useApp();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
   const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [copiedDomain, setCopiedDomain] = useState(false);
+  const [showEmergencyLogin, setShowEmergencyLogin] = useState(false);
 
   const [selectedUser, setSelectedUser] = useState<UserAccount | null>(null);
   const [password, setPassword] = useState('');
@@ -57,6 +71,28 @@ export const LoginPage: React.FC = () => {
     const result = loginWithCredentials('Guest', 'guest123');
     if (!result.success) {
       setErrorMessage(result.error || 'গেস্ট লগইন করতে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await loginWithGoogle();
+      if (!res.success && res.code === 'auth/unauthorized-domain') {
+        const domain = res.domain || (typeof window !== 'undefined' ? window.location.hostname : '');
+        setUnauthorizedDomain(domain);
+      } else if (!res.success && res.code !== 'auth/popup-closed-by-user') {
+        setErrorMessage(res.error || 'গুগল লগইন সম্পন্ন করা সম্ভব হয়নি।');
+      }
+    } catch (e: any) {
+      if (e?.code === 'auth/unauthorized-domain') {
+        setUnauthorizedDomain(typeof window !== 'undefined' ? window.location.hostname : '');
+      } else if (e?.code !== 'auth/popup-closed-by-user') {
+        setErrorMessage(e?.message || 'গুগল লগইন সম্পন্ন করা সম্ভব হয়নি।');
+      }
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -107,231 +143,331 @@ export const LoginPage: React.FC = () => {
           <div className="flex justify-center">
             <UnitLogo size="xl" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-wide font-sans">
-            10 MED REGT ARTY
+          <h1 className="text-xl sm:text-2xl font-black text-white tracking-wide font-sans uppercase">
+            {systemSettings?.unitName || '10 MED REGT ARTY'}
           </h1>
           <div className="flex items-center justify-center gap-2">
             <span className="text-xs font-mono font-bold uppercase tracking-widest text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-              Born Destroyer
+              {systemSettings?.unitMotto || 'Born Destroyer'}
             </span>
             <span className="text-xs text-slate-400 font-mono">
-              Smart Dashboard
+              {systemSettings?.tagline || 'Smart Dashboard'}
             </span>
           </div>
         </div>
 
-        {/* Large Clearly Visible Guest Login Box / Card */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-slate-950 border-2 border-amber-500/60 p-5 sm:p-6 shadow-2xl shadow-amber-950/30">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  READ-ONLY DEMO MODE
-                </span>
-                <span className="text-xs text-slate-400 font-medium hidden sm:inline">
-                  Full Regimental Visibility
-                </span>
-              </div>
-
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-amber-400 tracking-wide font-mono flex items-center gap-2.5">
-                  <ShieldCheck className="w-6 h-6 text-amber-400 shrink-0" />
-                  <span>GUEST LOGIN</span>
-                </h2>
-                <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
-                  প্যারেড স্টেট, রোল সিমুলেটর, নোমিনাল রোল, ডিউটি রোস্টার এবং রেজিমেন্টের সকল ডেটা রিড-অনলি মোডে পর্যবেক্ষণ করতে গেস্ট হিসেবে প্রবেশ করুন।
-                </p>
-              </div>
-
-              {/* Display Credentials */}
-              <div className="flex flex-wrap items-center gap-3 pt-1 font-mono text-xs">
-                <div className="flex items-center gap-2 bg-slate-950/90 border border-slate-700/90 px-3.5 py-1.5 rounded-xl shadow-inner">
-                  <span className="text-slate-400 font-semibold">Username:</span>
-                  <code className="text-amber-300 font-bold bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 text-xs sm:text-sm">
-                    Guest
-                  </code>
-                </div>
-                <div className="flex items-center gap-2 bg-slate-950/90 border border-slate-700/90 px-3.5 py-1.5 rounded-xl shadow-inner">
-                  <span className="text-slate-400 font-semibold">Password:</span>
-                  <code className="text-amber-300 font-bold bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 text-xs sm:text-sm">
-                    guest123
-                  </code>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-shrink-0 pt-2 md:pt-0">
-              <button
-                type="button"
-                onClick={handleGuestLogin}
-                className="w-full md:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm tracking-wide flex items-center justify-center gap-2.5 shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 transition-all cursor-pointer transform hover:-translate-y-0.5"
-              >
-                <UserCheck className="w-5 h-5 text-slate-950" />
-                <span>Login as Guest</span>
-                <ArrowRight className="w-4 h-4 text-slate-950" />
-              </button>
+        {/* Emergency Maintenance Mode Banner */}
+        {systemSettings?.maintenanceMode && (
+          <div className="p-4 rounded-xl bg-amber-950/70 border-2 border-amber-500 text-amber-200 text-xs flex items-start gap-3 shadow-lg">
+            <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-300 text-sm font-mono">
+                সিস্টেম রক্ষণাবেক্ষণ মোড সক্রিয় (MAINTENANCE MODE ACTIVE)
+              </p>
+              <p className="text-amber-200/90 mt-0.5 leading-relaxed">
+                {systemSettings.maintenanceMessage ||
+                  'বর্তমানে সাইটে জরুরি রক্ষণাবেক্ষণ চলছে। শুধুমাত্র অ্যাডমিন লগইন অনুমোদিত।'}
+              </p>
             </div>
           </div>
-        </div>
-
-        {/* Login As Section Title */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
-            <KeyRound className="w-5 h-5 text-rose-500" />
-            <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider font-mono">
-              Login As
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => setManualLogin(!manualLogin)}
-            className="text-xs text-slate-400 hover:text-slate-200 underline font-mono"
-          >
-            {manualLogin ? 'Select from User List' : 'Direct Username Login'}
-          </button>
-        </div>
+        )}
 
         {/* Global Error Banner */}
         {errorMessage && !selectedUser && (
-          <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/60 text-rose-200 text-xs flex items-start gap-2.5">
+          <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-500/80 text-rose-200 text-xs flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 font-medium">{errorMessage}</div>
           </div>
         )}
 
-        {/* User Card Grid */}
-        {!manualLogin ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto pr-1">
-            {sortedUsers.map((user) => {
-              return (
-                <button
-                  key={user.id}
-                  type="button"
-                  onClick={() => handleOpenPasswordModal(user)}
-                  className="group relative flex items-center gap-3 p-3 rounded-xl bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-rose-500/50 text-left transition-all duration-150 cursor-pointer shadow-sm hover:shadow-rose-950/20"
-                >
-                  {/* Photo or Name Initials */}
-                  {user.avatar ? (
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className="w-10 h-10 rounded-full border border-rose-500/40 object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 group-hover:border-rose-500/60 flex items-center justify-center text-xs font-mono font-bold text-amber-300 flex-shrink-0">
-                      {getUserInitials(user.name)}
-                    </div>
-                  )}
+        {/* Pending Google Account Approval Banner */}
+        {pendingGoogleUser && (
+          <div className="p-5 rounded-2xl bg-amber-950/40 border-2 border-amber-500/60 shadow-2xl space-y-3 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-xs sm:text-sm font-mono uppercase tracking-wide">
+                <Clock className="w-4 h-4 animate-spin text-amber-400" />
+                <span>অ্যাকাউন্ট অনুমোদনের অপেক্ষায় (Pending Owner Approval)</span>
+              </div>
+              <button
+                type="button"
+                onClick={clearPendingGoogleUser}
+                className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors"
+                title="Cancel pending login"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-                  {/* Name & Role Details */}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold text-slate-100 group-hover:text-white truncate">
-                      {user.rank} {user.name}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[10px] font-mono font-semibold text-rose-400">
-                        {user.role}
-                      </span>
-                      {user.assignedBattery && (
-                        <span className="text-[9px] font-mono text-slate-400 bg-slate-900 px-1 rounded">
-                          {user.assignedBattery}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-rose-400 transition-transform group-hover:translate-x-0.5 flex-shrink-0" />
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          /* Manual Username / Password Form */
-          <form onSubmit={handleManualSubmit} className="space-y-4 max-w-md mx-auto py-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Username / Service ID
-              </label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={manualUsername}
-                  onChange={(e) => setManualUsername(e.target.value)}
-                  placeholder="e.g. admin, co, rsm"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
-                  required
+            <div className="flex items-center gap-3 bg-slate-950/80 p-3 rounded-xl border border-amber-500/30">
+              {pendingGoogleUser.photoURL ? (
+                <img
+                  src={pendingGoogleUser.photoURL}
+                  alt={pendingGoogleUser.name || 'User'}
+                  className="w-11 h-11 rounded-full border border-amber-400 object-cover shrink-0"
                 />
+              ) : (
+                <div className="w-11 h-11 rounded-full bg-slate-800 border border-amber-400 flex items-center justify-center font-bold text-amber-400 shrink-0">
+                  {(pendingGoogleUser.name || pendingGoogleUser.email).slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-bold text-white truncate">{pendingGoogleUser.name || 'Google User'}</div>
+                <div className="text-xs font-mono text-amber-300 truncate">{pendingGoogleUser.email}</div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={manualPassword}
-                  onChange={(e) => setManualPassword(e.target.value)}
-                  placeholder="Enter password"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4" />}
-                </button>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              আপনার গুগল অ্যাকাউন্টটি রেজিমেন্টাল ওনারের অনুমোদনের অপেক্ষায় রয়েছে। ওনার অ্যাডমিন প্যানেল থেকে অনুমোদন করলেই আপনি সরাসরি সিস্টেমে প্রবেশ করতে পারবেন।
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsCheckingApproval(true);
+                  const approved = await checkPendingApprovalStatus();
+                  setIsCheckingApproval(false);
+                  if (!approved) {
+                    setErrorMessage('আপনার অ্যাকাউন্টটি এখনও ওনার কর্তৃক অনুমোদিত হয়নি। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।');
+                  }
+                }}
+                disabled={isCheckingApproval}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 cursor-pointer shadow-md transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingApproval ? 'animate-spin' : ''}`} />
+                <span>{isCheckingApproval ? 'যাচাই করা হচ্ছে...' : 'Check Approval Status'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGuestLogin}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-700"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Continue as Guest</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={clearPendingGoogleUser}
+                className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-slate-200 text-xs cursor-pointer transition-colors font-mono ml-auto"
+              >
+                Switch Account
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* PRIMARY AUTHENTICATION: AUTHORIZED GOOGLE SIGN-IN HERO CARD */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 border-2 border-emerald-500/50 p-6 sm:p-7 shadow-2xl shadow-emerald-950/30">
+          <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="space-y-4 relative z-10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono">
+                  <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+                  PRIMARY ACCESS METHOD
+                </span>
+                <span className="text-xs text-slate-400 font-medium hidden sm:inline">
+                  Military Security Standard
+                </span>
               </div>
+              <span className="text-[11px] font-mono font-semibold text-emerald-400/90 bg-slate-950/80 px-2.5 py-0.5 rounded border border-emerald-500/20">
+                Authorized Accounts Only
+              </span>
+            </div>
+
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-white tracking-wide font-sans flex items-center gap-2">
+                <span>Sign in with Authorized Google Account</span>
+              </h2>
+              <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                রেজিমেন্টের সকল অপারেশনাল মডিউল (CO, Offr, RSM, BSM, Admin) এক্সেস করতে আপনার অনুমোদিত গুগল অ্যাকাউন্ট দিয়ে সাইন-ইন করুন।
+              </p>
+            </div>
+
+            {/* Big Google Sign-In Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+                className="w-full py-3.5 px-6 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm sm:text-base flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl transition-all cursor-pointer transform hover:-translate-y-0.5 border border-slate-200"
+              >
+                {/* Official Google SVG Logo */}
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                <span>{isGoogleLoading ? 'Connecting to Google Authentication...' : 'Sign in with Google (Authorized Military Account)'}</span>
+                <ArrowRight className="w-4 h-4 text-slate-600 ml-1" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>শুধুমাত্র অ্যাডমিন দ্বারা পূর্বে অনুমোদিত (Whitelisted) জিমেইল দিয়ে সিস্টেমে সরাসরি ঢোকা যাবে।</span>
+            </div>
+          </div>
+        </div>
+
+        {/* GUEST LOGIN CARD */}
+        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-950/30 via-slate-900/80 to-slate-950 border ${systemSettings?.allowGuestMode === false ? 'border-slate-800 opacity-60' : 'border-amber-500/50'} p-5 sm:p-6 shadow-xl`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  DEMO & VISITOR ACCESS
+                </span>
+                {systemSettings?.allowGuestMode === false && (
+                  <span className="px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-600/60 text-[10px] font-mono font-bold">
+                    DISABLED BY ADMIN
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-amber-400 font-mono flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <span>GUEST LOGIN (Read-Only Mode)</span>
+              </h3>
+              <p className="text-xs text-slate-300 max-w-xl">
+                {systemSettings?.allowGuestMode === false
+                  ? 'গেস্ট মোড অ্যাডমিন প্যানেল থেকে সাময়িকভাবে বন্ধ রাখা হয়েছে।'
+                  : 'কোনো অনুমোদন বা পাসওয়ার্ড ছাড়াই প্যারেড স্টেট ও রেজিমেন্টের তথ্য শুধু দেখার জন্য প্রবেশ করুন।'}
+              </p>
             </div>
 
             <button
-              type="submit"
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              type="button"
+              onClick={handleGuestLogin}
+              disabled={systemSettings?.allowGuestMode === false}
+              className={`px-6 py-3 rounded-xl font-black text-xs sm:text-sm tracking-wide flex items-center justify-center gap-2 transition-all shrink-0 ${
+                systemSettings?.allowGuestMode === false
+                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                  : 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-lg shadow-amber-500/20 cursor-pointer'
+              }`}
             >
-              <span>Authenticate & Login</span>
+              <UserCheck className="w-4 h-4" />
+              <span>{systemSettings?.allowGuestMode === false ? 'Guest Disabled' : 'Login as Guest'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-          </form>
-        )}
+          </div>
+        </div>
 
-        {/* Google Cloud Sign-In Option */}
-        <div className="pt-2 border-t border-slate-800/80 flex flex-col items-center gap-2">
+        {/* EMERGENCY / OFFLINE PASSKEY LOGIN (COLLAPSIBLE ACCORDION) */}
+        <div className="pt-2">
           <button
             type="button"
-            onClick={async () => {
-              setIsGoogleLoading(true);
-              setErrorMessage(null);
-              try {
-                const res = await loginWithGoogle();
-                if (!res.success && res.code === 'auth/unauthorized-domain') {
-                  const domain = res.domain || (typeof window !== 'undefined' ? window.location.hostname : '');
-                  setUnauthorizedDomain(domain);
-                } else if (!res.success && res.code !== 'auth/popup-closed-by-user') {
-                  setErrorMessage(res.error || 'গুগল লগইন সম্পন্ন করা সম্ভব হয়নি।');
-                }
-              } catch (e: any) {
-                if (e?.code === 'auth/unauthorized-domain') {
-                  setUnauthorizedDomain(typeof window !== 'undefined' ? window.location.hostname : '');
-                } else if (e?.code !== 'auth/popup-closed-by-user') {
-                  setErrorMessage(e?.message || 'গুগল লগইন সম্পন্ন করা সম্ভব হয়নি।');
-                }
-              } finally {
-                setIsGoogleLoading(false);
-              }
-            }}
-            disabled={isGoogleLoading}
-            className="w-full max-w-sm py-2 px-4 rounded-xl bg-slate-800/80 hover:bg-slate-750 border border-slate-700 hover:border-slate-600 text-slate-200 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            onClick={() => setShowEmergencyLogin(!showEmergencyLogin)}
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-950/70 hover:bg-slate-900 border border-slate-800/90 text-slate-400 hover:text-slate-200 text-xs font-mono flex items-center justify-between transition-colors cursor-pointer"
           >
-            <Cloud className="w-4 h-4 text-emerald-400" />
-            <span>{isGoogleLoading ? 'Connecting to Google...' : 'Sign in with Google (Firebase Cloud)'}</span>
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+              <span>ইমার্জেন্সি অফলাইন ব্যাকআপ লগইন (ID & Passkey Login)</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              <span>{showEmergencyLogin ? 'লুকান (Hide)' : 'খুলুন (Expand)'}</span>
+              {showEmergencyLogin ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </div>
           </button>
+
+          {showEmergencyLogin && (
+            <div className="mt-3 p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <div className="text-xs font-bold text-slate-300 font-mono">
+                  Select Profile or Enter Username
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setManualLogin(!manualLogin)}
+                  className="text-xs text-rose-400 hover:underline font-mono"
+                >
+                  {manualLogin ? 'Select from User List' : 'Direct Username Form'}
+                </button>
+              </div>
+
+              {!manualLogin ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 max-h-[36vh] overflow-y-auto pr-1">
+                  {sortedUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() => handleOpenPasswordModal(user)}
+                      className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-left transition-colors cursor-pointer"
+                    >
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-8 h-8 rounded-full border border-slate-700 object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-mono font-bold text-amber-300 shrink-0">
+                          {getUserInitials(user.name)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-slate-200 truncate">
+                          {user.rank} {user.name}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-400">{user.role}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <form onSubmit={handleManualSubmit} className="space-y-3 max-w-sm mx-auto py-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Username / Service ID
+                    </label>
+                    <input
+                      type="text"
+                      value={manualUsername}
+                      onChange={(e) => setManualUsername(e.target.value)}
+                      placeholder="e.g. admin, co, rsm"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={manualPassword}
+                        onChange={(e) => setManualPassword(e.target.value)}
+                        placeholder="Enter password"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <span>Authenticate Passkey</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Security Notice */}

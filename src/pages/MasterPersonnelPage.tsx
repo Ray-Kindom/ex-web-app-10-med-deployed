@@ -24,17 +24,29 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
   onViewDossier,
   onOpenAddModal,
 }) => {
-  const { personnelList, currentUser, isGuest } = useApp();
+  const { personnelList, currentUser, isGuest, showNotification } = useApp();
+
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
+  const assignedBattery: Battery =
+    currentUser.assignedBattery ||
+    (currentUser.role === 'P BSM'
+      ? 'P Bty'
+      : currentUser.role === 'Q BSM'
+      ? 'Q Bty'
+      : currentUser.role === 'R BSM'
+      ? 'R Bty'
+      : currentUser.role === 'HQ BSM'
+      ? 'HQ Bty'
+      : 'P Bty');
 
   // Battery serial: P Bty, Q Bty, R Bty, HQ Bty
   const batteryOrder: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty'];
 
-  // Two primary modes: 'REGT' (Regt Nominal) or 'BTY' (Bty Nominal)
-  const [viewMode, setViewMode] = useState<'REGT' | 'BTY'>('REGT');
-  
-  // If user is BSM, default active battery to their assigned battery; otherwise P Bty
-  const initialBattery: Battery = currentUser.assignedBattery || 'P Bty';
-  const [activeBatteryTab, setActiveBatteryTab] = useState<Battery>(initialBattery);
+  // Two primary modes: 'REGT' (Regt Nominal) or 'BTY' (Bty Nominal). For BSM, always strictly 'BTY'.
+  const [viewMode, setViewMode] = useState<'REGT' | 'BTY'>(isBsm ? 'BTY' : 'REGT');
+  const [activeBatteryTab, setActiveBatteryTab] = useState<Battery>(
+    isBsm ? assignedBattery : currentUser.assignedBattery || 'P Bty'
+  );
 
   // Category filter state
   const [selectedCategory, setSelectedCategory] = useState<RankCategoryFilter>('ALL');
@@ -42,6 +54,10 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
 
   // Switch view mode handler
   const handleSetViewMode = (mode: 'REGT' | 'BTY') => {
+    if (isBsm && mode === 'REGT') {
+      showNotification?.('বিএসএম রোল শুধুমাত্র নিজ ব্যাটারির সৈনিকদের তালিকা দেখতে পারেন।', 'error');
+      return;
+    }
     setViewMode(mode);
     setSelectedCategory('ALL');
     setIsOthersExpanded(false);
@@ -49,17 +65,24 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
 
   // Switch battery tab handler
   const handleSelectBattery = (bty: Battery) => {
+    if (isBsm && bty !== assignedBattery) {
+      showNotification?.(`বিএসএম হিসেবে আপনি শুধুমাত্র ${assignedBattery}-র তথ্য দেখতে পারবেন।`, 'error');
+      return;
+    }
     setActiveBatteryTab(bty);
     setSelectedCategory('ALL');
     setIsOthersExpanded(false);
   };
 
-  // Filter list depending on selected mode
+  // Filter list depending on selected mode and BSM isolation
   const currentScopePersonnel = useMemo(() => {
+    if (isBsm) {
+      return personnelList.filter((p) => p.battery === assignedBattery);
+    }
     return viewMode === 'REGT'
       ? personnelList
       : personnelList.filter((p) => p.battery === activeBatteryTab);
-  }, [viewMode, activeBatteryTab, personnelList]);
+  }, [isBsm, assignedBattery, viewMode, activeBatteryTab, personnelList]);
 
   // Rank Category Counts
   const officerCount = useMemo(
@@ -140,17 +163,19 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
       {/* Primary Toggle: "Regt Nominal" vs "Bty Nominal" */}
       <div className="p-2 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => handleSetViewMode('REGT')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              viewMode === 'REGT'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40 border border-rose-500'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Regt Nominal ({personnelList.length})</span>
-          </button>
+          {!isBsm && (
+            <button
+              onClick={() => handleSetViewMode('REGT')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'REGT'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40 border border-rose-500'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>Regt Nominal ({personnelList.length})</span>
+            </button>
+          )}
 
           <button
             onClick={() => handleSetViewMode('BTY')}
@@ -161,14 +186,14 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
             }`}
           >
             <Building2 className="w-4 h-4" />
-            <span>Bty Nominal</span>
+            <span>{isBsm ? `${assignedBattery} Nominal (Your Unit)` : 'Bty Nominal'}</span>
           </button>
         </div>
 
         {/* Battery Sub-Tabs (P, Q, R, HQ) */}
         {viewMode === 'BTY' && (
           <div className="flex items-center gap-1.5 overflow-x-auto">
-            {batteryOrder.map((bty) => {
+            {(isBsm ? [assignedBattery] : batteryOrder).map((bty) => {
               const count = personnelList.filter((p) => p.battery === bty).length;
               const isSelected = activeBatteryTab === bty;
               return (
@@ -182,7 +207,11 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                   }`}
                 >
                   <span>{bty}</span>
-                  <span className={`text-[10px] px-1.5 rounded ${isSelected ? 'bg-black/20 text-black' : 'bg-slate-800 text-slate-400'}`}>
+                  <span
+                    className={`text-[10px] px-1.5 rounded ${
+                      isSelected ? 'bg-black/20 text-black' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
                     {count}
                   </span>
                 </button>
