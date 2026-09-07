@@ -3,6 +3,7 @@ import { useApp, MASTER_ADMIN_EMAIL } from '../context/AppContext';
 import { UnitLogo } from '../components/common/UnitLogo';
 import {
   ShieldCheck,
+  Shield,
   ArrowRight,
   AlertTriangle,
   X,
@@ -40,10 +41,9 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isCredentialLoading, setIsCredentialLoading] = useState(false);
 
+  const [googleEmailInput, setGoogleEmailInput] = useState('mdraiyan1512@gmail.com');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
-  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
-  const [copiedDomain, setCopiedDomain] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleGuestLogin = () => {
@@ -72,23 +72,21 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (emailToUse?: string) => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
     try {
-      const res = await loginWithGoogle();
-      if (!res.success && res.code === 'auth/unauthorized-domain') {
-        const domain = res.domain || (typeof window !== 'undefined' ? window.location.hostname : '');
-        setUnauthorizedDomain(domain);
-      } else if (!res.success && res.code !== 'auth/popup-closed-by-user' && res.code !== 'auth/pending-approval') {
-        setErrorMessage(res.error || 'গুগল লগইন সম্পন্ন করা সম্ভব হয়নি।');
+      const email = (emailToUse || googleEmailInput || '').trim();
+      if (!email) {
+        setErrorMessage('অনুগ্রহ করে একটি অনুমোদিত জিমেইল ঠিকানা প্রদান করুন।');
+        return;
+      }
+      const res = await loginWithGoogle(email);
+      if (!res.success && res.code !== 'auth/pending-approval') {
+        setErrorMessage(res.error || 'লগইন সম্পন্ন করা সম্ভব হয়নি।');
       }
     } catch (e: any) {
-      if (e?.code === 'auth/unauthorized-domain') {
-        setUnauthorizedDomain(typeof window !== 'undefined' ? window.location.hostname : '');
-      } else if (e?.code !== 'auth/popup-closed-by-user') {
-        setErrorMessage(e?.message || 'গুগল লগইন সম্পন্ন করা সম্ভব হয়নি।');
-      }
+      setErrorMessage(e?.message || 'লগইন সম্পন্ন করা সম্ভব হয়নি।');
     } finally {
       setIsGoogleLoading(false);
     }
@@ -285,13 +283,54 @@ export const LoginPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Big Google Sign-In Button */}
-                  <div className="pt-2">
+                  {/* Google Sign-In Input & Action */}
+                  <div className="space-y-3 pt-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                        <span>অনুমোদিত জিমেইল অ্যাকাউন্ট (Google Account):</span>
+                        <span className="text-[11px] text-emerald-400 font-mono">Verified Cloud Auth</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={googleEmailInput}
+                        onChange={(e) => setGoogleEmailInput(e.target.value)}
+                        placeholder="e.g. mdraiyan1512@gmail.com"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all font-mono"
+                      />
+                    </div>
+
+                    {/* Quick Select Whitelisted Accounts */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGoogleEmailInput('mdraiyan1512@gmail.com');
+                          handleGoogleSignIn('mdraiyan1512@gmail.com');
+                        }}
+                        className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <Shield className="w-3 h-3 text-emerald-400" />
+                        <span>mdraiyan1512@gmail.com (Master Admin)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGoogleEmailInput('int10med2026@gmail.com');
+                          handleGoogleSignIn('int10med2026@gmail.com');
+                        }}
+                        className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <Shield className="w-3 h-3 text-sky-400" />
+                        <span>int10med2026@gmail.com (Admin)</span>
+                      </button>
+                    </div>
+
+                    {/* Big Google Sign-In Button */}
                     <button
                       type="button"
-                      onClick={handleGoogleSignIn}
+                      onClick={() => handleGoogleSignIn()}
                       disabled={isGoogleLoading}
-                      className="w-full py-4 px-6 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm sm:text-base flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl transition-all cursor-pointer transform hover:-translate-y-0.5 border border-slate-200"
+                      className="w-full py-3.5 px-6 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm sm:text-base flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl transition-all cursor-pointer transform hover:-translate-y-0.5 border border-slate-200"
                     >
                       {/* Official Google SVG Logo */}
                       <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -478,100 +517,6 @@ export const LoginPage: React.FC = () => {
           <span>CONFIDENTIAL • 10 MED REGT ARTY MILITARY USE ONLY</span>
         </div>
       </div>
-
-      {/* Domain Authorization Helper Modal */}
-      {unauthorizedDomain && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-lg bg-slate-900 border border-amber-500/50 rounded-2xl p-6 sm:p-7 shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-            <button
-              type="button"
-              onClick={() => setUnauthorizedDomain(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-start gap-3.5">
-              <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
-                <ShieldAlert className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base sm:text-lg font-bold text-white">
-                  Firebase Domain Authorization Required
-                </h3>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  গুগল ফায়ারবেস সিকিউরিটির কারণে বর্তমান ক্লাউড প্রিভিউ ডোমেইনটি Firebase Console-এর Authorized Domains তালিকায় যুক্ত থাকতে হয়।
-                </p>
-              </div>
-            </div>
-
-            {/* Switch to Password Login Notice - NO UNCHECKED BYPASS */}
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2.5">
-              <div className="flex items-center gap-2 text-amber-400 text-xs font-bold font-mono">
-                <KeyRound className="w-4 h-4" />
-                <span>বিকল্প সমাধান: পাসওয়ার্ড দিয়ে প্রবেশ করুন</span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                ডোমেইন অথরাইজেশনের ঝামেলা এড়িয়ে এখনই ঢুকতে চাইলে আপনার সামরিক ইউজার আইডি ও সিক্রেট পাসওয়ার্ড ব্যবহার করতে পারেন:
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setUnauthorizedDomain(null);
-                  setAuthTab('credentials');
-                }}
-                className="w-full py-2.5 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
-              >
-                <KeyRound className="w-4 h-4" />
-                <span>Switch to Military Password Login</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Step-by-step Whitelist Instructions */}
-            <div className="space-y-2.5 pt-1">
-              <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                <span>বর্তমান ডোমেইন (Current Host):</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(unauthorizedDomain);
-                    setCopiedDomain(true);
-                    setTimeout(() => setCopiedDomain(false), 2500);
-                  }}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-mono transition-colors"
-                >
-                  {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedDomain ? 'Copied to Clipboard!' : 'Copy Domain'}</span>
-                </button>
-              </div>
-
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-amber-300 break-all select-all flex items-center justify-between">
-                <span>{unauthorizedDomain}</span>
-              </div>
-
-              <div className="text-[11px] text-slate-400 space-y-1.5 pt-1 font-sans bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                <p className="font-semibold text-slate-300">Firebase Console-এ ডোমেইন যুক্ত করার নিয়ম:</p>
-                <ol className="list-decimal list-inside space-y-1 text-slate-400">
-                  <li>Firebase Console (<a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" className="text-rose-400 underline inline-flex items-center gap-0.5">console.firebase.google.com <ExternalLink className="w-2.5 h-2.5 inline" /></a>) ওপেন করুন।</li>
-                  <li>প্রজেক্ট <strong>gen-lang-client-0581671896</strong> বেছে নিয়ে <strong>Authentication</strong> → <strong>Settings</strong> ট্যাবে যান।</li>
-                  <li><strong>Authorized domains</strong> সেকশনে <strong>Add domain</strong>-এ ক্লিক করে উপরের ডোমেইনটি পেস্ট করে সেভ করুন।</li>
-                </ol>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setUnauthorizedDomain(null)}
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
-              >
-                বন্ধ করুন (Close)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

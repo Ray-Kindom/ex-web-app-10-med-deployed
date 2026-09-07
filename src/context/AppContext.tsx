@@ -252,7 +252,7 @@ interface AppContextType {
   firebaseUser: FirebaseUser | null;
   isFirebaseReady: boolean;
   cloudPermissionDenied: boolean;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string; code?: string; domain?: string; isPending?: boolean }>;
+  loginWithGoogle: (emailInput?: string) => Promise<{ success: boolean; error?: string; code?: string; domain?: string; isPending?: boolean }>;
 
   // Google Owner Approval & Whitelist
   accessRequests: GoogleAccessRequest[];
@@ -1971,388 +1971,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribeAuth();
   }, []);
 
-  // Real-time Firestore Listeners & Database bootstrapping
-  // Runs continuously in background for all users (ID/Password & Google Login)
+  // Cloud Database Initialization & Supabase Whitelist Bootstrap
   useEffect(() => {
     setIsFirebaseReady(true);
-
-    const isAuthorizedAdmin =
-      currentUser.role === 'Admin' ||
-      isRealAdmin ||
-      Boolean(firebaseUser?.email && OWNER_EMAILS.some((o) => o.toLowerCase() === firebaseUser.email!.toLowerCase()));
-
-    const handleSnapError = (err: any, col: string) => {
-      if (err?.code === 'permission-denied' || String(err).includes('permission-denied')) {
-        setCloudPermissionDenied(true);
-      } else {
-        console.warn(`[Cloud Sync] Snapshot note on ${col}:`, err);
-      }
-    };
-
-    // 1. /users listener
-    const unsubUsers = onSnapshot(
-      collection(db, 'users'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteUsers = snapshot.docs.map((d) => d.data() as UserAccount);
-          setUsersList(remoteUsers);
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.users) {
-          seededCollectionsRef.current.users = true;
-          // Seed Firestore users
-          INITIAL_USERS.forEach((u) => {
-            syncDoc(setDoc(doc(db, 'users', u.id), sanitizeForFirestore(u)), 'seed user');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'users')
-    );
-
-    // 2. /personnel listener
-    const unsubPersonnel = onSnapshot(
-      collection(db, 'personnel'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remotePersonnel = snapshot.docs.map((d) => d.data() as Personnel);
-          setPersonnelList(remotePersonnel);
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.personnel) {
-          seededCollectionsRef.current.personnel = true;
-          // Seed Firestore personnel with full 606 official nominal roll
-          INITIAL_PERSONNEL.forEach((p) => {
-            syncDoc(setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p)), 'seed personnel');
-          });
-          setPersonnelList(INITIAL_PERSONNEL);
-        }
-      },
-      (err) => handleSnapError(err, 'personnel')
-    );
-
-    // 3. /parade_points listener
-    const unsubPoints = onSnapshot(
-      collection(db, 'parade_points'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remotePoints = snapshot.docs
-            .map((d) => d.data() as DailyParadePoint)
-            .sort((a, b) => a.order - b.order);
-          setDailyParadePoints(remotePoints);
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.parade_points) {
-          seededCollectionsRef.current.parade_points = true;
-          INITIAL_PARADE_POINTS.forEach((pt) => {
-            syncDoc(setDoc(doc(db, 'parade_points', pt.id), sanitizeForFirestore(pt)), 'seed parade points');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'parade_points')
-    );
-
-    // 4. /duty_roster listener
-    const unsubDuty = onSnapshot(
-      collection(db, 'duty_roster'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteDuty = snapshot.docs.map((d) => d.data() as DutyAssignment);
-          setDutyRoster(remoteDuty);
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.duty_roster) {
-          seededCollectionsRef.current.duty_roster = true;
-          INITIAL_DUTY_ROSTER.forEach((d) => {
-            syncDoc(setDoc(doc(db, 'duty_roster', d.id), sanitizeForFirestore(d)), 'seed duty roster');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'duty_roster')
-    );
-
-    // 5. /audit_logs listener (strictly ordered by timestamp)
-    const unsubLogs = onSnapshot(
-      collection(db, 'audit_logs'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteLogs = snapshot.docs
-            .map((d) => d.data() as AuditLogItem)
-            .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
-          setAuditLogs(remoteLogs);
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.audit_logs) {
-          seededCollectionsRef.current.audit_logs = true;
-          INITIAL_AUDIT_LOGS.forEach((l) => {
-            syncDoc(setDoc(doc(db, 'audit_logs', l.id), sanitizeForFirestore(l)), 'seed audit logs');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'audit_logs')
-    );
-
-    // 6. /settings/regiment_settings listener
-    const unsubSettings = onSnapshot(
-      doc(db, 'settings', 'regiment_settings'),
-      (docSnap) => {
-        setCloudPermissionDenied(false);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data?.customLogo !== undefined) {
-            setCustomLogoState(data.customLogo);
+    setCloudPermissionDenied(false);
+    if (isSupabaseConfigured()) {
+      fetchAuthorizedUsersFromSupabase()
+        .then((res) => {
+          if (res.success && res.users && res.users.length > 0) {
+            setUsersList((prev) => {
+              const existingEmails = new Set(prev.map((u) => u.email?.toLowerCase()).filter(Boolean));
+              const newFromSupabase = res.users.filter(
+                (u) => u.email && !existingEmails.has(u.email.toLowerCase())
+              );
+              return [...prev, ...newFromSupabase];
+            });
           }
-          if (data?.systemSettings) {
-            setSystemSettings((prev) => ({ ...prev, ...data.systemSettings }));
-            localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(data.systemSettings));
-          }
-        }
-      },
-      (err) => handleSnapError(err, 'settings/regiment_settings')
-    );
-
-    // 7. /parade_types listener
-    const unsubParadeTypes = onSnapshot(
-      collection(db, 'parade_types'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteTypes = snapshot.docs
-            .map((d) => {
-              const data = d.data() as ParadeTypeDefinition;
-              const lower = (data.name || data.id || '').toLowerCase();
-              const isCore = lower === 'morning' || lower === 'second period' || lower === 'games';
-              return {
-                ...data,
-                createdBy: isCore ? 'Admin' : 'RSM',
-                isDeleted: data.isDeleted || data.deleted || false,
-              };
-            })
-            .filter((t) => t.id !== 'Roll Call' && t.name !== 'Roll Call')
-            .sort((a, b) => a.order - b.order);
-          setParadeTypes(remoteTypes.length > 0 ? remoteTypes : DEFAULT_PARADE_TYPES);
-          localStorage.setItem(STORAGE_KEYS.PARADE_TYPES, JSON.stringify(remoteTypes.length > 0 ? remoteTypes : DEFAULT_PARADE_TYPES));
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.parade_types) {
-          seededCollectionsRef.current.parade_types = true;
-          DEFAULT_PARADE_TYPES.forEach((t) => {
-            syncDoc(setDoc(doc(db, 'parade_types', t.id), sanitizeForFirestore(t)), 'seed parade types');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'parade_types')
-    );
-
-    // 8. /parade_records listener
-    const unsubParadeRecords = onSnapshot(
-      collection(db, 'parade_records'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const map: Record<string, DateWiseParadeRecord> = {};
-          snapshot.docs.forEach((d) => {
-            map[d.id] = d.data() as DateWiseParadeRecord;
-          });
-          setParadeRecords(map);
-          localStorage.setItem(STORAGE_KEYS.PARADE_RECORDS, JSON.stringify(map));
-        }
-      },
-      (err) => handleSnapError(err, 'parade_records')
-    );
-
-    // 9. /system_categories listener (Dynamic Categories & Sub-categories)
-    const unsubCategories = onSnapshot(
-      collection(db, 'system_categories'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteCats = snapshot.docs
-            .map((d) => d.data() as SystemCategory)
-            .sort((a, b) => a.order - b.order);
-          setCategoriesList(remoteCats);
-          localStorage.setItem(STORAGE_KEYS.SYSTEM_CATEGORIES, JSON.stringify(remoteCats));
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.system_categories) {
-          seededCollectionsRef.current.system_categories = true;
-          INITIAL_SYSTEM_CATEGORIES.forEach((c) => {
-            syncDoc(setDoc(doc(db, 'system_categories', c.id), sanitizeForFirestore(c)), 'seed categories');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'system_categories')
-    );
-
-    // 10. /sub_units listener
-    const unsubSubUnits = onSnapshot(
-      collection(db, 'sub_units'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteUnits = snapshot.docs
-            .map((d) => d.data() as SubUnitConfig)
-            .sort((a, b) => a.order - b.order);
-          setSubUnitsList(remoteUnits);
-          localStorage.setItem(STORAGE_KEYS.SUB_UNITS, JSON.stringify(remoteUnits));
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.sub_units) {
-          seededCollectionsRef.current.sub_units = true;
-          INITIAL_SUB_UNITS.forEach((u) => {
-            syncDoc(setDoc(doc(db, 'sub_units', u.id), sanitizeForFirestore(u)), 'seed sub units');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'sub_units')
-    );
-
-    // 11. /military_ranks listener
-    const unsubRanks = onSnapshot(
-      collection(db, 'military_ranks'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteRanks = snapshot.docs
-            .map((d) => d.data() as RankConfig)
-            .sort((a, b) => a.order - b.order);
-          setRanksList(remoteRanks);
-          localStorage.setItem(STORAGE_KEYS.MILITARY_RANKS, JSON.stringify(remoteRanks));
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.military_ranks) {
-          seededCollectionsRef.current.military_ranks = true;
-          INITIAL_RANKS.forEach((r) => {
-            syncDoc(setDoc(doc(db, 'military_ranks', r.id), sanitizeForFirestore(r)), 'seed military ranks');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'military_ranks')
-    );
-
-    // 11b. /military_trades listener
-    const unsubTrades = onSnapshot(
-      collection(db, 'military_trades'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteTrades = snapshot.docs
-            .map((d) => d.data() as TradeConfig)
-            .sort((a, b) => a.order - b.order);
-          setTradesList(remoteTrades);
-          localStorage.setItem(STORAGE_KEYS.MILITARY_TRADES, JSON.stringify(remoteTrades));
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.military_trades) {
-          seededCollectionsRef.current.military_trades = true;
-          INITIAL_TRADES.forEach((t) => {
-            syncDoc(setDoc(doc(db, 'military_trades', t.id), sanitizeForFirestore(t)), 'seed military trades');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'military_trades')
-    );
-
-    // 12. /auth_establishment listener
-    const unsubAuth = onSnapshot(
-      collection(db, 'auth_establishment'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteAuth = snapshot.docs.map((d) => d.data() as AuthEstablishmentItem);
-          setAuthEstablishmentList(remoteAuth);
-          localStorage.setItem(STORAGE_KEYS.AUTH_ESTABLISHMENT, JSON.stringify(remoteAuth));
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.auth_establishment) {
-          seededCollectionsRef.current.auth_establishment = true;
-          INITIAL_AUTH_ESTABLISHMENT.forEach((a) => {
-            syncDoc(setDoc(doc(db, 'auth_establishment', a.id), sanitizeForFirestore(a)), 'seed auth establishment');
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'auth_establishment')
-    );
-
-    // 13. /calculation_config listener
-    const unsubCalc = onSnapshot(
-      doc(db, 'calculation_config', 'default_calc_rules'),
-      (docSnap) => {
-        setCloudPermissionDenied(false);
-        if (docSnap.exists()) {
-          const data = docSnap.data() as CalculationConfig;
-          setCalculationConfig(data);
-          localStorage.setItem(STORAGE_KEYS.CALCULATION_CONFIG, JSON.stringify(data));
-        } else if (isAuthorizedAdmin && !seededCollectionsRef.current.calculation_config) {
-          seededCollectionsRef.current.calculation_config = true;
-          syncDoc(
-            setDoc(
-              doc(db, 'calculation_config', INITIAL_CALCULATION_CONFIG.id),
-              sanitizeForFirestore(INITIAL_CALCULATION_CONFIG)
-            ),
-            'seed calc config'
-          );
-        }
-      },
-      (err) => handleSnapError(err, 'calculation_config')
-    );
-
-    // 14. /parade_duty_assignments listener
-    const unsubParadeDutyAssignments = onSnapshot(
-      collection(db, 'parade_duty_assignments'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const map: Record<string, ParadeDutyAssignment[]> = {};
-          const statusMap: Record<string, DutySessionStatus> = {};
-          snapshot.docs.forEach((d) => {
-            const data = d.data();
-            if (data?.assignments && Array.isArray(data.assignments)) {
-              map[d.id] = data.assignments as ParadeDutyAssignment[];
-            }
-            if (data?.status) {
-              statusMap[d.id] = {
-                status: data.status,
-                savedAt: data.savedAt,
-                savedBy: data.savedBy,
-                sentToAdjtAt: data.sentToAdjtAt,
-                sentToAdjtBy: data.sentToAdjtBy,
-                notes: data.notes,
-              };
-            }
-          });
-          setParadeDutyAssignments((prev) => {
-            const next = { ...prev, ...map };
-            localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
-            return next;
-          });
-          setDutySessionStatuses((prev) => {
-            const next = { ...prev, ...statusMap };
-            localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
-            return next;
-          });
-        }
-      },
-      (err) => handleSnapError(err, 'parade_duty_assignments')
-    );
-
-    // 16. /access_requests listener
-    const unsubAccessRequests = onSnapshot(
-      collection(db, 'access_requests'),
-      (snapshot) => {
-        setCloudPermissionDenied(false);
-        if (!snapshot.empty) {
-          const remoteReqs = snapshot.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-          })) as GoogleAccessRequest[];
-          setAccessRequests(remoteReqs);
-        }
-      },
-      (err) => handleSnapError(err, 'access_requests')
-    );
-
-    return () => {
-      unsubUsers();
-      unsubPersonnel();
-      unsubPoints();
-      unsubDuty();
-      unsubLogs();
-      unsubSettings();
-      unsubParadeTypes();
-      unsubParadeRecords();
-      unsubCategories();
-      unsubSubUnits();
-      unsubRanks();
-      unsubTrades();
-      unsubAuth();
-      unsubCalc();
-      unsubParadeDutyAssignments();
-      unsubAccessRequests();
-    };
-  }, [currentUser.role, isRealAdmin, firebaseUser]);
+        })
+        .catch((e) => console.warn('Supabase bootstrap note:', e));
+    }
+  }, []);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -2372,7 +2010,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem('10med_pending_google_user');
   };
 
-  const loginWithGoogle = async (): Promise<{
+  const loginWithGoogle = async (emailInput?: string): Promise<{
     success: boolean;
     error?: string;
     code?: string;
@@ -2380,7 +2018,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isPending?: boolean;
   }> => {
     try {
-      const user = await signInWithGoogle();
+      const user = await signInWithGoogle(emailInput);
       if (!user || !user.email) {
         return { success: false, error: 'গুগল অ্যাকাউন্ট থেকে কোনো ইমেইল পাওয়া যায়নি।' };
       }
@@ -3069,87 +2707,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncNominalRollToCloud = async () => {
     try {
-      showNotification('Syncing 606 personnel to Firebase Cloud Firestore...');
-      const chunkSize = 25;
-      for (let i = 0; i < INITIAL_PERSONNEL.length; i += chunkSize) {
-        const chunk = INITIAL_PERSONNEL.slice(i, i + chunkSize);
-        await Promise.all(
-          chunk.map((p) => setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p)))
-        );
-      }
-      setPersonnelList(INITIAL_PERSONNEL);
-      setCloudPermissionDenied(false);
-      showNotification('606 Personnel successfully synced to Cloud Firestore!');
-    } catch (e: any) {
-      if (e?.code === 'permission-denied' || String(e).includes('permission-denied')) {
-        setCloudPermissionDenied(true);
-        showNotification('ফায়ারবেস রুলস পারমিশন এরর: দয়া করে Firebase Console-এ allow read, write: if true; পাবলিশ করুন।');
+      showNotification('Supabase PostgreSQL ডাটাবেজে ৬০৬ জন সদস্য সিঙ্ক করা হচ্ছে...');
+      const res = await syncPersonnelToSupabase(INITIAL_PERSONNEL);
+      if (res.success) {
+        setPersonnelList(INITIAL_PERSONNEL);
+        setCloudPermissionDenied(false);
+        showNotification('সফলভাবে ৬০৬ জন সদস্য Supabase ডাটাবেজে সিঙ্ক হয়েছে!');
       } else {
-        showNotification('Sync notice: ' + (e?.message || 'Failed'));
+        showNotification('Supabase সিঙ্ক নোট: ' + (res.error || 'ব্যর্থ হয়েছে'));
       }
+    } catch (e: any) {
+      showNotification('সিঙ্ক ত্রুটি: ' + (e?.message || 'ব্যর্থ হয়েছে'));
     }
   };
 
   const syncAllToCloud = async (): Promise<{ success: boolean; count?: number; error?: string }> => {
     try {
-      showNotification('রেজিমেন্টের সকল ডেটা ফায়ারবেস ক্লাউডে সিঙ্ক করা হচ্ছে...');
+      showNotification('রেজিমেন্টের সকল ডাটা Supabase PostgreSQL ক্লাউডে সিঙ্ক করা হচ্ছে...');
+      const pRes = await syncPersonnelToSupabase(personnelList);
+      const uRes = await syncAuthorizedUsersToSupabase(usersList);
 
-      // 1. Sync User accounts in parallel
-      await Promise.all(usersList.map((u) => setDoc(doc(db, 'users', u.id), sanitizeForFirestore(u), { merge: true })));
-
-      // 2. Sync System Categories
-      await Promise.all(categoriesList.map((c) => setDoc(doc(db, 'system_categories', c.id), sanitizeForFirestore(c), { merge: true })));
-
-      // 3. Sync Sub-units / Batteries
-      await Promise.all(subUnitsList.map((su) => setDoc(doc(db, 'sub_units', su.id), sanitizeForFirestore(su), { merge: true })));
-
-      // 4. Sync Military Ranks
-      await Promise.all(ranksList.map((r) => setDoc(doc(db, 'military_ranks', r.id), sanitizeForFirestore(r), { merge: true })));
-
-      // 5. Sync Military Trades
-      await Promise.all(tradesList.map((t) => setDoc(doc(db, 'military_trades', t.id), sanitizeForFirestore(t), { merge: true })));
-
-      // 6. Sync Auth Establishment
-      await Promise.all(authEstablishmentList.map((ae) => setDoc(doc(db, 'auth_establishment', ae.id), sanitizeForFirestore(ae), { merge: true })));
-
-      // 7. Sync Calculation Rules
-      await setDoc(doc(db, 'calculation_config', 'default_calc_rules'), sanitizeForFirestore(calculationConfig), { merge: true });
-
-      // 8. Sync Parade Types
-      await Promise.all(paradeTypes.map((pt) => setDoc(doc(db, 'parade_types', pt.id), sanitizeForFirestore(pt), { merge: true })));
-
-      // 9. Sync Personnel (Nominal Roll) in chunks of 25
-      const chunkSize = 25;
-      for (let i = 0; i < personnelList.length; i += chunkSize) {
-        const chunk = personnelList.slice(i, i + chunkSize);
-        await Promise.all(chunk.map((p) => setDoc(doc(db, 'personnel', p.id), sanitizeForFirestore(p), { merge: true })));
-      }
-
-      // 10. Sync Settings
-      await setDoc(
-        doc(db, 'settings', 'regiment_settings'),
-        sanitizeForFirestore({
-          customLogo,
-          systemSettings,
-          unitName: systemSettings.unitName,
-          updatedAt: new Date().toISOString(),
-          syncedBy: currentUser?.username || 'admin',
-        }),
-        { merge: true }
-      );
-
+      const total = (pRes.count || 0) + (uRes.count || 0);
       setCloudPermissionDenied(false);
-      addAuditLog('Cloud Full Sync', `Pushed ${personnelList.length} personnel and all settings to Firebase Cloud`, 'SYSTEM');
-      showNotification('রেজিমেন্টের সকল ডেটা সফলভাবে ফায়ারবেস ক্লাউডে সংরক্ষিত হয়েছে!');
-      return { success: true, count: personnelList.length };
+      addAuditLog('Cloud Full Sync', `Pushed ${personnelList.length} personnel & ${usersList.length} users to Supabase`, 'SYSTEM');
+      showNotification(`সফলভাবে ${personnelList.length} জন সদস্য ও অনুমোদিত ইউজার Supabase ক্লাউডে সিঙ্ক হয়েছে!`);
+      return { success: true, count: total };
     } catch (e: any) {
       console.error('Error syncing all to cloud:', e);
-      if (e?.code === 'permission-denied' || String(e).includes('permission-denied')) {
-        setCloudPermissionDenied(true);
-        showNotification('ফায়ারবেস রুলস পারমিশন এরর: দয়া করে Firebase Console-এ allow read, write: if true; পাবলিশ করুন।');
-      } else {
-        showNotification('ক্লাউড সিঙ্ক এরর: ' + (e?.message || 'Failed'));
-      }
+      showNotification('ক্লাউড সিঙ্ক এরর: ' + (e?.message || 'Failed'));
       return { success: false, error: e?.message || 'Sync failed' };
     }
   };
