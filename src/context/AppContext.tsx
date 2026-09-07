@@ -64,9 +64,16 @@ import {
   handleFirestoreError,
   OperationType,
 } from '../lib/firebase';
+import {
+  isSupabaseConfigured,
+  syncAuthorizedUsersToSupabase,
+  syncPersonnelToSupabase,
+  fetchAuthorizedUsersFromSupabase,
+  testSupabaseConnection,
+} from '../lib/supabase';
 
 export const MASTER_ADMIN_EMAIL = 'int10med2026@gmail.com';
-export const OWNER_EMAILS: string[] = [MASTER_ADMIN_EMAIL];
+export const OWNER_EMAILS: string[] = [MASTER_ADMIN_EMAIL, 'mdraiyan1512@gmail.com'];
 
 interface AppContextType {
   currentUser: UserAccount;
@@ -266,6 +273,8 @@ interface AppContextType {
   importSystemBackup: (backupData: any) => boolean;
   resetSystemToDefaults: () => void;
   hasModulePermission: (moduleKey: string, userRole?: string) => boolean;
+  isSupabaseReady: boolean;
+  syncToSupabase: () => Promise<{ success: boolean; message: string; count?: number }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1933,16 +1942,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             syncDoc(setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(acct), { merge: true }), 'sync approved user');
           }
         } else {
-          // Not approved! Enforce access block and register pending request
+          // Not approved! Enforce access block and terminate unauthorized session
           setIsAuthenticated(false);
-          const pendingObj = {
-            email: user.email,
-            name: user.displayName || user.email.split('@')[0],
-            photoURL: user.photoURL || undefined,
-            uid: user.uid,
-          };
-          setPendingGoogleUser(pendingObj);
-          localStorage.setItem('10med_pending_google_user', JSON.stringify(pendingObj));
+          setPendingGoogleUser(null);
+          localStorage.removeItem('10med_pending_google_user');
+          localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+
+          try {
+            logoutFirebase();
+          } catch (e) {}
 
           if (lastSyncedAuthUidRef.current !== 'pending_' + user.uid) {
             lastSyncedAuthUidRef.current = 'pending_' + user.uid;
@@ -2394,12 +2402,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Check if user is already approved in usersList
-      const existingUser = usersList.find((u) => u.email?.toLowerCase() === emailLower);
-      const isExplicitlyApproved = existingUser && existingUser.isApproved !== false;
+      let existingUser = usersList.find((u) => u.email?.toLowerCase() === emailLower);
+      let isExplicitlyApproved = existingUser && existingUser.isApproved !== false;
 
       // Check if existing access request is approved
       const existingReq = accessRequests.find((r) => r.email.toLowerCase() === emailLower);
       const isReqApproved = existingReq?.status === 'approved';
+
+      // If not approved yet, check Supabase authorized_users table if configured
+      if (!isOwner && !isExplicitlyApproved && !isReqApproved && isSupabaseConfigured()) {
+        try {
+          const suRes = await fetchAuthorizedUsersFromSupabase();
+          if (suRes.success && suRes.users) {
+            const foundInSupabase = suRes.users.find((u) => u.email?.toLowerCase() === emailLower);
+            if (foundInSupabase) {
+              existingUser = foundInSupabase;
+              isExplicitlyApproved = true;
+            }
+          }
+        } catch (suErr) {
+          console.warn('Supabase whitelist check error:', suErr);
+        }
+      }
 
       if (isOwner || isExplicitlyApproved || isReqApproved) {
         const userRole: Role = existingUser?.role || existingReq?.assignedRole || (isOwner ? 'Admin' : 'Offr');
@@ -2454,7 +2478,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: true };
       }
 
-      // If NOT approved: Register request and show waiting approval screen
+      // STRICT SECURITY ENFORCEMENT:
+      // If the email is NOT in the authorized whitelist, terminate session immediately
+      try {
+        await logoutFirebase();
+      } catch (authErr) {
+        console.warn('Firebase logout on unauthorized user:', authErr);
+      }
+
+      // Record access request in background for audit & admin approval visibility
       const newReq: GoogleAccessRequest = {
         id: user.uid,
         email: user.email,
@@ -2470,22 +2502,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       syncDoc(setDoc(doc(db, 'access_requests', user.uid), sanitizeForFirestore(newReq), { merge: true }), 'save access request');
 
-      const pendingObj = {
-        email: user.email,
-        name: user.displayName || user.email.split('@')[0],
-        photoURL: user.photoURL || undefined,
-        uid: user.uid,
-      };
-      setPendingGoogleUser(pendingObj);
-      localStorage.setItem('10med_pending_google_user', JSON.stringify(pendingObj));
       setIsAuthenticated(false);
+      setPendingGoogleUser(null);
+      localStorage.removeItem('10med_pending_google_user');
+      localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
 
-      showNotification('আপনার গুগল অ্যাকাউন্টটি ওনারের অনুমোদনের অপেক্ষায় রয়েছে।');
+      const unauthorizedMsg = `অননুমোদিত জিমেইল অ্যাকাউন্ট (${user.email})! এই জিমেইলটি সিস্টেমে অনুমোদিত তালিকায় নেই। শুধুমাত্র কমান্ডিং অথরিটি কর্তৃক পূর্বানুমোদিত জিমেইল দিয়ে সিস্টেমে প্রবেশ করা সম্ভব।`;
+      showNotification(unauthorizedMsg);
       return {
         success: false,
-        isPending: true,
-        code: 'auth/pending-approval',
-        error: 'আপনার গুগল অ্যাকাউন্টটি এখনো রেজিমেন্ট ওনার দ্বারা অনুমোদিত হয়নি। ওনারের নিকট অনুমোদনের অনুরোধ পাঠানো হয়েছে।',
+        isPending: false,
+        code: 'auth/unauthorized-user',
+        error: unauthorizedMsg,
       };
     } catch (err: any) {
       const code = err?.code || 'auth/unknown';
@@ -2626,6 +2654,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     syncDoc(setDoc(doc(db, 'users', newId), sanitizeForFirestore(approvedUser), { merge: true }), 'pre-approve user');
 
+    if (isSupabaseConfigured()) {
+      syncAuthorizedUsersToSupabase([approvedUser]).catch((e) => console.warn('Supabase sync pre-approve error:', e));
+    }
+
     const preApprovedReq: GoogleAccessRequest = {
       id: newId,
       email: cleanEmail,
@@ -2650,14 +2682,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const revokeGoogleUserApproval = async (userIdOrEmail: string) => {
     const clean = userIdOrEmail.toLowerCase();
+    let revokedUserObj: UserAccount | undefined;
     setUsersList((prev) =>
       prev.map((u) => {
         if (u.id === userIdOrEmail || u.email?.toLowerCase() === clean) {
-          return { ...u, isApproved: false };
+          const rev = { ...u, isApproved: false };
+          revokedUserObj = rev;
+          return rev;
         }
         return u;
       })
     );
+    if (revokedUserObj && isSupabaseConfigured()) {
+      syncAuthorizedUsersToSupabase([revokedUserObj]).catch((e) => console.warn('Supabase sync revoke error:', e));
+    }
     setAccessRequests((prev) =>
       prev.map((r) => {
         if (r.id === userIdOrEmail || r.email.toLowerCase() === clean) {
@@ -2675,6 +2713,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const assignedBat =
       newBattery || (isBsmRole(newRole) ? ((newRole.split(' ')[0] + ' Bty') as Battery) : 'HQ Bty');
 
+    let updatedAccountForSupabase: UserAccount | undefined;
     setUsersList((prev) => {
       const match = prev.find((u) => u.email?.toLowerCase() === cleanEmail);
       if (match) {
@@ -2687,6 +2726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
               : [assignedBat],
         };
+        updatedAccountForSupabase = updated;
         if (currentUser.email?.toLowerCase() === cleanEmail) {
           setCurrentUserState(updated);
           localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
@@ -2712,6 +2752,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           approvedAt: new Date().toISOString(),
           lastLogin: 'Never',
         };
+        updatedAccountForSupabase = newAcct;
         if (currentUser.email?.toLowerCase() === cleanEmail) {
           setCurrentUserState(newAcct);
           localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newAcct));
@@ -2720,6 +2761,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return [newAcct, ...prev];
       }
     });
+
+    if (updatedAccountForSupabase && isSupabaseConfigured()) {
+      syncAuthorizedUsersToSupabase([updatedAccountForSupabase]).catch((e) => console.warn('Supabase sync role error:', e));
+    }
 
     setAccessRequests((prev) =>
       prev.map((r) => {
@@ -3106,6 +3151,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showNotification('ক্লাউড সিঙ্ক এরর: ' + (e?.message || 'Failed'));
       }
       return { success: false, error: e?.message || 'Sync failed' };
+    }
+  };
+
+  const [isSupabaseReady, setIsSupabaseReady] = useState<boolean>(isSupabaseConfigured());
+
+  const syncToSupabase = async (): Promise<{ success: boolean; message: string; count?: number }> => {
+    if (!isSupabaseConfigured()) {
+      const msg = 'Supabase কনফিগারেশন সেট করা হয়নি। অনুগ্রহ করে .env ফাইলে VITE_SUPABASE_URL এবং VITE_SUPABASE_ANON_KEY সেট করুন।';
+      showNotification(msg);
+      return { success: false, message: msg };
+    }
+    showNotification('Supabase PostgreSQL ডাটাবেজে সিঙ্ক শুরু হচ্ছে...');
+    try {
+      const [pRes, uRes] = await Promise.all([
+        syncPersonnelToSupabase(personnelList),
+        syncAuthorizedUsersToSupabase(usersList),
+      ]);
+
+      if (pRes.success && uRes.success) {
+        const total = pRes.count + uRes.count;
+        const msg = `সফলভাবে ${pRes.count} জন সৈন্য এবং ${uRes.count} জন ইউজার Supabase-এ সিঙ্ক সম্পন্ন হয়েছে!`;
+        showNotification(msg);
+        addAuditLog('Supabase Cloud Sync', `Synchronized ${pRes.count} personnel and ${uRes.count} authorized accounts`, 'SYSTEM');
+        return { success: true, count: total, message: msg };
+      } else {
+        const err = pRes.error || uRes.error || 'Supabase সিঙ্ক ব্যর্থ হয়েছে।';
+        showNotification(`Supabase ত্রুটি: ${err}`);
+        return { success: false, message: err };
+      }
+    } catch (err: any) {
+      const msg = `Supabase সিঙ্ক ব্যর্থ: ${err?.message || 'Unknown error'}`;
+      showNotification(msg);
+      return { success: false, message: msg };
     }
   };
 
@@ -4121,6 +4199,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         importSystemBackup,
         resetSystemToDefaults,
         hasModulePermission,
+
+        // Supabase Integration
+        isSupabaseReady,
+        syncToSupabase,
       }}
     >
       {children}

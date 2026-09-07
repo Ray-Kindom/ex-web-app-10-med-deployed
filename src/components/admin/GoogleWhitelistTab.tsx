@@ -18,7 +18,14 @@ import {
   Sparkles,
   Clock,
   ShieldAlert,
+  Database,
+  Code,
 } from 'lucide-react';
+import {
+  isSupabaseConfigured,
+  syncAuthorizedUsersToSupabase,
+  getSupabaseSchemaSql,
+} from '../../lib/supabase';
 
 const AVAILABLE_BATTERIES: Battery[] = ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
 
@@ -75,6 +82,9 @@ export const GoogleWhitelistTab: React.FC = () => {
   >({});
 
   const [copiedDomain, setCopiedDomain] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [showSqlModal, setShowSqlModal] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
 
   // Pending access requests
@@ -205,6 +215,33 @@ export const GoogleWhitelistTab: React.FC = () => {
     }
   };
 
+  const handleSyncWhitelistToSupabase = async () => {
+    if (!isSupabaseConfigured()) {
+      showNotification('Supabase URL অথবা Anon Key কনফিগার করা নেই। অনুগ্রহ করে .env ফাইল চেক করুন।');
+      return;
+    }
+    setIsSyncingSupabase(true);
+    try {
+      const res = await syncAuthorizedUsersToSupabase(usersList);
+      if (res.success) {
+        showNotification(`সফলভাবে ${res.count} জন অনুমোদিত ইউজার Supabase authorized_users টেবিলে সিঙ্ক হয়েছে!`);
+      } else {
+        showNotification(`Supabase ত্রুটি: ${res.error}`);
+      }
+    } finally {
+      setIsSyncingSupabase(false);
+    }
+  };
+
+  const handleCopySql = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(getSupabaseSchemaSql());
+      setCopiedSql(true);
+      setTimeout(() => setCopiedSql(false), 2500);
+      showNotification('Supabase PostgreSQL Schema SQL ক্লিপবোর্ডে কপি হয়েছে!');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Overview & Stats Header */}
@@ -221,12 +258,34 @@ export const GoogleWhitelistTab: React.FC = () => {
             </div>
             <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
               এই ড্যাশবোর্ডে শুধুমাত্র অনুমোদিত (Approved) গুগল অ্যাকাউন্ট দিয়ে লগইন করা যাবে।
-              অ্যাডমিন এখান থেকে যে কোনো জিমেইল অ্যাড্রেস অগ্রিম অনুমোদন (Pre-Approve) করতে পারবেন,
-              কিংবা নতুন অনুরোধ পর্যালোচনা করে অনুমোদন বা বাতিল করতে পারবেন।
+              অ্যাডমিন এখান থেকে যে কোনো জিমেইল অ্যাড্রেস নির্দিষ্ট রোল ও ব্যাটারিসহ অগ্রিম তালিকাভুক্ত (Pre-Approve) করতে পারবেন।
+              অননুমোদিত কোনো জিমেইল দিয়ে সিস্টেমে প্রবেশ করা সম্ভব নয়।
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Supabase Action Buttons */}
+            <button
+              type="button"
+              onClick={handleSyncWhitelistToSupabase}
+              disabled={isSyncingSupabase}
+              className="px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold font-mono flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+              title="Sync all approved accounts directly to Supabase authorized_users table"
+            >
+              <Database className={`w-3.5 h-3.5 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+              <span>{isSyncingSupabase ? 'Syncing...' : 'Sync to Supabase'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSqlModal(true)}
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="View Supabase table schema SQL"
+            >
+              <Code className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Supabase SQL</span>
+            </button>
+
             <div className="bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-center">
               <span className="block text-[10px] text-slate-400 font-mono uppercase">Master Owners</span>
               <span className="text-base font-black text-rose-400 font-mono">{OWNER_EMAILS.length}</span>
@@ -599,6 +658,45 @@ export const GoogleWhitelistTab: React.FC = () => {
           <div>3. <strong>Add domain</strong>-এ ক্লিক করে উপরের ডোমেইনটি পেস্ট করে সেভ করুন।</div>
         </div>
       </div>
+
+      {/* Supabase Schema Modal */}
+      {showSqlModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-bold text-white text-sm font-mono">Supabase PostgreSQL Schema SQL</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopySql}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSql ? 'Copied!' : 'Copy SQL'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSqlModal(false)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="p-4 overflow-y-auto font-mono text-xs text-slate-300 bg-slate-950/80 leading-relaxed">
+              <p className="text-amber-300 mb-3 text-[11px]">
+                ℹ️ এই SQL স্ক্রিপ্টটি Supabase ড্যাশবোর্ডের <strong>SQL Editor</strong>-এ পেস্ট করে <strong>Run</strong> করুন। এটি স্বয়ংক্রিয়ভাবে authorized_users, personnel এবং parade_records টেবিল ও RLS তৈরি করবে:
+              </p>
+              <pre className="p-3 bg-black/60 rounded-xl border border-slate-800 overflow-x-auto text-[11px] text-emerald-300/90 whitespace-pre">
+                {getSupabaseSchemaSql()}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

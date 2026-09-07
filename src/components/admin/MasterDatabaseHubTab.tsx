@@ -25,7 +25,13 @@ import {
   Wrench,
   ChevronRight,
   ExternalLink,
+  Server,
 } from 'lucide-react';
+import {
+  isSupabaseConfigured,
+  getSupabaseSchemaSql,
+  fetchPersonnelFromSupabase,
+} from '../../lib/supabase';
 
 interface MasterDatabaseHubTabProps {
   onNavigateTab: (tabId: string) => void;
@@ -48,6 +54,8 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
     systemSettings,
     auditLogs,
     syncAllToCloud,
+    syncToSupabase,
+    isSupabaseReady,
     exportSystemBackup,
     importSystemBackup,
     showNotification,
@@ -55,6 +63,11 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
   } = useApp();
 
   const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [isSyncingSql, setIsSyncingSql] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [showSupabaseSql, setShowSupabaseSql] = useState(false);
+  const [sqlDbInfo, setSqlDbInfo] = useState<{ connected: boolean; count: number } | null>(null);
+  const [supabaseDbInfo, setSupabaseDbInfo] = useState<{ connected: boolean; count: number } | null>(null);
   const [selectedInspectCollection, setSelectedInspectCollection] = useState<string>('personnel');
   const [inspectSearchQuery, setInspectSearchQuery] = useState('');
   const [copiedSuccess, setCopiedSuccess] = useState(false);
@@ -63,6 +76,93 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
     status: 'healthy' | 'issues_fixed';
     details: string[];
   } | null>(null);
+
+  const fetchSqlStatus = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/sql/status');
+      const data = await res.json();
+      if (data.status === 'connected') {
+        setSqlDbInfo({ connected: true, count: data.recordsCount?.personnel || 0 });
+      }
+    } catch {
+      setSqlDbInfo(null);
+    }
+  }, []);
+
+  const fetchSupabaseStatus = React.useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      setSupabaseDbInfo(null);
+      return;
+    }
+    try {
+      const res = await fetchPersonnelFromSupabase();
+      if (res.success && res.personnel) {
+        setSupabaseDbInfo({ connected: true, count: res.personnel.length });
+      } else {
+        setSupabaseDbInfo({ connected: true, count: 0 });
+      }
+    } catch {
+      setSupabaseDbInfo({ connected: false, count: 0 });
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchSqlStatus();
+    fetchSupabaseStatus();
+  }, [fetchSqlStatus, fetchSupabaseStatus]);
+
+  const handlePushAllToSupabase = async () => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে সুপাবেস সিঙ্ক সম্ভব নয়।');
+      return;
+    }
+    setIsSyncingSupabase(true);
+    try {
+      const res = await syncToSupabase();
+      if (res.success) {
+        fetchSupabaseStatus();
+      }
+    } finally {
+      setIsSyncingSupabase(false);
+    }
+  };
+
+  const handlePushAllToPostgres = async () => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে এসকিউএল সিঙ্ক সম্ভব নয়।');
+      return;
+    }
+    setIsSyncingSql(true);
+    try {
+      const items = personnelList.map((p) => ({
+        armyNo: p.armyNo || p.id,
+        rank: p.rk || p.rank,
+        name: p.name,
+        battery: p.battery,
+        trade: p.trade || 'GD',
+        paradeStatus: p.paradeStatus || 'PRESENT',
+        statusDetails: p.statusDetails || '',
+        bloodGroup: p.bloodGroup || '',
+        phone: p.phone || '',
+      }));
+      const res = await fetch('/api/sql/personnel/bulk-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        showNotification(`সফলভাবে ${result.syncedCount} জন সদস্যের রেকর্ড Cloud SQL (PostgreSQL) ডাটাবেসে সংরক্ষিত হয়েছে!`);
+        fetchSqlStatus();
+      } else {
+        showNotification(`SQL সিঙ্ক ব্যর্থ: ${result.error || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      showNotification(`Cloud SQL sync failed: ${e?.message || 'Error'}`);
+    } finally {
+      setIsSyncingSql(false);
+    }
+  };
 
   // Calculate duty assignments count
   const totalDutyAssignmentsCount = useMemo(() => {
@@ -400,7 +500,30 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
 
         {/* Global Hub Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Push All Databases to Cloud */}
+          {/* Push All to Supabase (PostgreSQL Cloud) */}
+          <button
+            type="button"
+            onClick={handlePushAllToSupabase}
+            disabled={isSyncingSupabase}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-950/60 transition-all cursor-pointer disabled:opacity-50"
+            title="Sync all 605 personnel and authorized accounts to Supabase PostgreSQL"
+          >
+            <Database className={`w-4 h-4 ${isSyncingSupabase ? 'animate-spin' : ''}`} />
+            <span>{isSyncingSupabase ? 'Syncing to Supabase...' : 'Push All to Supabase'}</span>
+          </button>
+
+          {/* View Supabase SQL */}
+          <button
+            type="button"
+            onClick={() => setShowSupabaseSql(true)}
+            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="View Supabase PostgreSQL Schema SQL DDL"
+          >
+            <Server className="w-4 h-4 text-emerald-400" />
+            <span>Supabase DDL</span>
+          </button>
+
+          {/* Push All Databases to Cloud Firestore */}
           <button
             type="button"
             onClick={handlePushAllToCloud}
@@ -409,6 +532,18 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
           >
             <Cloud className={`w-4 h-4 ${isSyncingAll ? 'animate-spin' : ''}`} />
             <span>{isSyncingAll ? 'Syncing All to Cloud...' : 'Push All to Firestore'}</span>
+          </button>
+
+          {/* Push All to Cloud SQL (PostgreSQL) */}
+          <button
+            type="button"
+            onClick={handlePushAllToPostgres}
+            disabled={isSyncingSql}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-950/60 transition-all cursor-pointer disabled:opacity-50"
+            title="Sync nominal roll and records to Cloud SQL PostgreSQL database"
+          >
+            <Server className={`w-4 h-4 ${isSyncingSql ? 'animate-spin' : ''}`} />
+            <span>{isSyncingSql ? 'Syncing to SQL...' : 'Push All to PostgreSQL'}</span>
           </button>
 
           {/* Export Full Backup */}
@@ -447,7 +582,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
       </div>
 
       {/* 2. Top Summary Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-sans">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-sans">
         <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-rose-600/20 text-rose-400 border border-rose-500/30">
             <Database className="w-5 h-5" />
@@ -459,12 +594,38 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         </div>
 
         <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
+          <div className={`p-2.5 rounded-xl border ${supabaseDbInfo?.connected ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+            <Database className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-slate-400 text-[11px] block font-mono">Supabase Cloud DB</span>
+            <span className="text-xs font-bold text-emerald-300 font-mono flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${supabaseDbInfo?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span>{supabaseDbInfo?.connected ? `Connected (${supabaseDbInfo.count} rows)` : (isSupabaseConfigured() ? 'Ready' : 'Config Needed')}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30">
             <Cloud className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-slate-400 text-[11px] block font-mono">Cloud Database Engine</span>
-            <span className="text-xs font-bold text-cyan-300 font-mono">Firebase Firestore</span>
+            <span className="text-slate-400 text-[11px] block font-mono">Firestore Engine</span>
+            <span className="text-xs font-bold text-cyan-300 font-mono">Firestore Active</span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-3">
+          <div className={`p-2.5 rounded-xl border ${sqlDbInfo?.connected ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+            <Server className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-slate-400 text-[11px] block font-mono">Cloud SQL (us-west1)</span>
+            <span className="text-xs font-bold text-indigo-300 font-mono flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${sqlDbInfo?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span>{sqlDbInfo?.connected ? `PostgreSQL (${sqlDbInfo.count} rows)` : 'Connecting...'}</span>
+            </span>
           </div>
         </div>
 
@@ -663,6 +824,48 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
           </pre>
         </div>
       </div>
+
+      {/* Supabase Schema Modal */}
+      {showSupabaseSql && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-bold text-white text-sm font-mono">Supabase Cloud PostgreSQL Schema DDL</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(getSupabaseSchemaSql());
+                    showNotification('Supabase PostgreSQL Schema SQL ক্লিপবোর্ডে কপি হয়েছে!');
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy SQL</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSupabaseSql(false)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="p-4 overflow-y-auto font-mono text-xs text-slate-300 bg-slate-950/80 leading-relaxed">
+              <p className="text-amber-300 mb-3 text-[11px]">
+                ℹ️ এই SQL স্ক্রিপ্টটি Supabase ড্যাশবোর্ডের <strong>SQL Editor</strong>-এ পেস্ট করে <strong>Run</strong> বাটনে ক্লিক করুন:
+              </p>
+              <pre className="p-3 bg-black/60 rounded-xl border border-slate-800 overflow-x-auto text-[11px] text-emerald-300 whitespace-pre">
+                {getSupabaseSchemaSql()}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
