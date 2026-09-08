@@ -16,13 +16,14 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 }) => {
   const getStatusConfig = (st: string) => {
     switch (st) {
+      case 'In Unit':
       case 'Present':
         return {
           bg: 'bg-emerald-500/15',
           text: 'text-emerald-400',
           border: 'border-emerald-500/30',
           dot: 'bg-emerald-400 shadow-emerald-400/50',
-          label: 'Present on Parade',
+          label: 'In Unit (On Parade)',
         };
       case 'On Duty':
         return {
@@ -30,15 +31,31 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           text: 'text-blue-400',
           border: 'border-blue-500/30',
           dot: 'bg-blue-400 shadow-blue-400/50',
-          label: 'On Duty / Guard',
+          label: 'Off Parade: Duty',
         };
-      case 'CMH/Sick':
+      case 'Line Sick':
         return {
-          bg: 'bg-amber-500/15',
-          text: 'text-amber-400',
-          border: 'border-amber-500/30',
-          dot: 'bg-amber-400 shadow-amber-400/50',
-          label: 'CMH / Sick Report',
+          bg: 'bg-orange-500/15',
+          text: 'text-orange-400',
+          border: 'border-orange-500/30',
+          dot: 'bg-orange-400 shadow-orange-400/50',
+          label: 'Line Sick (Off Parade)',
+        };
+      case 'P/Lve':
+        return {
+          bg: 'bg-purple-500/15',
+          text: 'text-purple-400',
+          border: 'border-purple-500/30',
+          dot: 'bg-purple-400 shadow-purple-400/50',
+          label: 'P/Lve (Leave)',
+        };
+      case 'C/Lve':
+        return {
+          bg: 'bg-fuchsia-500/15',
+          text: 'text-fuchsia-400',
+          border: 'border-fuchsia-500/30',
+          dot: 'bg-fuchsia-400 shadow-fuchsia-400/50',
+          label: 'C/Lve (Leave)',
         };
       case 'Leave':
         return {
@@ -46,32 +63,77 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           text: 'text-purple-400',
           border: 'border-purple-500/30',
           dot: 'bg-purple-400 shadow-purple-400/50',
-          label: 'Leave / Furlough',
+          label: 'Leave',
         };
+      case 'Course':
       case 'Course/Trg':
         return {
           bg: 'bg-cyan-500/15',
           text: 'text-cyan-400',
           border: 'border-cyan-500/30',
           dot: 'bg-cyan-400 shadow-cyan-400/50',
-          label: 'Course / Training',
+          label: 'Course',
         };
-      case 'Temp Duty':
+      case 'CMH':
+      case 'CMH/Sick':
+        return {
+          bg: 'bg-amber-500/15',
+          text: 'text-amber-400',
+          border: 'border-amber-500/30',
+          dot: 'bg-amber-400 shadow-amber-400/50',
+          label: 'CMH (Hospital)',
+        };
+      case 'FDMN':
         return {
           bg: 'bg-indigo-500/15',
           text: 'text-indigo-400',
           border: 'border-indigo-500/30',
           dot: 'bg-indigo-400 shadow-indigo-400/50',
-          label: 'Temporary Duty',
+          label: 'FDMN (Field Duty)',
         };
+      case 'Comd':
+      case 'Temp Duty':
+        return {
+          bg: 'bg-blue-500/15',
+          text: 'text-blue-400',
+          border: 'border-blue-500/30',
+          dot: 'bg-blue-400 shadow-blue-400/50',
+          label: 'Comd (Task)',
+        };
+      case 'Att':
       case 'Attached Out':
         return {
           bg: 'bg-teal-500/15',
           text: 'text-teal-400',
           border: 'border-teal-500/30',
           dot: 'bg-teal-400 shadow-teal-400/50',
-          label: 'Attached Out',
+          label: 'Att (Attachment)',
         };
+      case 'Msn':
+        return {
+          bg: 'bg-sky-500/15',
+          text: 'text-sky-400',
+          border: 'border-sky-500/30',
+          dot: 'bg-sky-400 shadow-sky-400/50',
+          label: 'UN Mission',
+        };
+      case 'ERE':
+        return {
+          bg: 'bg-violet-500/15',
+          text: 'text-violet-400',
+          border: 'border-violet-500/30',
+          dot: 'bg-violet-400 shadow-violet-400/50',
+          label: 'ERE (Non-Posted)',
+        };
+      case 'Civilian':
+        return {
+          bg: 'bg-slate-500/15',
+          text: 'text-slate-400',
+          border: 'border-slate-500/30',
+          dot: 'bg-slate-400 shadow-slate-400/50',
+          label: 'Civilian Staff',
+        };
+      case 'AWOL':
       case 'AWOL/OSL':
         return {
           bg: 'bg-rose-500/15',

@@ -79,7 +79,7 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
     'Posted In from Other Unit' | 'Joined after Training' | 'Re-enlistment' | 'Direct Entry'
   >('Joined after Training');
   const [previousUnit, setPreviousUnit] = useState('');
-  const [status, setStatus] = useState<ParadeStatus>('Present');
+  const [status, setStatus] = useState<ParadeStatus>('In Unit');
   const [statusDetails, setStatusDetails] = useState('');
   const [bloodGroup, setBloodGroup] = useState('O+');
   const [medicalCategory, setMedicalCategory] = useState<'AYE' | 'BEE' | 'CEE'>('AYE');
@@ -367,13 +367,19 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
                 onChange={(e) => setStatus(e.target.value as ParadeStatus)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rose-500"
               >
-                <option value="Present">Present on Parade</option>
-                <option value="On Duty">On Duty / Guard</option>
-                <option value="CMH/Sick">CMH / Sick</option>
-                <option value="Leave">Leave</option>
-                <option value="Course/Trg">Course / Training</option>
-                <option value="Temp Duty">Temporary Duty</option>
-                <option value="Attached Out">Attached Out</option>
+                <option value="In Unit">In Unit (স্বাভাবিক ডিউটি / উপস্থিত)</option>
+                <option value="P/Lve">P/Lve (বাৎসরিক ছুটি)</option>
+                <option value="C/Lve">C/Lve (নৈমিত্তিক ছুটি)</option>
+                <option value="Course">Course (কোর্স / প্রশিক্ষণ)</option>
+                <option value="CMH">CMH (সিএমএইচ ভর্তি)</option>
+                <option value="Line Sick">Line Sick (লাইন সিক - Off Parade)</option>
+                <option value="FDMN">FDMN (হোয়াইকং ফিল্ড ডিউটি)</option>
+                <option value="Comd">Comd (কমান্ড / ফরমেশন টাস্ক)</option>
+                <option value="Att">Att (সংযুক্ত / Attachment)</option>
+                <option value="Msn">Msn (জাতিসংঘ শান্তিরক্ষা মিশন)</option>
+                <option value="ERE">ERE (নন-পোস্টেড)</option>
+                <option value="Civilian">Civilian Staff (বেসামরিক কর্মী)</option>
+                <option value="AWOL">AWOL (অননুমোদিত অনুপস্থিত)</option>
               </select>
             </div>
 

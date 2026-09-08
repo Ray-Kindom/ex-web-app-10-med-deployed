@@ -5,6 +5,7 @@ import { AddPersonnelModal } from '../personnel/AddPersonnelModal';
 import { EditPersonnelModal } from '../personnel/EditPersonnelModal';
 import { PersonnelDossierModal } from '../personnel/PersonnelDossierModal';
 import { PersonnelTable } from '../personnel/PersonnelTable';
+import { sortBySeniority } from '../../utils/seniorityUtils';
 import {
   Users,
   Plus,
@@ -23,6 +24,7 @@ export const PersonnelDatabaseTab: React.FC = () => {
     syncNominalRollToCloud,
     showNotification,
     isGuest,
+    ranksList,
   } = useApp();
 
   // Modal states
@@ -100,7 +102,9 @@ export const PersonnelDatabaseTab: React.FC = () => {
       'Remarks',
     ];
 
-    const rows = (personnelList || []).map((p) => [
+    const sorted = sortBySeniority(personnelList || [], ranksList);
+
+    const rows = sorted.map((p) => [
       `"${p.snkNo}"`,
       `"${p.rk}"`,
       `"${p.trade || 'GD'}"`,

@@ -15,11 +15,11 @@ export const isBsmRole = (role?: string): boolean => {
   return role === 'BSM' || role.endsWith('BSM');
 };
 
-export const OFFICER_RANKS: string[] = ['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'];
+export const OFFICER_RANKS: string[] = ['Lt Col', 'Maj', 'Capt', 'Lt'];
 
 export const isOfficerRank = (rank?: string): boolean => {
   if (!rank) return false;
-  return OFFICER_RANKS.includes(rank);
+  return OFFICER_RANKS.includes(rank) || rank === '2Lt';
 };
 
 export const JCO_RANKS: string[] = ['MWO', 'SWO', 'WO'];
@@ -29,6 +29,15 @@ export const isJCORank = (rank?: string): boolean => {
   return JCO_RANKS.includes(rank);
 };
 
+// NCO = Sgt + Cpl
+export const NCO_RANKS: string[] = ['Sgt', 'Cpl'];
+
+export const isNCORank = (rank?: string): boolean => {
+  if (!rank) return false;
+  return NCO_RANKS.includes(rank) || rank === 'Hav' || rank === 'Nk';
+};
+
+// OR = NCO (Sgt + Cpl) + Lcpl + Snk
 export const OR_RANKS: string[] = ['Sgt', 'Cpl', 'Lcpl', 'Snk', 'Gnr', 'Snk (DMT)', 'SNK (DMT)'];
 
 export const isORRank = (rank?: string): boolean => {
@@ -36,14 +45,55 @@ export const isORRank = (rank?: string): boolean => {
   return OR_RANKS.includes(rank);
 };
 
-export const isCivilianRank = (rank?: string, trade?: string): boolean => {
-  if (!rank) return false;
-  return rank === 'Civilian' || rank === 'NC(E)' || rank === 'NC(U)' || trade === 'Civilian' || trade === 'NC(E)';
-};
+export const RCO_RANKS: string[] = ['RCO'];
 
 export const isRCORank = (rank?: string, trade?: string): boolean => {
-  if (!rank) return false;
+  if (!rank && !trade) return false;
   return rank === 'RCO' || trade === 'RCO';
+};
+
+export const NCE_RANKS: string[] = ['NC(E)'];
+
+export const isNCERank = (rank?: string, trade?: string): boolean => {
+  if (!rank && !trade) return false;
+  return rank === 'NC(E)' || trade === 'NC(E)' || rank === 'NC (E)' || trade === 'NC (E)';
+};
+
+export const NCU_RANKS: string[] = ['NC(U)'];
+
+export const isNCURank = (rank?: string, trade?: string): boolean => {
+  if (!rank && !trade) return false;
+  return rank === 'NC(U)' || trade === 'NC(U)' || rank === 'NC (U)' || trade === 'NC (U)';
+};
+
+export const CIVILIAN_TRADES: string[] = ['Dupi', 'Barbar', 'Mali', 'Carpenter'];
+
+export const isCivilianRank = (rank?: string, trade?: string): boolean => {
+  if (!rank && !trade) return false;
+  // NC(E) and NC(U) are strictly distinct and not civilian
+  if (isNCERank(rank, trade) || isNCURank(rank, trade)) return false;
+  const cleanRank = (rank || '').trim().toLowerCase();
+  const cleanTrade = (trade || '').trim().toLowerCase();
+  return (
+    cleanRank === 'civilian' ||
+    cleanRank === 'civillian' ||
+    cleanRank === 'civ' ||
+    cleanTrade === 'civilian' ||
+    cleanTrade === 'civillian' ||
+    cleanTrade === 'civ' ||
+    cleanRank === 'dupi' ||
+    cleanRank === 'dhobi' ||
+    cleanTrade === 'dupi' ||
+    cleanTrade === 'dhobi' ||
+    cleanRank === 'barbar' ||
+    cleanRank === 'barber' ||
+    cleanTrade === 'barbar' ||
+    cleanTrade === 'barber' ||
+    cleanRank === 'mali' ||
+    cleanTrade === 'mali' ||
+    cleanRank === 'carpenter' ||
+    cleanTrade === 'carpenter'
+  );
 };
 
 export type Battery = 'P Bty' | 'Q Bty' | 'R Bty' | 'HQ Bty';
@@ -58,14 +108,14 @@ export type MilitaryRank =
   | 'MWO'
   | 'SWO'
   | 'WO'
+  | 'RCO'
   | 'Sgt'
   | 'Cpl'
   | 'Lcpl'
   | 'Snk'
-  | 'Civilian'
-  | 'RCO'
   | 'NC(E)'
-  | 'NC(U)';
+  | 'NC(U)'
+  | 'Civilian';
 
 export const ALL_RANKS: MilitaryRank[] = [
   'Lt Col',
@@ -75,24 +125,31 @@ export const ALL_RANKS: MilitaryRank[] = [
   'MWO',
   'SWO',
   'WO',
+  'RCO',
   'Sgt',
   'Cpl',
   'Lcpl',
   'Snk',
-  'Civilian',
-  'RCO',
   'NC(E)',
+  'NC(U)',
+  'Civilian',
 ];
 
 export type Trade =
-  | 'Gnr'
   | 'TA'
+  | 'Gnr'
   | 'OCU'
   | 'DMT'
-  | 'E&BR'
-  | 'Tailor'
+  | 'Clk'
   | 'Ck(U)'
   | 'Ck(M)'
+  | 'Tailor'
+  | 'E&BR'
+  | 'AEC'
+  | 'Dupi'
+  | 'Barbar'
+  | 'Mali'
+  | 'Carpenter'
   | 'NC(E)'
   | 'NC(U)'
   | 'Civilian'
@@ -100,18 +157,16 @@ export type Trade =
   | '-';
 
 export const ALL_TRADES: Trade[] = [
-  'Gnr',
   'TA',
+  'Gnr',
   'OCU',
   'DMT',
-  'E&BR',
-  'Tailor',
+  'Clk',
   'Ck(U)',
   'Ck(M)',
-  'NC(E)',
-  'NC(U)',
-  'Civilian',
-  'RCO',
+  'Tailor',
+  'E&BR',
+  'AEC',
 ];
 
 export type OutOfUnitCategory =
@@ -143,6 +198,20 @@ export const OUT_OF_UNIT_CATEGORIES: {
 ];
 
 export type ParadeStatus =
+  | 'In Unit'
+  | 'P/Lve'
+  | 'C/Lve'
+  | 'Course'
+  | 'CMH'
+  | 'Line Sick'
+  | 'Msn'
+  | 'Att'
+  | 'Comd'
+  | 'FDMN'
+  | 'ERE'
+  | 'Civilian'
+  | 'AWOL'
+  // Legacy aliases for backward compatibility
   | 'Present'
   | 'On Duty'
   | 'CMH/Sick'
@@ -151,6 +220,154 @@ export type ParadeStatus =
   | 'Temp Duty'
   | 'Attached Out'
   | 'AWOL/OSL';
+
+export interface StatusOptionConfig {
+  id: ParadeStatus;
+  label: string;
+  bangla: string;
+  category: 'In Unit' | 'Out of Unit' | 'Strength Exclusion' | 'Off Parade';
+  requiresDetails?: boolean;
+  color: {
+    bg: string;
+    text: string;
+    border: string;
+    dot: string;
+  };
+}
+
+export const PRIMARY_PARADE_STATUSES: StatusOptionConfig[] = [
+  {
+    id: 'In Unit',
+    label: 'In Unit (Default / On Parade)',
+    bangla: 'ইউনিটে উপস্থিত (ডিউটি না থাকলে On Parade)',
+    category: 'In Unit',
+    color: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-400' }
+  },
+  {
+    id: 'P/Lve',
+    label: 'P/Lve (Privilege Leave)',
+    bangla: 'বাৎসরিক ছুটি (পি/লিভ)',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', dot: 'bg-purple-400' }
+  },
+  {
+    id: 'C/Lve',
+    label: 'C/Lve (Casual Leave)',
+    bangla: 'নৈমিত্তিক ছুটি (সি/লিভ)',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-400', border: 'border-fuchsia-500/30', dot: 'bg-fuchsia-400' }
+  },
+  {
+    id: 'Course',
+    label: 'Course',
+    bangla: 'সামরিক ক্যাডার / কোর্স',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30', dot: 'bg-cyan-400' }
+  },
+  {
+    id: 'CMH',
+    label: 'CMH',
+    bangla: 'সিএমএইচ ভর্তি / রিভিউ',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30', dot: 'bg-amber-400' }
+  },
+  {
+    id: 'Line Sick',
+    label: 'Line Sick',
+    bangla: 'লাইন সিক / কোয়ার্টার সিক (Off Parade)',
+    category: 'Off Parade',
+    requiresDetails: true,
+    color: { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/30', dot: 'bg-orange-400' }
+  },
+  {
+    id: 'FDMN',
+    label: 'FDMN (Field Duty)',
+    bangla: 'ফিল্ড ডিউটি / হোয়াইকং ক্যাম্প',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30', dot: 'bg-indigo-400' }
+  },
+  {
+    id: 'Comd',
+    label: 'Comd',
+    bangla: 'কমান্ড টাস্ক / হেডকোয়ার্টার ডিউটি',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30', dot: 'bg-blue-400' }
+  },
+  {
+    id: 'Att',
+    label: 'Att (Attachment)',
+    bangla: 'সংযুক্ত / ফরমেশন এটাচমেন্ট',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/30', dot: 'bg-teal-400' }
+  },
+  {
+    id: 'Msn',
+    label: 'Msn (UN Mission)',
+    bangla: 'জাতিসংঘ শান্তিরক্ষা মিশন',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-sky-500/15', text: 'text-sky-400', border: 'border-sky-500/30', dot: 'bg-sky-400' }
+  },
+  {
+    id: 'ERE',
+    label: 'ERE (Extra Regt)',
+    bangla: 'ইআরই (DGFI, BGB, AHQ - নন-পোস্টেড)',
+    category: 'Strength Exclusion',
+    requiresDetails: true,
+    color: { bg: 'bg-violet-500/15', text: 'text-violet-400', border: 'border-violet-500/30', dot: 'bg-violet-400' }
+  },
+  {
+    id: 'Civilian',
+    label: 'Civilian Staff',
+    bangla: 'বেসামরিক কর্মকর্তা / কর্মচারী (নন-পোস্টেড)',
+    category: 'Strength Exclusion',
+    color: { bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/30', dot: 'bg-slate-400' }
+  },
+  {
+    id: 'AWOL',
+    label: 'AWOL / OSL',
+    bangla: 'অননুমোদিত অনুপস্থিত (ওএসএল)',
+    category: 'Out of Unit',
+    requiresDetails: true,
+    color: { bg: 'bg-rose-500/15', text: 'text-rose-400', border: 'border-rose-500/30', dot: 'bg-rose-400' }
+  },
+];
+
+export function normalizePersonnelStatus(
+  status?: string,
+  outOfUnitCategory?: string,
+  rk?: string,
+  trade?: string,
+  statusDetails?: string
+): ParadeStatus {
+  if (rk === 'Civilian' || trade === 'Civilian' || status === 'Civilian') return 'Civilian';
+  if (outOfUnitCategory === 'ERE' || status === 'ERE') return 'ERE';
+  if (outOfUnitCategory === 'FDMN' || status === 'FDMN') return 'FDMN';
+  if (outOfUnitCategory === 'P/Lve' || status === 'P/Lve') return 'P/Lve';
+  if (outOfUnitCategory === 'C/Lve' || status === 'C/Lve') return 'C/Lve';
+  if (outOfUnitCategory === 'Course' || status === 'Course' || status === 'Course/Trg') return 'Course';
+  if (outOfUnitCategory === 'CMH' || status === 'CMH') return 'CMH';
+  if (status === 'Line Sick' || (statusDetails && statusDetails.toLowerCase().includes('line sick'))) return 'Line Sick';
+  if (outOfUnitCategory === 'Msn' || status === 'Msn') return 'Msn';
+  if (outOfUnitCategory === 'Att' || status === 'Att' || status === 'Attached Out') return 'Att';
+  if (outOfUnitCategory === 'Comd' || status === 'Comd') return 'Comd';
+  if (status === 'AWOL' || status === 'AWOL/OSL') return 'AWOL';
+
+  // Legacy mappings:
+  if (status === 'Leave') return 'P/Lve';
+  if (status === 'CMH/Sick') return 'CMH';
+  if (status === 'Temp Duty') return 'Comd';
+  if (status === 'Present' || status === 'On Duty') return 'In Unit';
+
+  return (status as ParadeStatus) || 'In Unit';
+}
 
 export interface Personnel {
   id: string;
@@ -162,6 +379,11 @@ export interface Personnel {
   battery: Battery;
   status: ParadeStatus;
   statusDetails?: string;
+  startDate?: string;
+  endDate?: string;
+  durationDays?: number;
+  location?: string;
+  authority?: string;
   rmk?: string;
   remarks?: string;
   phone?: string;
@@ -382,7 +604,7 @@ export interface AuditLogItem {
   category: 'PARADE_STATE' | 'PERSONNEL' | 'SYSTEM' | 'SECURITY';
 }
 
-export type RankCategory = 'Officer' | 'JCO' | 'OR' | 'Civilian' | 'RCO';
+export type RankCategory = 'Officer' | 'JCO' | 'OR' | 'RCO' | 'NC(E)' | 'NC(U)' | 'Civilian';
 
 export interface SubCategoryItem {
   id: string;

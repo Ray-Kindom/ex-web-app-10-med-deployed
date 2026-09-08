@@ -19,7 +19,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 
-const RANK_CATEGORIES: RankCategory[] = ['Officer', 'JCO', 'OR', 'Civilian', 'RCO'];
+const RANK_CATEGORIES: RankCategory[] = ['Officer', 'JCO', 'OR', 'RCO', 'NC(E)', 'NC(U)', 'Civilian'];
 const TRADE_CATEGORIES: { key: TradeCategory; label: string; color: string }[] = [
   { key: 'COMBAT', label: 'Combat', color: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' },
   { key: 'TECHNICAL', label: 'Technical', color: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30' },
@@ -974,7 +974,7 @@ export const SubUnitsAndRanksTab: React.FC = () => {
                   Applicable Rank Categories (Which ranks can hold this trade)
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {(['OR', 'JCO', 'Civilian', 'RCO'] as RankCategory[]).map((cat) => {
+                  {(['OR', 'JCO', 'RCO', 'NC(E)', 'NC(U)', 'Civilian'] as RankCategory[]).map((cat) => {
                     const isChecked = tradeRankCategories.includes(cat);
                     return (
                       <button

@@ -673,32 +673,58 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
         {(() => {
           const regtTotals = getRegimentalTotals();
           return (
-            <div className="px-6 py-2.5 bg-slate-900/95 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+            <div className="px-6 py-2.5 bg-slate-900/95 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
               <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800">
-                <span className="text-[10px] uppercase font-mono text-slate-400 block">Total Posted</span>
-                <span className="text-base font-bold font-mono text-white">{regtTotals.totalPosted}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-mono text-slate-400 block">Total Posted</span>
+                  <span className="text-[9px] text-slate-500 font-mono">Tot: {regtTotals.totalPersonnel}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-base font-bold font-mono text-white">{regtTotals.totalPosted}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    (ERE: {regtTotals.ere}, Civ: {regtTotals.civilian})
+                  </span>
+                </div>
               </div>
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-emerald-500/20">
-                <span className="text-[10px] uppercase font-mono text-emerald-400 block">Troops on Parade</span>
-                <span className="text-base font-bold font-mono text-emerald-300">
-                  {totals.grandTotal > 0 ? totals.grandTotal : regtTotals.totalPresent}
-                </span>
+
+              <div className="p-2 rounded-xl bg-slate-950/80 border border-rose-500/20">
+                <span className="text-[10px] uppercase font-mono text-rose-400 block">Out of Unit</span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-base font-bold font-mono text-rose-300">{regtTotals.totalOutOfUnit}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    (Lve: {regtTotals.lve}, Crs: {regtTotals.totalCourse}, CMH: {regtTotals.totalSick})
+                  </span>
+                </div>
               </div>
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-blue-500/20">
-                <span className="text-[10px] uppercase font-mono text-blue-400 block">Duty / Guards</span>
-                <span className="text-base font-bold font-mono text-blue-300">{regtTotals.totalDuty}</span>
-              </div>
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-amber-500/20">
-                <span className="text-[10px] uppercase font-mono text-amber-400 block">Hospital / Sick</span>
-                <span className="text-base font-bold font-mono text-amber-300">{regtTotals.totalSick}</span>
-              </div>
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-purple-500/20">
-                <span className="text-[10px] uppercase font-mono text-purple-400 block">Approved Leave</span>
-                <span className="text-base font-bold font-mono text-purple-300">{regtTotals.totalLeave}</span>
-              </div>
+
               <div className="p-2 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-                <span className="text-[10px] uppercase font-mono text-cyan-400 block">Course / Trg</span>
-                <span className="text-base font-bold font-mono text-cyan-300">{regtTotals.totalCourse}</span>
+                <span className="text-[10px] uppercase font-mono text-cyan-400 block">Present in Unit</span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-base font-bold font-mono text-cyan-300">{regtTotals.presentInUnit}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    (Posted - Out)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-slate-950/80 border border-amber-500/20">
+                <span className="text-[10px] uppercase font-mono text-amber-400 block">Off Parade</span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-base font-bold font-mono text-amber-300">{regtTotals.offParade}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    (Duty: {regtTotals.totalDuty} + LS: {regtTotals.totalLineSick})
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-slate-950/80 border border-emerald-500/30 bg-emerald-950/10">
+                <span className="text-[10px] uppercase font-mono text-emerald-400 block font-bold">On Parade</span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-base font-extrabold font-mono text-emerald-300">{regtTotals.onParade}</span>
+                  <span className="text-[10px] text-emerald-400/80 font-mono">
+                    ({regtTotals.onParadePercentage}%)
+                  </span>
+                </div>
               </div>
             </div>
           );

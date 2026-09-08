@@ -95,7 +95,21 @@ interface AppContextType {
   addPersonnel: (person: Omit<Personnel, 'id'>) => void;
   updatePersonnel: (id: string, updated: Partial<Personnel>) => void;
   deletePersonnel: (id: string) => void;
-  updateParadeStatus: (id: string, status: ParadeStatus, statusDetails?: string) => void;
+  updateParadeStatus: (
+    id: string,
+    status: ParadeStatus,
+    extraDetails?:
+      | string
+      | {
+          details?: string;
+          location?: string;
+          startDate?: string;
+          endDate?: string;
+          durationDays?: number;
+          authority?: string;
+          remarks?: string;
+        }
+  ) => void;
   updatePersonnelStatus?: (id: string, status: ParadeStatus, statusDetails?: string) => void;
   batchUpdateStatus: (ids: string[], status: ParadeStatus, statusDetails?: string) => void;
   dutyRoster: DutyAssignment[];
@@ -110,9 +124,13 @@ interface AppContextType {
     ere: number;
     totalOutOfUnit: number;
     totalPresent: number;
+    presentInUnit: number;
     totalDuty: number;
     totalSick: number;
     totalLeave: number;
+    pLve: number;
+    cLve: number;
+    lve: number;
     totalCourse: number;
     totalMsn: number;
     totalAttached: number;
@@ -120,6 +138,9 @@ interface AppContextType {
     totalFdmn: number;
     totalAbsent: number;
     totalLineSick: number;
+    offParade: number;
+    onParade: number;
+    onParadePercentage: number;
     presentPercentage: number;
   };
   getParadeSummary: (
@@ -494,15 +515,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_RANKS;
   });
 
-  // Trades & Specializations Configuration
+  // Trades & Specializations Configuration (Strictly 10 Artillery/Unit Trades)
   const [tradesList, setTradesList] = useState<TradeConfig[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MILITARY_TRADES);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const nonTradeNames = new Set([
+            'dupi',
+            'barbar',
+            'mali',
+            'carpenter',
+            'nc(e)',
+            'nc(u)',
+            'civilian',
+            'rco',
+            'gd',
+          ]);
+          const filtered = parsed.filter(
+            (t: TradeConfig) => t && t.name && !nonTradeNames.has(t.name.trim().toLowerCase())
+          );
+          if (filtered.length === INITIAL_TRADES.length) {
+            return filtered;
+          }
+        }
       } catch (e) {}
     }
+    try {
+      localStorage.setItem(STORAGE_KEYS.MILITARY_TRADES, JSON.stringify(INITIAL_TRADES));
+    } catch (e) {}
     return INITIAL_TRADES;
   });
 
@@ -3506,22 +3548,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateParadeStatus = (id: string, status: ParadeStatus, statusDetails?: string) => {
+  const updateParadeStatus = (
+    id: string,
+    status: ParadeStatus,
+    extraDetails?:
+      | string
+      | {
+          details?: string;
+          location?: string;
+          startDate?: string;
+          endDate?: string;
+          durationDays?: number;
+          authority?: string;
+          remarks?: string;
+        }
+  ) => {
     if (isGuest) {
       showNotification('গেস্ট মোডে প্যারেড স্ট্যাটাস পরিবর্তন করা যাবে না (GUEST — VIEW ONLY)।');
       return;
     }
+
+    const isObj = typeof extraDetails === 'object' && extraDetails !== null;
+    const detailsStr = typeof extraDetails === 'string' ? extraDetails : extraDetails?.details;
+    const location = isObj ? extraDetails?.location : undefined;
+    const startDate = isObj ? extraDetails?.startDate : undefined;
+    const endDate = isObj ? extraDetails?.endDate : undefined;
+    const authority = isObj ? extraDetails?.authority : undefined;
+    const remarks = isObj ? extraDetails?.remarks : undefined;
+
+    // Calculate duration in days if start and end dates provided
+    let durationDays = isObj && typeof extraDetails?.durationDays === 'number' ? extraDetails.durationDays : undefined;
+    if (!durationDays && startDate && endDate) {
+      const d1 = new Date(startDate).getTime();
+      const d2 = new Date(endDate).getTime();
+      if (!isNaN(d1) && !isNaN(d2)) {
+        durationDays = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+      }
+    }
+
     let updatedDoc: Partial<Personnel> | null = null;
     setPersonnelList((prev) =>
       prev.map((p) => {
         if (p.id === id) {
-          const nextDetails = statusDetails ?? (status === 'Present' ? undefined : p.statusDetails);
-          const nextCategory = status === 'Present' ? undefined : p.outOfUnitCategory;
-          updatedDoc = {
-            status,
-            statusDetails: nextDetails,
-            outOfUnitCategory: nextCategory,
-          };
+          const isUnitStatus = status === 'In Unit' || status === 'Present';
+          if (isUnitStatus) {
+            updatedDoc = {
+              status: 'In Unit',
+              statusDetails: undefined,
+              outOfUnitCategory: undefined,
+              location: undefined,
+              startDate: undefined,
+              endDate: undefined,
+              durationDays: undefined,
+              authority: undefined,
+              outOfUnitLocation: undefined,
+              outOfUnitStartDate: undefined,
+              outOfUnitEndDate: undefined,
+              outOfUnitAuthority: undefined,
+              outOfUnitRemarks: undefined,
+            };
+          } else {
+            // Map status to category if applicable
+            let nextCategory: OutOfUnitCategory | undefined = undefined;
+            if (
+              status === 'P/Lve' ||
+              status === 'C/Lve' ||
+              status === 'Course' ||
+              status === 'CMH' ||
+              status === 'FDMN' ||
+              status === 'Comd' ||
+              status === 'Att' ||
+              status === 'Msn' ||
+              status === 'ERE'
+            ) {
+              nextCategory = status as OutOfUnitCategory;
+            }
+
+            const formattedDetails =
+              detailsStr ||
+              `${status}${location ? ` - ${location}` : ''}${
+                durationDays ? ` (${durationDays} Days)` : ''
+              }`;
+
+            updatedDoc = {
+              status,
+              statusDetails: formattedDetails,
+              outOfUnitCategory: nextCategory,
+              location: location ?? p.location,
+              startDate: startDate ?? p.startDate,
+              endDate: endDate ?? p.endDate,
+              durationDays: durationDays ?? p.durationDays,
+              authority: authority ?? p.authority,
+              remarks: remarks ?? p.remarks,
+              outOfUnitLocation: location ?? p.outOfUnitLocation,
+              outOfUnitStartDate: startDate ?? p.outOfUnitStartDate,
+              outOfUnitEndDate: endDate ?? p.outOfUnitEndDate,
+              outOfUnitAuthority: authority ?? p.outOfUnitAuthority,
+              outOfUnitRemarks: remarks ?? p.outOfUnitRemarks,
+            };
+          }
+
           return {
             ...p,
             ...updatedDoc,
@@ -3532,10 +3658,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     const target = personnelList.find((p) => p.id === id);
     if (target) {
-      showNotification(`Status for ${target.name} set to ${status}`);
+      const locText = location ? ` at ${location}` : '';
+      const durText = durationDays ? ` (${durationDays} Days)` : '';
+      showNotification(`Status for ${target.name} set to ${status}${locText}${durText}`);
       addAuditLog(
         'Parade Status Change',
-        `Marked ${target.rk} ${target.name} (${target.snkNo}) as ${status}`,
+        `Marked ${target.rk} ${target.name} (${target.snkNo}) as ${status}${locText}${durText}`,
         'PARADE_STATE'
       );
     }
@@ -3955,18 +4083,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let ere = 0;
     personnelList.forEach((p) => {
       const isCiv =
+        p.status === 'Civilian' ||
         p.rk === 'Civilian' ||
         p.trade === 'Civilian' ||
         (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
       if (isCiv) civilian++;
-      else if (p.outOfUnitCategory === 'ERE') ere++;
+      else if (p.status === 'ERE' || p.outOfUnitCategory === 'ERE') ere++;
     });
 
     // Posted = Total Personnel - (ERE + Civilian)
     const totalPosted = Math.max(0, totalPersonnel - civilian - ere);
 
-    // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
-    let totalLeave = 0;
+    // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN + AWOL
+    let pLve = 0;
+    let cLve = 0;
     let totalCourse = 0;
     let totalSick = 0; // CMH
     let totalMsn = 0;
@@ -3978,35 +4108,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     personnelList.forEach((p) => {
       const isCiv =
+        p.status === 'Civilian' ||
         p.rk === 'Civilian' ||
         p.trade === 'Civilian' ||
         (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
-      if (isCiv || p.outOfUnitCategory === 'ERE') return;
+      if (isCiv || p.status === 'ERE' || p.outOfUnitCategory === 'ERE') return;
 
-      if (p.outOfUnitCategory === 'P/Lve' || p.outOfUnitCategory === 'C/Lve' || p.status === 'Leave') {
-        totalLeave++;
-      } else if (p.outOfUnitCategory === 'Course' || p.status === 'Course/Trg') {
+      if (p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || (p.status === 'Leave' && p.leaveType !== 'C/Lve')) {
+        pLve++;
+      } else if (p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve' || (p.status === 'Leave' && p.leaveType === 'C/Lve')) {
+        cLve++;
+      } else if (p.status === 'Course' || p.outOfUnitCategory === 'Course' || p.status === 'Course/Trg') {
         totalCourse++;
-      } else if (p.outOfUnitCategory === 'CMH' || p.status === 'CMH/Sick') {
+      } else if (p.status === 'CMH' || p.outOfUnitCategory === 'CMH' || p.status === 'CMH/Sick') {
         totalSick++;
-      } else if (p.outOfUnitCategory === 'Msn') {
+      } else if (p.status === 'Msn' || p.outOfUnitCategory === 'Msn') {
         totalMsn++;
-      } else if (p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
+      } else if (p.status === 'Att' || p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
         totalAttached++;
-      } else if (p.outOfUnitCategory === 'FDMN') {
+      } else if (p.status === 'FDMN' || p.outOfUnitCategory === 'FDMN') {
         totalFdmn++;
       } else if (
+        p.status === 'Comd' ||
         p.outOfUnitCategory === 'Comd' ||
         Boolean(p.comdAssignment) ||
         p.statusDetails?.toLowerCase().includes('comd') ||
         (p.status === 'Temp Duty' && p.outOfUnitCategory !== 'FDMN')
       ) {
         totalTempDuty++;
-      } else if (p.status === 'AWOL/OSL') {
+      } else if (p.status === 'AWOL' || p.status === 'AWOL/OSL') {
         totalAbsent++;
       }
 
       if (
+        p.status === 'Line Sick' ||
         p.statusDetails?.toLowerCase().includes('line sick') ||
         p.statusDetails?.toLowerCase().includes('morning sick') ||
         p.statusDetails?.toLowerCase().includes('sick in qtr')
@@ -4015,10 +4150,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    const totalLeave = pLve + cLve;
     const totalOutOfUnit = totalLeave + totalCourse + totalSick + totalMsn + totalAttached + totalTempDuty + totalFdmn + totalAbsent;
     const totalPresent = Math.max(0, totalPosted - totalOutOfUnit);
     const totalDuty = dutyRoster.length;
+    const offParade = totalDuty + totalLineSick;
+    const onParade = Math.max(0, totalPresent - offParade);
+
     const presentPercentage = totalPosted > 0 ? Math.round((totalPresent / totalPosted) * 100) : 0;
+    const onParadePercentage = totalPresent > 0 ? Math.round((onParade / totalPresent) * 100) : 0;
 
     return {
       totalPersonnel,
@@ -4027,9 +4167,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ere,
       totalOutOfUnit,
       totalPresent,
+      presentInUnit: totalPresent,
       totalDuty,
       totalSick,
       totalLeave,
+      pLve,
+      cLve,
+      lve: totalLeave,
       totalCourse,
       totalMsn,
       totalAttached,
@@ -4037,6 +4181,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalFdmn,
       totalAbsent,
       totalLineSick,
+      offParade,
+      onParade,
+      onParadePercentage,
       presentPercentage,
     };
   };

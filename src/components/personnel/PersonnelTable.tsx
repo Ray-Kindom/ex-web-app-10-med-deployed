@@ -1,8 +1,23 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Personnel, Battery, ParadeStatus } from '../../types';
+import {
+  Personnel,
+  Battery,
+  ParadeStatus,
+  normalizePersonnelStatus,
+  isOfficerRank,
+  isJCORank,
+  isNCORank,
+  isORRank,
+  isRCORank,
+  isNCERank,
+  isNCURank,
+  isCivilianRank,
+} from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StatusBadge } from '../common/StatusBadge';
 import { exportNominalRollToPdf, exportNominalRollToWord } from '../../utils/nominalExport';
+import { comparePersonnelSeniority, sortBySeniority } from '../../utils/seniorityUtils';
+import { ChangeStatusModal } from './ChangeStatusModal';
 import {
   Search,
   Download,
@@ -17,6 +32,10 @@ import {
   RefreshCw,
   Sparkles,
   Trash2,
+  Shield,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 interface PersonnelTableProps {
@@ -56,28 +75,51 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
+  const [statusModalPerson, setStatusModalPerson] = useState<Personnel | null>(null);
 
-  // Quick Status Edit Options
+  // Sorting State - Defaults to Military Seniority: Officers -> JCOs -> NCOs -> Soldiers
+  type SortField = 'seniority' | 'snkNo' | 'rk' | 'name' | 'battery' | 'status';
+  const [sortField, setSortField] = useState<SortField>('seniority');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Quick Status Edit Options - Strictly Atomic Statuses
   const statusOptions: ParadeStatus[] = [
-    'Present',
-    'On Duty',
-    'CMH/Sick',
-    'Leave',
-    'Course/Trg',
-    'Temp Duty',
-    'Attached Out',
-    'AWOL/OSL',
+    'In Unit',
+    'P/Lve',
+    'C/Lve',
+    'Course',
+    'CMH',
+    'Line Sick',
+    'FDMN',
+    'Comd',
+    'Att',
+    'Msn',
+    'ERE',
+    'Civilian',
+    'AWOL',
   ];
 
   // Dynamic Rank Filter Options
   const rankFilterOptions = useMemo(() => {
     const categoryOptions = [
       { value: 'All', label: 'All Ranks (সব পদবী)' },
-      { value: 'Offr', label: 'Offr (All Officers)' },
-      { value: 'JCO', label: 'JCO (All Junior Commissioned)' },
-      { value: 'OR', label: 'OR (All Other Ranks / Soldiers)' },
-      { value: 'Civilian', label: 'Civilian (All Civilians)' },
+      { value: 'Offr', label: 'Offr (Lt Col, Maj, Capt, Lt)' },
+      { value: 'JCO', label: 'JCO (MWO, SWO, WO)' },
+      { value: 'NCO', label: 'NCO (Sgt, Cpl)' },
+      { value: 'OR', label: 'OR (Sgt, Cpl, Lcpl, Snk)' },
       { value: 'RCO', label: 'RCO (Religious Teacher)' },
+      { value: 'NC(E)', label: 'NC(E)' },
+      { value: 'NC(U)', label: 'NC(U)' },
+      { value: 'Civilian', label: 'Civilian (Dupi, Barbar, Mali, Carpenter)' },
     ];
 
     // Individual active ranks from ranksList
@@ -99,20 +141,21 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     return combined;
   }, [safeRanks]);
 
-  // Dynamic Trade Filter Options (populated from Admin tradesList & active personnel)
+  // Trade Filter Options (strictly based on configured active unit trades: TA, Gnr, OCU, DMT, Clk, Ck(U), Ck(M), Tailor, E&BR, AEC)
   const tradeFilterOptions = useMemo(() => {
-    const uniqueTrades = Array.from(
-      new Set([
-        ...safeTrades.filter((t) => t && t.isActive !== false).map((t) => t.name),
-        ...safePersonnel.map((p) => p && p.trade).filter(Boolean) as string[],
-      ])
-    ).filter((t) => t !== '-');
+    const validTrades = safeTrades
+      .filter((t) => t && t.isActive !== false)
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .map((t) => ({
+        value: t.name,
+        label: t.name,
+      }));
 
     return [
       { value: 'All', label: 'All Trades' },
-      ...uniqueTrades.map((t) => ({ value: t, label: t })),
+      ...validTrades,
     ];
-  }, [safeTrades, safePersonnel]);
+  }, [safeTrades]);
 
   // Blood Group Options
   const bloodFilterOptions = [
@@ -138,7 +181,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
   // Filter Logic
   const filteredPersonnel = useMemo(() => {
-    return safePersonnel.filter((person) => {
+    const filtered = safePersonnel.filter((person) => {
       if (!person) return false;
       // 1. Text Search across SnkNo, Name, Rank, Trade, Battery, Status, Blood
       if (activeSearch.trim()) {
@@ -158,22 +201,21 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       // 2. Rank Filter
       if (selectedRank !== 'All') {
         if (selectedRank === 'Offr') {
-          const officerRanks = safeRanks.filter((r) => r && r.category === 'Officer').map((r) => r.name);
-          const list = officerRanks.length > 0 ? officerRanks : ['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'];
-          if (!list.includes(person.rk)) return false;
+          if (!isOfficerRank(person.rk)) return false;
         } else if (selectedRank === 'JCO') {
-          const jcoRanks = safeRanks.filter((r) => r && r.category === 'JCO').map((r) => r.name);
-          const list = jcoRanks.length > 0 ? jcoRanks : ['SWO', 'WO', 'MWO'];
-          if (!list.includes(person.rk)) return false;
+          if (!isJCORank(person.rk)) return false;
+        } else if (selectedRank === 'NCO') {
+          if (!isNCORank(person.rk)) return false;
         } else if (selectedRank === 'OR') {
-          const orRanks = safeRanks.filter((r) => r && r.category === 'OR').map((r) => r.name);
-          const list = orRanks.length > 0 ? orRanks : ['Sgt', 'Cpl', 'Lcpl', 'Snk', 'Gnr', 'SNK DMT)'];
-          if (!list.includes(person.rk)) return false;
-        } else if (selectedRank === 'Civilian') {
-          const civRanks = safeRanks.filter((r) => r && r.category === 'Civilian').map((r) => r.name);
-          if (!civRanks.includes(person.rk) && person.rk !== 'Civilian' && person.rk !== 'NC(E)' && person.rk !== 'NC(U)' && person.trade !== 'Civilian' && person.trade !== 'NC(E)') return false;
+          if (!isORRank(person.rk)) return false;
         } else if (selectedRank === 'RCO') {
-          if (person.rk !== 'RCO' && person.trade !== 'RCO') return false;
+          if (!isRCORank(person.rk, person.trade)) return false;
+        } else if (selectedRank === 'NC(E)' || selectedRank === 'NCE') {
+          if (!isNCERank(person.rk, person.trade)) return false;
+        } else if (selectedRank === 'NC(U)' || selectedRank === 'NCU') {
+          if (!isNCURank(person.rk, person.trade)) return false;
+        } else if (selectedRank === 'Civilian') {
+          if (!isCivilianRank(person.rk, person.trade)) return false;
         } else {
           if (person.rk !== selectedRank) return false;
         }
@@ -181,8 +223,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
       // 3. Trade Filter
       if (selectedTrade !== 'All') {
-        const pTrade = person.trade || 'GD';
-        if (pTrade !== selectedTrade) return false;
+        const pTrade = (person.trade || '').trim().toLowerCase();
+        const sTrade = selectedTrade.trim().toLowerCase();
+        if (pTrade !== sTrade) return false;
       }
 
       // 4. Blood Group Filter
@@ -198,12 +241,69 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
       // 6. Status Filter
       if (selectedStatus !== 'All') {
-        if (person.status !== selectedStatus) return false;
+        const norm = normalizePersonnelStatus(
+          person.status,
+          person.outOfUnitCategory,
+          person.rk,
+          person.trade,
+          person.statusDetails
+        );
+        if (selectedStatus === 'Leave') {
+          if (norm !== 'P/Lve' && norm !== 'C/Lve' && norm !== 'Leave') return false;
+        } else if (selectedStatus === 'In Unit') {
+          if (norm !== 'In Unit' && norm !== 'Present') return false;
+        } else {
+          if (norm !== selectedStatus && person.status !== selectedStatus) return false;
+        }
       }
 
       return true;
     });
-  }, [safePersonnel, safeRanks, activeSearch, selectedRank, selectedTrade, selectedBlood, selectedBattery, fixedBattery, selectedStatus]);
+
+    // Default Sort: Military Seniority (Officers -> JCOs -> NCOs -> Soldiers / OR -> RCO -> Civilian)
+    return [...filtered].sort((a, b) => {
+      if (sortField === 'seniority' || sortField === 'rk') {
+        const diff = comparePersonnelSeniority(a, b, safeRanks);
+        return sortDirection === 'asc' ? diff : -diff;
+      }
+      if (sortField === 'snkNo') {
+        const numA = parseInt((a.snkNo || '').replace(/\D/g, ''), 10);
+        const numB = parseInt((b.snkNo || '').replace(/\D/g, ''), 10);
+        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+          return sortDirection === 'asc' ? numA - numB : numB - numA;
+        }
+        const diff = (a.snkNo || '').localeCompare(b.snkNo || '', undefined, { numeric: true, sensitivity: 'base' });
+        return sortDirection === 'asc' ? diff : -diff;
+      }
+      if (sortField === 'name') {
+        const diff = (a.name || '').localeCompare(b.name || '');
+        return sortDirection === 'asc' ? diff : -diff;
+      }
+      if (sortField === 'battery') {
+        const diff = (a.battery || '').localeCompare(b.battery || '');
+        if (diff !== 0) return sortDirection === 'asc' ? diff : -diff;
+        return comparePersonnelSeniority(a, b, safeRanks);
+      }
+      if (sortField === 'status') {
+        const diff = (a.status || '').localeCompare(b.status || '');
+        if (diff !== 0) return sortDirection === 'asc' ? diff : -diff;
+        return comparePersonnelSeniority(a, b, safeRanks);
+      }
+      return comparePersonnelSeniority(a, b, safeRanks);
+    });
+  }, [
+    safePersonnel,
+    safeRanks,
+    activeSearch,
+    selectedRank,
+    selectedTrade,
+    selectedBlood,
+    selectedBattery,
+    fixedBattery,
+    selectedStatus,
+    sortField,
+    sortDirection,
+  ]);
 
   const handleQuickStatusChange = (personId: string, newStatus: ParadeStatus) => {
     updateParadeStatus(personId, newStatus);
@@ -241,6 +341,8 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     setSelectedBlood('All');
     if (!fixedBattery) setSelectedBattery('All');
     setSelectedStatus('All');
+    setSortField('seniority');
+    setSortDirection('asc');
   };
 
   const hasActiveFilters =
@@ -258,13 +360,17 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Title & Count */}
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-lg font-bold text-white font-sans tracking-tight">
                 {title || 'Nominal'}
               </h2>
               <span className="bg-rose-600/20 text-rose-300 border border-rose-500/40 text-xs font-mono font-bold px-2 py-0.5 rounded-full">
                 {filteredPersonnel.length} / {personnel.length}
               </span>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-mono">
+                <Shield className="w-3 h-3 text-emerald-400" />
+                <span>Seniority: Offr → JCO → NCO → OR</span>
+              </div>
             </div>
           </div>
 
@@ -425,15 +531,21 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer"
             >
-              <option value="All">All Statuses</option>
-              <option value="Present">Present</option>
-              <option value="On Duty">On Duty</option>
-              <option value="CMH/Sick">CMH/Sick</option>
-              <option value="Leave">Leave</option>
-              <option value="Course/Trg">Course/Trg</option>
-              <option value="Temp Duty">Temp Duty</option>
-              <option value="Attached Out">Attached Out</option>
-              <option value="AWOL/OSL">AWOL/OSL</option>
+              <option value="All">All Statuses (সব স্ট্যাটাস)</option>
+              <option value="In Unit">In Unit (ইউনিটে উপস্থিতি)</option>
+              <option value="P/Lve">P/Lve (বাৎসরিক ছুটি)</option>
+              <option value="C/Lve">C/Lve (নৈমিত্তিক ছুটি)</option>
+              <option value="Leave">All Leave (ছুটি - P/Lve + C/Lve)</option>
+              <option value="Course">Course (কোর্স / প্রশিক্ষণ)</option>
+              <option value="CMH">CMH (সিএমএইচ ভর্তি)</option>
+              <option value="Line Sick">Line Sick (লাইন সিক - Off Parade)</option>
+              <option value="FDMN">FDMN (হোয়াইকং ফিল্ড ডিউটি)</option>
+              <option value="Comd">Comd (কমান্ড / ফরমেশন)</option>
+              <option value="Att">Att (সংযুক্ত / Attachment)</option>
+              <option value="Msn">Msn (জাতিসংঘ শান্তিরক্ষা মিশন)</option>
+              <option value="ERE">ERE (নন-পোস্টেড)</option>
+              <option value="Civilian">Civilian Staff (বেসামরিক কর্মী)</option>
+              <option value="AWOL">AWOL (অনুপস্থিত)</option>
             </select>
           </div>
         </div>
@@ -445,12 +557,77 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
           <thead>
             <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider font-mono text-[11px] border-b border-slate-800">
               <th className="py-3 px-3 w-12 text-center">SL</th>
-              <th className="py-3 px-3 w-28 text-center">Army / Snk No</th>
-              <th className="py-3 px-3 w-20 text-center">Rank</th>
+              <th
+                onClick={() => toggleSort('snkNo')}
+                className="py-3 px-3 w-32 text-center cursor-pointer select-none hover:text-white transition-colors"
+                title="Click to sort by Army / Soldier Number"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span>Army / Snk No</span>
+                  {sortField === 'snkNo' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-rose-400" /> : <ArrowDown className="w-3 h-3 text-rose-400" />
+                  ) : (
+                    <ArrowUpDown className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
+                  )}
+                </div>
+              </th>
+              <th
+                onClick={() => toggleSort('seniority')}
+                className="py-3 px-3 w-28 text-center cursor-pointer select-none hover:text-white transition-colors"
+                title="Default: Military Seniority (Officers -> JCOs -> NCOs -> Soldiers)"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span>Rank</span>
+                  {sortField === 'seniority' || sortField === 'rk' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-400" /> : <ArrowDown className="w-3 h-3 text-emerald-400" />
+                  ) : (
+                    <ArrowUpDown className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
+                  )}
+                </div>
+              </th>
               <th className="py-3 px-3 w-20 text-center">Trade</th>
-              <th className="py-3 px-4 min-w-[180px]">Name</th>
-              <th className="py-3 px-3 w-24 text-center">Battery</th>
-              <th className="py-3 px-4 w-44">Parade State</th>
+              <th
+                onClick={() => toggleSort('name')}
+                className="py-3 px-4 min-w-[180px] cursor-pointer select-none hover:text-white transition-colors"
+                title="Click to sort alphabetically by Name"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Name</span>
+                  {sortField === 'name' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-rose-400" /> : <ArrowDown className="w-3 h-3 text-rose-400" />
+                  ) : (
+                    <ArrowUpDown className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
+                  )}
+                </div>
+              </th>
+              <th
+                onClick={() => toggleSort('battery')}
+                className="py-3 px-3 w-24 text-center cursor-pointer select-none hover:text-white transition-colors"
+                title="Click to sort by Battery"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span>Battery</span>
+                  {sortField === 'battery' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-rose-400" /> : <ArrowDown className="w-3 h-3 text-rose-400" />
+                  ) : (
+                    <ArrowUpDown className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
+                  )}
+                </div>
+              </th>
+              <th
+                onClick={() => toggleSort('status')}
+                className="py-3 px-4 w-44 cursor-pointer select-none hover:text-white transition-colors"
+                title="Click to sort by Parade State"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Parade State</span>
+                  {sortField === 'status' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-rose-400" /> : <ArrowDown className="w-3 h-3 text-rose-400" />
+                  ) : (
+                    <ArrowUpDown className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
+                  )}
+                </div>
+              </th>
               <th className="py-3 px-3 w-16 text-center">Blood</th>
               <th className="py-3 px-3 w-20 text-center">Med Cat</th>
               <th className="py-3 px-3 w-24 text-center">Actions</th>
@@ -557,20 +734,52 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             ))}
                           </select>
                           <button
+                            onClick={() => {
+                              setActiveEditingId(null);
+                              setStatusModalPerson(person);
+                            }}
+                            title="Open Full Status & Location Dialog"
+                            className="p-1 rounded bg-rose-600/20 text-rose-300 hover:bg-rose-600/30 text-xs"
+                          >
+                            Details
+                          </button>
+                          <button
                             onClick={() => setActiveEditingId(null)}
-                            className="text-slate-400 hover:text-white text-xs px-1.5"
+                            className="text-slate-400 hover:text-white text-xs px-1"
                           >
                             ✕
                           </button>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between gap-2">
-                          <StatusBadge status={person.status} size="sm" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (allowStatusEdits && currentUser.role !== 'CO' && !isGuest) {
+                                setStatusModalPerson(person);
+                              }
+                            }}
+                            className={`text-left group/badge transition-transform ${
+                              allowStatusEdits && currentUser.role !== 'CO' && !isGuest
+                                ? 'hover:scale-[1.02] cursor-pointer'
+                                : 'cursor-default'
+                            }`}
+                          >
+                            <StatusBadge
+                              status={person.status}
+                              details={
+                                person.location
+                                  ? `${person.location}${person.durationDays ? ` • ${person.durationDays}d` : ''}`
+                                  : person.statusDetails
+                              }
+                              size="sm"
+                            />
+                          </button>
                           {allowStatusEdits && currentUser.role !== 'CO' && !isGuest && (
                             <button
-                              onClick={() => setActiveEditingId(person.id)}
-                              title="Update Parade State"
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-opacity"
+                              onClick={() => setStatusModalPerson(person)}
+                              title="Update Status, Dates & Location"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-opacity cursor-pointer"
                             >
                               <Edit2 className="w-3 h-3" />
                             </button>
@@ -651,6 +860,13 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
           <span>10 Medium Regiment Artillery</span>
         </div>
       </div>
+
+      {/* Change Status Modal */}
+      <ChangeStatusModal
+        isOpen={Boolean(statusModalPerson)}
+        onClose={() => setStatusModalPerson(null)}
+        personnel={statusModalPerson}
+      />
     </div>
   );
 };

@@ -8,9 +8,12 @@ import {
   isJCORank,
   isORRank,
   isCivilianRank,
+  isNCERank,
+  isNCURank,
   isRCORank,
 } from '../types';
 import { UserPlus, Layers, Building2, ChevronDown } from 'lucide-react';
+import { sortBySeniority } from '../utils/seniorityUtils';
 
 interface MasterPersonnelPageProps {
   onViewDossier: (person: Personnel) => void;
@@ -18,13 +21,13 @@ interface MasterPersonnelPageProps {
   onOpenPrintModal: () => void;
 }
 
-type RankCategoryFilter = 'ALL' | 'OFFICER' | 'JCO' | 'OR' | 'CIVILIAN' | 'RCO' | 'OTHERS';
+type RankCategoryFilter = 'ALL' | 'OFFICER' | 'JCO' | 'OR' | 'CIVILIAN' | 'NCE' | 'NCU' | 'RCO' | 'OTHERS';
 
 export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
   onViewDossier,
   onOpenAddModal,
 }) => {
-  const { personnelList, currentUser, isGuest, showNotification } = useApp();
+  const { personnelList, currentUser, isGuest, showNotification, ranksList } = useApp();
 
   const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
   const assignedBattery: Battery =
@@ -101,12 +104,27 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
     () => currentScopePersonnel.filter((p) => isCivilianRank(p.rk, p.trade)).length,
     [currentScopePersonnel]
   );
+  const nceCount = useMemo(
+    () => currentScopePersonnel.filter((p) => isNCERank(p.rk, p.trade)).length,
+    [currentScopePersonnel]
+  );
+  const ncuCount = useMemo(
+    () => currentScopePersonnel.filter((p) => isNCURank(p.rk, p.trade)).length,
+    [currentScopePersonnel]
+  );
   const rcoCount = useMemo(
     () => currentScopePersonnel.filter((p) => isRCORank(p.rk, p.trade)).length,
     [currentScopePersonnel]
   );
   const othersCount = useMemo(
-    () => currentScopePersonnel.filter((p) => isCivilianRank(p.rk, p.trade) || isRCORank(p.rk, p.trade)).length,
+    () =>
+      currentScopePersonnel.filter(
+        (p) =>
+          isCivilianRank(p.rk, p.trade) ||
+          isRCORank(p.rk, p.trade) ||
+          isNCERank(p.rk, p.trade) ||
+          isNCURank(p.rk, p.trade)
+      ).length,
     [currentScopePersonnel]
   );
 
@@ -121,13 +139,23 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
       list = list.filter((p) => isORRank(p.rk));
     } else if (selectedCategory === 'CIVILIAN') {
       list = list.filter((p) => isCivilianRank(p.rk, p.trade));
+    } else if (selectedCategory === 'NCE') {
+      list = list.filter((p) => isNCERank(p.rk, p.trade));
+    } else if (selectedCategory === 'NCU') {
+      list = list.filter((p) => isNCURank(p.rk, p.trade));
     } else if (selectedCategory === 'RCO') {
       list = list.filter((p) => isRCORank(p.rk, p.trade));
     } else if (selectedCategory === 'OTHERS') {
-      list = list.filter((p) => isCivilianRank(p.rk, p.trade) || isRCORank(p.rk, p.trade));
+      list = list.filter(
+        (p) =>
+          isCivilianRank(p.rk, p.trade) ||
+          isRCORank(p.rk, p.trade) ||
+          isNCERank(p.rk, p.trade) ||
+          isNCURank(p.rk, p.trade)
+      );
     }
-    return list;
-  }, [currentScopePersonnel, selectedCategory]);
+    return sortBySeniority(list, ranksList);
+  }, [currentScopePersonnel, selectedCategory, ranksList]);
 
   return (
     <div className="space-y-6">
@@ -224,7 +252,9 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
       {/* Rank Hierarchy Summary Cards */}
       <div
         className={`grid gap-3 ${
-          viewMode === 'REGT' || (viewMode === 'BTY' && activeBatteryTab === 'HQ Bty')
+          viewMode === 'REGT'
+            ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+            : activeBatteryTab === 'HQ Bty'
             ? 'grid-cols-2 sm:grid-cols-4'
             : 'grid-cols-3'
         }`}
@@ -242,10 +272,10 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               : 'bg-slate-900 border-rose-500/30 hover:border-rose-500/60 hover:bg-slate-850'
           }`}
         >
-          <div className="text-base sm:text-lg font-bold text-rose-300">
-            Officer
+          <div className="text-sm sm:text-base font-bold text-rose-300">
+            Offr
           </div>
-          <div className="text-3xl sm:text-4xl font-black text-white font-mono mt-1">
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
             {officerCount}
           </div>
         </button>
@@ -263,10 +293,10 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               : 'bg-slate-900 border-amber-500/30 hover:border-amber-500/60 hover:bg-slate-850'
           }`}
         >
-          <div className="text-base sm:text-lg font-bold text-amber-300">
+          <div className="text-sm sm:text-base font-bold text-amber-300">
             JCO
           </div>
-          <div className="text-3xl sm:text-4xl font-black text-white font-mono mt-1">
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
             {jcoCount}
           </div>
         </button>
@@ -284,13 +314,59 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               : 'bg-slate-900 border-blue-500/30 hover:border-blue-500/60 hover:bg-slate-850'
           }`}
         >
-          <div className="text-base sm:text-lg font-bold text-blue-300">
+          <div className="text-sm sm:text-base font-bold text-blue-300">
             OR
           </div>
-          <div className="text-3xl sm:text-4xl font-black text-white font-mono mt-1">
+          <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
             {orCount}
           </div>
         </button>
+
+        {/* NC(E) Card (for Regt Nominal) */}
+        {viewMode === 'REGT' && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCategory((prev) => (prev === 'NCE' ? 'ALL' : 'NCE'));
+              setIsOthersExpanded(false);
+            }}
+            className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
+              selectedCategory === 'NCE'
+                ? 'bg-orange-950/60 border-orange-500 ring-2 ring-orange-500/50 shadow-lg shadow-orange-950/50'
+                : 'bg-slate-900 border-orange-500/30 hover:border-orange-500/60 hover:bg-slate-850'
+            }`}
+          >
+            <div className="text-sm sm:text-base font-bold text-orange-300">
+              NC(E)
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+              {nceCount}
+            </div>
+          </button>
+        )}
+
+        {/* NC(U) Card (for Regt Nominal) */}
+        {viewMode === 'REGT' && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCategory((prev) => (prev === 'NCU' ? 'ALL' : 'NCU'));
+              setIsOthersExpanded(false);
+            }}
+            className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
+              selectedCategory === 'NCU'
+                ? 'bg-teal-950/60 border-teal-500 ring-2 ring-teal-500/50 shadow-lg shadow-teal-950/50'
+                : 'bg-slate-900 border-teal-500/30 hover:border-teal-500/60 hover:bg-slate-850'
+            }`}
+          >
+            <div className="text-sm sm:text-base font-bold text-teal-300">
+              NC(U)
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+              {ncuCount}
+            </div>
+          </button>
+        )}
 
         {/* Civilian Card (for Regt Nominal) */}
         {viewMode === 'REGT' && (
@@ -306,10 +382,10 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 : 'bg-slate-900 border-purple-500/30 hover:border-purple-500/60 hover:bg-slate-850'
             }`}
           >
-            <div className="text-base sm:text-lg font-bold text-purple-300">
+            <div className="text-sm sm:text-base font-bold text-purple-300">
               Civilian
             </div>
-            <div className="text-3xl sm:text-4xl font-black text-white font-mono mt-1">
+            <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
               {civilianCount}
             </div>
           </button>
@@ -325,13 +401,13 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               setSelectedCategory(willExpand ? 'OTHERS' : 'ALL');
             }}
             className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
-              selectedCategory === 'OTHERS' || selectedCategory === 'CIVILIAN' || selectedCategory === 'RCO'
+              selectedCategory === 'OTHERS' || selectedCategory === 'CIVILIAN' || selectedCategory === 'NCE' || selectedCategory === 'NCU' || selectedCategory === 'RCO'
                 ? 'bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg shadow-emerald-950/50'
                 : 'bg-slate-900 border-emerald-500/30 hover:border-emerald-500/60 hover:bg-slate-850'
             }`}
           >
             <div className="flex items-center justify-between">
-              <div className="text-base sm:text-lg font-bold text-emerald-300">
+              <div className="text-sm sm:text-base font-bold text-emerald-300">
                 Others
               </div>
               <ChevronDown
@@ -340,21 +416,21 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 }`}
               />
             </div>
-            <div className="text-3xl sm:text-4xl font-black text-white font-mono mt-1">
+            <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
               {othersCount}
             </div>
           </button>
         )}
       </div>
 
-      {/* Others Sub-Categories (Civilian & RCO) for HQ Battery */}
+      {/* Others Sub-Categories (Civilian, NC(E), NC(U), RCO) for HQ Battery */}
       {viewMode === 'BTY' && activeBatteryTab === 'HQ Bty' && isOthersExpanded && (
         <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
               Others Category:
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => setSelectedCategory('CIVILIAN')}
@@ -367,6 +443,34 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 <span>Civilian (সিভিলিয়ান)</span>
                 <span className="bg-black/40 px-1.5 py-0.5 rounded text-[11px] font-mono">
                   {civilianCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('NCE')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 border transition-all cursor-pointer ${
+                  selectedCategory === 'NCE'
+                    ? 'bg-orange-600 text-white border-orange-400 shadow-md ring-1 ring-orange-300'
+                    : 'bg-slate-950 text-orange-300 border-orange-500/40 hover:bg-orange-950/30'
+                }`}
+              >
+                <span>NC(E)</span>
+                <span className="bg-black/40 px-1.5 py-0.5 rounded text-[11px] font-mono">
+                  {nceCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('NCU')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 border transition-all cursor-pointer ${
+                  selectedCategory === 'NCU'
+                    ? 'bg-teal-600 text-white border-teal-400 shadow-md ring-1 ring-teal-300'
+                    : 'bg-slate-950 text-teal-300 border-teal-500/40 hover:bg-teal-950/30'
+                }`}
+              >
+                <span>NC(U)</span>
+                <span className="bg-black/40 px-1.5 py-0.5 rounded text-[11px] font-mono">
+                  {ncuCount}
                 </span>
               </button>
               <button
@@ -423,6 +527,10 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 ? 'JCO'
                 : selectedCategory === 'OR'
                 ? 'OR (Other Ranks)'
+                : selectedCategory === 'NCE'
+                ? 'NC(E)'
+                : selectedCategory === 'NCU'
+                ? 'NC(U)'
                 : selectedCategory === 'CIVILIAN'
                 ? 'Civilian'
                 : selectedCategory === 'RCO'

@@ -99,12 +99,13 @@ export function calculateSimpleParadeState(
 
   scopedPersonnel.forEach((p) => {
     const isCiv =
+      p.status === 'Civilian' ||
       p.rk === 'Civilian' ||
       p.trade === 'Civilian' ||
       (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
     if (isCiv) {
       civilian++;
-    } else if (p.outOfUnitCategory === 'ERE') {
+    } else if (p.status === 'ERE' || p.outOfUnitCategory === 'ERE') {
       ere++;
     }
   });
@@ -113,7 +114,7 @@ export function calculateSimpleParadeState(
   const totalPosted = Math.max(0, totalPersonnel - (ere + civilian));
 
   // 3. Count Out of Unit strictly for posted strength:
-  // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
+  // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN + AWOL
   let pLve = 0;
   let cLve = 0;
   let course = 0;
@@ -128,39 +129,40 @@ export function calculateSimpleParadeState(
   scopedPersonnel.forEach((p) => {
     // Skip Civilians and ERE from Out of Unit since they are already removed from Posted
     const isCiv =
+      p.status === 'Civilian' ||
       p.rk === 'Civilian' ||
       p.trade === 'Civilian' ||
       (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
-    if (isCiv || p.outOfUnitCategory === 'ERE') return;
+    if (isCiv || p.status === 'ERE' || p.outOfUnitCategory === 'ERE') return;
 
-    if (p.outOfUnitCategory === 'P/Lve') {
+    if (p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || (p.status === 'Leave' && p.leaveType !== 'C/Lve')) {
       pLve++;
-    } else if (p.outOfUnitCategory === 'C/Lve') {
+    } else if (p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve' || (p.status === 'Leave' && p.leaveType === 'C/Lve')) {
       cLve++;
-    } else if (p.status === 'Leave') {
-      pLve++;
-    } else if (p.outOfUnitCategory === 'Course' || p.status === 'Course/Trg') {
+    } else if (p.status === 'Course' || p.outOfUnitCategory === 'Course' || p.status === 'Course/Trg') {
       course++;
-    } else if (p.outOfUnitCategory === 'CMH' || p.status === 'CMH/Sick') {
+    } else if (p.status === 'CMH' || p.outOfUnitCategory === 'CMH' || p.status === 'CMH/Sick') {
       cmh++;
-    } else if (p.outOfUnitCategory === 'Msn') {
+    } else if (p.status === 'Msn' || p.outOfUnitCategory === 'Msn') {
       msn++;
-    } else if (p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
+    } else if (p.status === 'Att' || p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
       att++;
-    } else if (p.outOfUnitCategory === 'FDMN') {
+    } else if (p.status === 'FDMN' || p.outOfUnitCategory === 'FDMN') {
       fdmn++;
     } else if (
+      p.status === 'Comd' ||
       p.outOfUnitCategory === 'Comd' ||
       Boolean(p.comdAssignment) ||
       p.statusDetails?.toLowerCase().includes('comd') ||
       (p.status === 'Temp Duty' && p.outOfUnitCategory !== 'FDMN')
     ) {
       comd++;
-    } else if (p.status === 'AWOL/OSL') {
+    } else if (p.status === 'AWOL' || p.status === 'AWOL/OSL') {
       awol++;
     }
 
     if (
+      p.status === 'Line Sick' ||
       p.statusDetails?.toLowerCase().includes('line sick') ||
       p.statusDetails?.toLowerCase().includes('morning sick') ||
       p.statusDetails?.toLowerCase().includes('sick in qtr')

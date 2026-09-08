@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Personnel } from '../types';
+import { sortBySeniority } from './seniorityUtils';
 
 export interface ExportFilterOptions {
   searchQuery?: string;
@@ -52,7 +53,8 @@ export const exportNominalRollToPdf = (
     hour12: true,
   });
 
-  const safeList = Array.isArray(personnelList) ? personnelList.filter(Boolean) : [];
+  const rawList = Array.isArray(personnelList) ? personnelList.filter(Boolean) : [];
+  const safeList = sortBySeniority(rawList);
 
   // Calculate statistics
   const total = safeList.length;
@@ -200,7 +202,8 @@ export const exportNominalRollToWord = (
     hour12: true,
   });
 
-  const safeList = Array.isArray(personnelList) ? personnelList.filter(Boolean) : [];
+  const rawList = Array.isArray(personnelList) ? personnelList.filter(Boolean) : [];
+  const safeList = sortBySeniority(rawList);
 
   const total = safeList.length;
   const present = safeList.filter((p) => p.status === 'Present').length;

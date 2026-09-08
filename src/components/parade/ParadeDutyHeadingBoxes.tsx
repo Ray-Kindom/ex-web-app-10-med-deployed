@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ParadeDutyCategory, Battery } from '../../types';
 import { normalizeDutyName } from '../../utils/paradeCalculations';
+import { sortBySeniority } from '../../utils/seniorityUtils';
 import {
   Shield,
   Wrench,
@@ -106,6 +107,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     removeParadeDutyAssignment,
     clearParadeDutyAssignments,
     showNotification,
+    ranksList,
   } = useApp();
 
   // Active Category (defaults to Unit Sy for immediate entry readiness)
@@ -179,22 +181,21 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter personnel based on search query
+  // Filter personnel based on search query - sorted by Military Seniority
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
-    return personnelList
-      .filter((p) => {
-        if (filterBattery && filterBattery !== 'Consolidated' && p.battery !== filterBattery) {
-          return false;
-        }
-        const soldierSnkNo = (p.snkNo || (p as any).armyNo || '').toLowerCase();
-        const soldierName = (p.name || '').toLowerCase();
-        const soldierRank = (p.rk || (p as any).rank || '').toLowerCase();
-        return soldierSnkNo.includes(q) || soldierName.includes(q) || soldierRank.includes(q);
-      })
-      .slice(0, 8);
-  }, [personnelList, searchQuery, filterBattery]);
+    const matched = personnelList.filter((p) => {
+      if (filterBattery && filterBattery !== 'Consolidated' && p.battery !== filterBattery) {
+        return false;
+      }
+      const soldierSnkNo = (p.snkNo || (p as any).armyNo || '').toLowerCase();
+      const soldierName = (p.name || '').toLowerCase();
+      const soldierRank = (p.rk || (p as any).rank || '').toLowerCase();
+      return soldierSnkNo.includes(q) || soldierName.includes(q) || soldierRank.includes(q);
+    });
+    return sortBySeniority(matched, ranksList).slice(0, 10);
+  }, [personnelList, searchQuery, filterBattery, ranksList]);
 
   // Handle adding a soldier
   const handleAddSoldier = (soldier: (typeof personnelList)[0]) => {

@@ -7,6 +7,7 @@ import {
   ALL_BATTERIES,
   Personnel,
 } from '../../types';
+import { sortBySeniority } from '../../utils/seniorityUtils';
 import {
   X,
   Plus,
@@ -50,6 +51,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     cancelOutOfUnit,
     activeOutOfUnitCategory,
     setActiveOutOfUnitCategory,
+    ranksList,
   } = useApp();
 
   const [currentCategory, setCurrentCategory] = useState<OutOfUnitCategory>(
@@ -104,7 +106,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
 
   // Filtered soldiers currently in this Out Of Unit Category
   const outOfUnitSoldiers = useMemo(() => {
-    return (personnelList || []).filter((p) => {
+    const raw = (personnelList || []).filter((p) => {
       if (!p) return false;
       // Check if matches category
       const details = (p.statusDetails || '').toLowerCase();
@@ -161,7 +163,8 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
 
       return true;
     });
-  }, [personnelList, currentCategory, selectedBattery, searchQuery]);
+    return sortBySeniority(raw, ranksList);
+  }, [personnelList, currentCategory, selectedBattery, searchQuery, ranksList]);
 
   // Check if current user is a BSM
   const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
@@ -170,7 +173,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
   // Available soldiers for selection in Add Modal
   // If BSM: defaults to only suggesting their own battery troops; if search matches another bty, warns user
   const availableSoldiers = useMemo(() => {
-    return (personnelList || []).filter((p) => {
+    const raw = (personnelList || []).filter((p) => {
       if (!p) return false;
       // If BSM and no search query, only suggest their own battery
       if (isBsm && bsmBattery && !soldierSearchQuery.trim() && p.battery !== bsmBattery) {
@@ -188,7 +191,8 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
       }
       return true;
     });
-  }, [personnelList, selectedBattery, soldierSearchQuery, isBsm, bsmBattery]);
+    return sortBySeniority(raw, ranksList);
+  }, [personnelList, selectedBattery, soldierSearchQuery, isBsm, bsmBattery, ranksList]);
 
   // Selected soldier details for preview
   const selectedSoldier = useMemo(() => {
