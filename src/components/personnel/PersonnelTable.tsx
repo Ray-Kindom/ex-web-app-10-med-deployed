@@ -685,15 +685,15 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                       </span>
                     </td>
 
-                    {/* 4. Trade (Separate Column - Short form, Dash for Officers) */}
+                    {/* 4. Trade (Separate Column - Short form, Dash for Officers and NC(E)) */}
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      {['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(person.rk) ? (
-                        <span className="font-mono text-slate-500 text-xs font-medium" title="Officers have no trade">
+                      {['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt', 'NC(E)', 'NC (E)'].includes(person.rk) || isNCERank(person.rk, person.trade) || person.trade === '-' || !person.trade ? (
+                        <span className="font-mono text-slate-500 text-xs font-medium" title="No trade">
                           -
                         </span>
                       ) : (
                         <span className="inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-slate-800 text-cyan-300 border border-slate-700">
-                          {person.trade && person.trade !== '-' ? person.trade : 'GD'}
+                          {person.trade}
                         </span>
                       )}
                     </td>
@@ -767,6 +767,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                           >
                             <StatusBadge
                               status={person.status}
+                              outOfUnitCategory={person.outOfUnitCategory}
                               details={
                                 person.location
                                   ? `${person.location}${person.durationDays ? ` • ${person.durationDays}d` : ''}`

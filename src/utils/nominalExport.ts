@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Personnel } from '../types';
+import { Personnel, isNCERank } from '../types';
 import { sortBySeniority } from './seniorityUtils';
 
 export interface ExportFilterOptions {
@@ -96,7 +96,7 @@ export const exportNominalRollToPdf = (
     (index + 1).toString(),
     person.snkNo || '',
     person.rk || '',
-    person.trade || 'GD',
+    person.trade && person.trade !== '-' && !isNCERank(person.rk, person.trade) && !['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(person.rk) ? person.trade : '-',
     person.name || '',
     person.battery || '',
     person.status || '',
@@ -220,7 +220,7 @@ export const exportNominalRollToWord = (
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${idx + 1}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-family: monospace; font-weight: bold; font-size: 11px;">${p.snkNo || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px;">${p.rk || ''}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px; color: #0284c7;">${p.trade || 'GD'}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px; color: #0284c7;">${p.trade && p.trade !== '-' && !isNCERank(p.rk, p.trade) && !['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(p.rk) ? p.trade : '-'}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; font-size: 11px;">${p.name || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.battery || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px; font-weight: 500;">${p.status || ''}</td>

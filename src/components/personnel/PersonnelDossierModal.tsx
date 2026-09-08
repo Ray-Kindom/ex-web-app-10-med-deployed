@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Personnel, ParadeStatus } from '../../types';
+import { Personnel, ParadeStatus, isNCERank } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StatusBadge } from '../common/StatusBadge';
 import { RankBadge } from '../common/RankBadge';
@@ -123,7 +123,12 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
 
             {!isEditingStatus ? (
               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-slate-800">
-                <StatusBadge status={person.status} details={person.statusDetails} size="lg" />
+                <StatusBadge
+                  status={person.status}
+                  outOfUnitCategory={person.outOfUnitCategory}
+                  details={person.statusDetails}
+                  size="lg"
+                />
                 <span className="text-xs text-slate-400 font-mono">
                   Verified for 0630 HRS Roll Call
                 </span>
@@ -208,7 +213,9 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                   <span className="font-semibold text-slate-200">
                     {['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(person.rk)
                       ? 'None (Commissioned Officer - No Trade)'
-                      : (person.trade && person.trade !== '-' ? person.trade : 'General Duty')}
+                      : isNCERank(person.rk, person.trade) || person.rk === 'NC(E)' || person.trade === '-' || !person.trade
+                      ? 'None (NC(E) - No Trade)'
+                      : person.trade}
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">

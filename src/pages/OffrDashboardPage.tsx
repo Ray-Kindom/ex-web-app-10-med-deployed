@@ -137,7 +137,7 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
             <span className="text-[11px] text-slate-400 font-mono block">Today's Duty Officer</span>
             <div className="flex items-baseline gap-2 mt-0.5">
               <span className="text-sm font-bold text-amber-300 truncate">
-                {dutyOfficer?.assignedPersonnel[0]?.name || 'Capt Saifuddin'}
+                {dutyOfficer?.assignedPersonnel[0]?.name || 'Capt Iftekhar Mahmud Abir'}
               </span>
             </div>
           </div>

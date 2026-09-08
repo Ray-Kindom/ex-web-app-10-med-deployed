@@ -471,7 +471,7 @@ export const GoogleWhitelistTab: React.FC = () => {
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Capt Saifuddin"
+              placeholder="e.g. Capt Iftekhar Mahmud Abir"
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
             />
           </div>

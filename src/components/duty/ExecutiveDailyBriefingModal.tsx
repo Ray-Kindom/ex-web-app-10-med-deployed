@@ -40,6 +40,11 @@ export const ExecutiveDailyBriefingModal: React.FC<ExecutiveDailyBriefingModalPr
   const effectiveDate = date || selectedParadeDate;
   const dutyStatus = getDutySessionStatus(effectiveDate, sessionType);
 
+  const coOfficer = personnelList.find((p) => p.snkNo === 'BA-7592') || personnelList.find((p) => p.rk === 'Lt Col');
+  const adjutantOfficer = personnelList.find((p) => p.snkNo === 'BA-11735') || personnelList.find((p) => p.rk === 'Capt');
+  const coName = coOfficer ? coOfficer.name : 'Lt Col Md Shafiqul Islam Rubel, PSC, G';
+  const adjutantName = adjutantOfficer ? adjutantOfficer.name : 'Capt Iftekhar Mahmud Abir';
+
   // Zoom / Scale density control
   const [scaleMode, setScaleMode] = useState<'auto' | 'compact' | 'normal'>('auto');
 
@@ -447,7 +452,7 @@ export const ExecutiveDailyBriefingModal: React.FC<ExecutiveDailyBriefingModalPr
 
               <div className="space-y-1">
                 <div className="h-8 flex items-end justify-center font-serif italic text-[11px] text-slate-700">
-                  Capt Saifuddin, Adjt
+                  {adjutantName}, Adjt
                 </div>
                 <div className="border-t border-slate-600 pt-0.5 font-bold uppercase text-[10px]">
                   Adjutant (Adjt)
@@ -457,7 +462,7 @@ export const ExecutiveDailyBriefingModal: React.FC<ExecutiveDailyBriefingModalPr
 
               <div className="space-y-1">
                 <div className="h-8 flex items-end justify-center font-serif italic text-[11px] text-slate-700">
-                  Lt Col Tanvir, psc
+                  {coName}
                 </div>
                 <div className="border-t border-slate-600 pt-0.5 font-bold uppercase text-[10px]">
                   Commanding Officer (CO)

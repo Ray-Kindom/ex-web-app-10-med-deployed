@@ -3,6 +3,8 @@ import { ParadeStatus } from '../../types';
 
 interface StatusBadgeProps {
   status: ParadeStatus | string;
+  category?: string;
+  outOfUnitCategory?: string;
   details?: string;
   size?: 'sm' | 'md' | 'lg';
   showDot?: boolean;
@@ -10,6 +12,8 @@ interface StatusBadgeProps {
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
+  category,
+  outOfUnitCategory,
   details,
   size = 'md',
   showDot = true,
@@ -153,7 +157,29 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     }
   };
 
-  const config = getStatusConfig(status || 'Present');
+  const effectiveStatus = (() => {
+    const cat = (outOfUnitCategory || category || '').trim();
+    if (cat === 'FDMN') return 'FDMN';
+    if (cat === 'ERE') return 'ERE';
+    if (cat === 'Msn') return 'Msn';
+    if (cat === 'Att') return 'Att';
+    if (cat === 'Comd') return 'Comd';
+    if (cat === 'Course') return 'Course';
+    if (cat === 'CMH') return 'CMH';
+    if (cat === 'P/Lve') return 'P/Lve';
+    if (cat === 'C/Lve') return 'C/Lve';
+
+    // Auto-detect from details if available
+    const det = (details || '').toLowerCase();
+    if (det.includes('fdmn') || det.includes('হোয়াইকং')) return 'FDMN';
+    if (det.includes('un mission') || det.includes('mission party') || det.includes('শান্তিরক্ষা')) return 'Msn';
+    if (det.includes('ere')) return 'ERE';
+    if (det.includes('line sick')) return 'Line Sick';
+
+    return status || 'Present';
+  })();
+
+  const config = getStatusConfig(effectiveStatus);
 
   const sizeClasses = {
     sm: 'text-[11px] px-2 py-0.5 font-medium',

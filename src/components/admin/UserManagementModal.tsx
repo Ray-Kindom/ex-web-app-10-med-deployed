@@ -412,7 +412,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Type Soldier No (e.g. 1243723), BA No (e.g. BA-9844), or Name..."
+              placeholder="Type Soldier No (e.g. 1243723), BA No (e.g. BA-7592), or Name..."
               className="w-full bg-slate-900 border border-rose-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 font-mono"
             />
 
@@ -507,7 +507,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Capt Saifuddin Ahmed / SWO Nasir"
+                  placeholder="e.g. Capt Iftekhar Mahmud Abir / SWO Nasir"
                   className={`w-full bg-slate-950 border ${
                     errors.name ? 'border-rose-500' : 'border-slate-700'
                   } rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500`}
@@ -561,7 +561,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 type="text"
                 value={snkNo}
                 onChange={(e) => setSnkNo(e.target.value)}
-                placeholder="e.g. BA-9844 or 1243723"
+                placeholder="e.g. BA-7592 or 1243723"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
               />
             </div>
@@ -622,7 +622,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       setErrors((prev) => ({ ...prev, username: '' }));
                     }
                   }}
-                  placeholder="e.g. offr_saifuddin"
+                  placeholder="e.g. offr_abir"
                   className={`w-full bg-slate-900 border ${
                     errors.username || duplicateUser ? 'border-rose-500 text-rose-300' : 'border-slate-700 text-white'
                   } rounded-xl pl-9 pr-3 py-2 text-xs placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono`}

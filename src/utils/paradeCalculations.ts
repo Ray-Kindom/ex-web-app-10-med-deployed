@@ -8,7 +8,7 @@ export interface SimpleParadeSummary {
   totalPosted: number;    // Total Personnel - (ERE + Civilian) = (Offr + JCO + RCO + OR + NC(E) + NC(U)) - ERE
   outOfUnit: number;      // Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
   presentInUnit: number;  // Posted - Out of Unit
-  offParade: number;      // Sum of all Detailing + Line Sick/Morning Sick
+  offParade: number;      // Pure count of Detailed Duties (Duty Detailing)
   onParade: number;       // Present in Unit - Off Parade
   detailingCount: number; // Total duty detailing assignments
   lineSick: number;       // Line Sick / Morning Sick count
@@ -207,8 +207,8 @@ export function calculateSimpleParadeState(
     }
   }
 
-  // 7. Off Parade = Sum of all Detailing + Line Sick/Morning Sick
-  const offParade = detailingCount + lineSick;
+  // 7. Off Parade (Duty Detailing) = Pure count of personnel detailed to duties
+  const offParade = detailingCount;
 
   let unitSy = 0;
   let working = 0;

@@ -154,6 +154,7 @@ export type Trade =
   | 'NC(U)'
   | 'Civilian'
   | 'RCO'
+  | 'SMT'
   | '-';
 
 export const ALL_TRADES: Trade[] = [
@@ -167,6 +168,7 @@ export const ALL_TRADES: Trade[] = [
   'Tailor',
   'E&BR',
   'AEC',
+  'SMT',
 ];
 
 export type OutOfUnitCategory =

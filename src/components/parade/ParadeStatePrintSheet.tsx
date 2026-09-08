@@ -23,6 +23,11 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
 
   const absentees = personnelList.filter(p => p.status !== 'Present');
 
+  const coOfficer = personnelList.find(p => p.snkNo === 'BA-7592') || personnelList.find(p => p.rk === 'Lt Col');
+  const adjutantOfficer = personnelList.find(p => p.snkNo === 'BA-11735') || personnelList.find(p => p.rk === 'Capt');
+  const coName = coOfficer ? coOfficer.name : 'Lt Col Md Shafiqul Islam Rubel, PSC, G';
+  const adjutantName = adjutantOfficer ? adjutantOfficer.name : 'Capt Iftekhar Mahmud Abir';
+
   const handlePrint = () => {
     window.print();
   };
@@ -203,7 +208,7 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
             <div className="space-y-8">
               <div className="text-[10px] text-slate-500">Authorized by</div>
               <div className="border-t border-slate-800 pt-1 font-bold">
-                <div>Capt Saifuddin Ahmed</div>
+                <div>{adjutantName}</div>
                 <div className="text-[10px] text-slate-600 font-normal">Adjutant, 10 Med Regt Arty</div>
               </div>
             </div>
@@ -211,7 +216,7 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
             <div className="space-y-8">
               <div className="text-[10px] text-slate-500">Seen by</div>
               <div className="border-t border-slate-800 pt-1 font-bold">
-                <div>Lt Col Tariq Rahman, psc</div>
+                <div>{coName}</div>
                 <div className="text-[10px] text-slate-600 font-normal">Commanding Officer (CO)</div>
               </div>
             </div>

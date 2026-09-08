@@ -227,7 +227,7 @@ export function comparePersonnelSeniority(
   const snkB = (b.snkNo || '').trim();
 
   if (snkA && snkB && snkA !== snkB) {
-    // Extract numeric portion for military numbers (e.g., BA-7124 vs BA-8451; 1243526 vs 1246224)
+    // Extract numeric portion for military numbers (e.g., BA-7592 vs BA-8324; 1243526 vs 1246224)
     const numA = parseInt(snkA.replace(/\D/g, ''), 10);
     const numB = parseInt(snkB.replace(/\D/g, ''), 10);
 

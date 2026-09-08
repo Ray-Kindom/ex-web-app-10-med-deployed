@@ -107,7 +107,7 @@ export const PersonnelDatabaseTab: React.FC = () => {
     const rows = sorted.map((p) => [
       `"${p.snkNo}"`,
       `"${p.rk}"`,
-      `"${p.trade || 'GD'}"`,
+      `"${p.trade && p.trade !== '-' ? p.trade : '-'}"`,
       `"${(p.name || '').replace(/"/g, '""')}"`,
       `"${p.battery}"`,
       `"${p.bloodGroup || 'O+'}"`,

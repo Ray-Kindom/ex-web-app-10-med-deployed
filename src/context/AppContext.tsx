@@ -38,6 +38,9 @@ import {
   INITIAL_AUDIT_LOGS,
   GUEST_USER,
   FDMN_NOMINATIONS_WHYE_KONG,
+  COMD_PARTY_NOMINATIONS_08_09_26,
+  OFFICIAL_OFFICER_SNK_NOS,
+  OFFICIAL_OFFICERS,
 } from '../data/initialData';
 import { INITIAL_PARADE_POINTS } from '../data/paradePointsData';
 import {
@@ -421,7 +424,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter((u: UserAccount) => !isUserDeleted(u, deleted));
+          let hasMigration = false;
+          const migrated = parsed
+            .filter((u: UserAccount) => !isUserDeleted(u, deleted))
+            .map((u: UserAccount) => {
+              if (u.username === 'co' || u.snkNo === 'BA-7124' || u.name?.includes('Tariq')) {
+                hasMigration = true;
+                return {
+                  ...u,
+                  name: 'Lt Col Md Shafiqul Islam Rubel, PSC, G',
+                  snkNo: 'BA-7592',
+                  rank: 'Lt Col',
+                };
+              }
+              if (u.username === 'offr' || u.snkNo === 'BA-9844' || u.name?.includes('Saifuddin')) {
+                hasMigration = true;
+                return {
+                  ...u,
+                  name: 'Capt Iftekhar Mahmud Abir',
+                  snkNo: 'BA-11735',
+                  rank: 'Capt',
+                  accessLevel: 'Regimental Officer Access (Adjutant)',
+                };
+              }
+              return u;
+            });
+          if (hasMigration) {
+            try {
+              localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(migrated));
+            } catch (e) {}
+          }
+          return migrated;
         }
       } catch (e) {
         /* fallback */
@@ -434,7 +467,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.USER);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed.username === 'co' || parsed.snkNo === 'BA-7124' || parsed.name?.includes('Tariq')) {
+          const newCo = INITIAL_USERS[0];
+          try {
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newCo));
+          } catch (e) {}
+          return newCo;
+        }
+        if (parsed.username === 'offr' || parsed.snkNo === 'BA-9844' || parsed.name?.includes('Saifuddin')) {
+          const newOffr = INITIAL_USERS[1];
+          try {
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newOffr));
+          } catch (e) {}
+          return newOffr;
+        }
+        return parsed;
       } catch (e) {
         /* fallback */
       }
@@ -639,6 +687,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed: Personnel[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          let hasChanges = false;
+
+          // 1. Purge obsolete officers who are not in the official 12 officers list
+          const officialSnkNos = new Set(OFFICIAL_OFFICER_SNK_NOS);
+          let workingList = parsed.filter((p) => {
+            const isOfficer = isOfficerRank(p.rk) || (p.snkNo && p.snkNo.startsWith('BA-'));
+            if (isOfficer && !officialSnkNos.has(p.snkNo)) {
+              hasChanges = true;
+              return false; // Remove obsolete officer
+            }
+            return true;
+          });
+
+          // 2. Ensure each of the 12 official officers exists and has up-to-date name, rank, battery
+          OFFICIAL_OFFICERS.forEach((officialOffr) => {
+            const index = workingList.findIndex((p) => p.snkNo === officialOffr.snkNo);
+            if (index !== -1) {
+              const current = workingList[index];
+              if (
+                current.name !== officialOffr.name ||
+                current.rk !== officialOffr.rk ||
+                current.battery !== officialOffr.battery
+              ) {
+                hasChanges = true;
+                workingList[index] = {
+                  ...current,
+                  name: officialOffr.name,
+                  rk: officialOffr.rk,
+                  battery: officialOffr.battery,
+                };
+              }
+            } else {
+              hasChanges = true;
+              workingList.unshift(officialOffr);
+            }
+          });
+
           // Sync official course nominations (Dated: 05-09-2026) into existing localStorage
           const courseSnkNos = [
             'BA-9043',
@@ -658,8 +743,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             INITIAL_PERSONNEL.filter((p) => courseSnkNos.includes(p.snkNo)).map((p) => [p.snkNo, p])
           );
 
-          let hasChanges = false;
-          const updatedList = parsed.map((p) => {
+          const updatedList = workingList.map((p) => {
             const courseData = coursePersonnelMap.get(p.snkNo);
             if (courseData && p.status !== 'Course/Trg') {
               hasChanges = true;
@@ -708,6 +792,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   outOfUnitEndDate: fdmn.endDate,
                   outOfUnitRemarks: `FDMN (${fdmn.days.toString().padStart(2, '0')} দিন)`,
                   statusDetails: 'FDMN - হোয়াইকং আর্মি ক্যাম্প',
+                };
+              }
+            } else if (initialMatch) {
+              hasChanges = true;
+              updatedList.push(initialMatch);
+            }
+          });
+
+          // Sync NC(E) rank and trade for the 9 designated personnel
+          const NCE_PERSONNEL_SNK_NOS = ['1227839', '1229728', '1235261', '1235277', '1237352', '1239301', '1246542', '1247785', '1251028'];
+          updatedList.forEach((p, idx) => {
+            if (NCE_PERSONNEL_SNK_NOS.includes(p.snkNo) && (p.rk !== 'NC(E)' || p.trade !== '-')) {
+              hasChanges = true;
+              updatedList[idx] = {
+                ...p,
+                rk: 'NC(E)',
+                trade: '-',
+              };
+            }
+          });
+
+          // Sync COMD Party nominations (08-09-2026)
+          COMD_PARTY_NOMINATIONS_08_09_26.forEach((comd) => {
+            const index = updatedList.findIndex((p) => p.snkNo === comd.snkNo);
+            const initialMatch = INITIAL_PERSONNEL.find((p) => p.snkNo === comd.snkNo);
+
+            if (index !== -1) {
+              const current = updatedList[index];
+              if (current.outOfUnitCategory !== 'Comd' || current.location !== comd.location) {
+                hasChanges = true;
+                updatedList[index] = {
+                  ...current,
+                  status: 'Temp Duty' as ParadeStatus,
+                  outOfUnitCategory: 'Comd' as const,
+                  comdAssignment: comd.location,
+                  location: comd.location,
+                  outOfUnitLocation: comd.location,
+                  outOfUnitRemarks: `কমান্ড পার্টি (${comd.location})`,
+                  statusDetails: comd.statusDetails,
+                  outOfUnitStartDate: '2026-09-08',
+                  ...(comd.snkNo === '1234544' ? { name: 'Md Rahmania Amran (Imran)' } : {}),
                 };
               }
             } else if (initialMatch) {
