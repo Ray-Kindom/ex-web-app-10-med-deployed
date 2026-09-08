@@ -400,7 +400,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                       }}
                       className="w-full bg-slate-950 border border-slate-700 hover:border-slate-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-rose-500 appearance-none cursor-pointer pr-7"
                     >
-                      {activeBoxDef.defaultRoles.map((role) => (
+                      {(activeBoxDef?.defaultRoles || []).map((role) => (
                         <option key={role} value={role} className="bg-slate-900 text-white">
                           {role}
                         </option>

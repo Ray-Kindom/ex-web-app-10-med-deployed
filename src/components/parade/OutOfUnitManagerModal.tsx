@@ -87,7 +87,8 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
 
   // Filtered soldiers currently in this Out Of Unit Category
   const outOfUnitSoldiers = useMemo(() => {
-    return personnelList.filter((p) => {
+    return (personnelList || []).filter((p) => {
+      if (!p) return false;
       // Check if matches category
       const matchesCategory =
         p.outOfUnitCategory === currentCategory ||
@@ -112,10 +113,10 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
-          p.snkNo.toLowerCase().includes(q) ||
-          p.name.toLowerCase().includes(q) ||
-          p.rk.toLowerCase().includes(q) ||
-          p.trade.toLowerCase().includes(q) ||
+          (p.snkNo || '').toLowerCase().includes(q) ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.rk || '').toLowerCase().includes(q) ||
+          (p.trade || '').toLowerCase().includes(q) ||
           (p.outOfUnitLocation && p.outOfUnitLocation.toLowerCase().includes(q)) ||
           (p.statusDetails && p.statusDetails.toLowerCase().includes(q))
         );
@@ -132,7 +133,8 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
   // Available soldiers for selection in Add Modal
   // If BSM: defaults to only suggesting their own battery troops; if search matches another bty, warns user
   const availableSoldiers = useMemo(() => {
-    return personnelList.filter((p) => {
+    return (personnelList || []).filter((p) => {
+      if (!p) return false;
       // If BSM and no search query, only suggest their own battery
       if (isBsm && bsmBattery && !soldierSearchQuery.trim() && p.battery !== bsmBattery) {
         return false;
@@ -141,10 +143,10 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
       if (soldierSearchQuery.trim()) {
         const q = soldierSearchQuery.toLowerCase();
         return (
-          p.snkNo.toLowerCase().includes(q) ||
-          p.name.toLowerCase().includes(q) ||
-          p.rk.toLowerCase().includes(q) ||
-          p.trade.toLowerCase().includes(q)
+          (p.snkNo || '').toLowerCase().includes(q) ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.rk || '').toLowerCase().includes(q) ||
+          (p.trade || '').toLowerCase().includes(q)
         );
       }
       return true;
@@ -153,7 +155,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
 
   // Selected soldier details for preview
   const selectedSoldier = useMemo(() => {
-    return personnelList.find((p) => p.id === selectedPersonnelId);
+    return (personnelList || []).find((p) => p && p.id === selectedPersonnelId);
   }, [personnelList, selectedPersonnelId]);
 
   // Category counts
@@ -170,7 +172,8 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
       'C/Lve': 0,
     };
 
-    personnelList.forEach((p) => {
+    (personnelList || []).forEach((p) => {
+      if (!p) return;
       if (selectedBattery !== 'All' && p.battery !== selectedBattery) return;
 
       if (p.outOfUnitCategory) {

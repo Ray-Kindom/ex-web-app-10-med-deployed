@@ -161,7 +161,7 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
                   onChange={(e) => setRank(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-300 font-mono font-bold text-xs focus:border-rose-500 focus:outline-none cursor-pointer"
                 >
-                  {ranksList.map((r) => (
+                  {(ranksList || []).map((r) => (
                     <option key={r.id} value={r.abbreviation || r.name}>
                       {r.name} ({r.abbreviation})
                     </option>
@@ -183,7 +183,7 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
                   className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-cyan-300 font-mono font-semibold text-xs focus:border-rose-500 focus:outline-none cursor-pointer"
                 >
                   <option value="-">- (Officer / No Trade)</option>
-                  {tradesList.map((t) => (
+                  {(tradesList || []).map((t) => (
                     <option key={t.id} value={t.abbreviation || t.name}>
                       {t.name} ({t.abbreviation})
                     </option>
@@ -222,7 +222,7 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
                   onChange={(e) => setBattery(e.target.value as Battery)}
                   className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono font-semibold text-xs focus:border-rose-500 focus:outline-none cursor-pointer"
                 >
-                  {subUnitsList.map((su) => (
+                  {(subUnitsList || []).map((su) => (
                     <option key={su.id} value={su.name}>
                       {su.name} ({su.code})
                     </option>

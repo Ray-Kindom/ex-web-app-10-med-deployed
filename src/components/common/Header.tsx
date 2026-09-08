@@ -32,8 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
     setSearchQuery,
     setActivePage,
     notification,
-    firebaseUser,
-    isFirebaseReady,
+    authUser,
     cloudPermissionDenied,
     logout,
     isRealAdmin,
@@ -339,9 +338,9 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Profile Pill with User Photo & Name Initials */}
             <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
-              {currentUser.avatar || firebaseUser?.photoURL ? (
+              {currentUser.avatar || authUser?.photoURL ? (
                 <img
-                  src={currentUser.avatar || firebaseUser?.photoURL || ''}
+                  src={currentUser.avatar || authUser?.photoURL || ''}
                   alt={currentUser.name}
                   className="w-8 h-8 rounded-full border border-rose-500/50 object-cover"
                   referrerPolicy="no-referrer"

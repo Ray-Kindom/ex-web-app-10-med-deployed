@@ -134,7 +134,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
     }
     setIsSyncingSql(true);
     try {
-      const items = personnelList.map((p) => ({
+      const items = (personnelList || []).map((p) => ({
         armyNo: p.armyNo || p.id,
         rank: p.rk || p.rank,
         name: p.name,
@@ -185,7 +185,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'personnel',
         icon: Users,
         color: 'text-rose-400 bg-rose-500/10 border-rose-500/30',
-        count: personnelList.length,
+        count: (personnelList || []).length,
         unit: 'Soldiers & Officers',
         targetTab: 'PERSONNEL_DB',
         description: '৬০৬ জন সৈন্য ও অফিসারের ব্যক্তিগত তথ্য, র‍্যাংক, ব্যাটারি, ট্রেড ও বর্তমান প্যারেড স্ট্যাটাস',
@@ -198,7 +198,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'users',
         icon: ShieldCheck,
         color: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-        count: usersList.length,
+        count: (usersList || []).length,
         unit: 'Accounts',
         targetTab: 'ROLES',
         description: 'অ্যাডমিন, সিও, আরএসএম ও ব্যাটারি অধিনায়কদের ইউজার আইডি, পাসওয়ার্ড ও অনুমোদিত ব্যাটারি',
@@ -211,7 +211,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'access_requests',
         icon: Cloud,
         color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
-        count: accessRequests.length,
+        count: (accessRequests || []).length,
         unit: 'Requests & Whitelists',
         targetTab: 'GOOGLE_WHITELIST',
         description: 'গুগল সাইন-ইন অনুরোধ, অনুমোদন তালিকা ও রোল অ্যাসাইনমেন্ট',
@@ -224,7 +224,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'sub_units',
         icon: Building2,
         color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-        count: subUnitsList.length,
+        count: (subUnitsList || []).length,
         unit: 'Batteries',
         targetTab: 'SUB_UNITS',
         description: 'P Bty, Q Bty, R Bty ও HQ Bty সাব-ইউনিট কনফিগারেশন ও অধিনায়ক তালিকা',
@@ -237,7 +237,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'military_ranks',
         icon: Award,
         color: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
-        count: ranksList.length,
+        count: (ranksList || []).length,
         unit: 'Military Ranks',
         targetTab: 'SUB_UNITS',
         description: 'অফিসার, জেসিও, এনসিও ও সৈনিক র‍্যাংক স্তরবিন্যাস ও সমমান',
@@ -250,7 +250,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'military_trades',
         icon: Layers,
         color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30',
-        count: tradesList.length,
+        count: (tradesList || []).length,
         unit: 'Trades',
         targetTab: 'SUB_UNITS',
         description: 'আর্টিলারি ট্রেড ক্যাটালগ (GPO, Dvr, Tech, Gunner, Clerk, Sig ইত্যাদি)',
@@ -263,7 +263,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'categories',
         icon: FileSpreadsheet,
         color: 'text-violet-400 bg-violet-500/10 border-violet-500/30',
-        count: categoriesList.length,
+        count: (categoriesList || []).length,
         unit: 'Categories',
         targetTab: 'CATEGORIES',
         description: 'উপস্থিতি, ছুটি, অসুস্থতা, কোর্স, ডিউটি ও সংযুক্তির ক্যাটাগরি ম্যাপিং',
@@ -276,7 +276,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'auth_establishment',
         icon: Building2,
         color: 'text-teal-400 bg-teal-500/10 border-teal-500/30',
-        count: authEstablishmentList.length,
+        count: (authEstablishmentList || []).length,
         unit: 'Quota Rows',
         targetTab: 'ESTABLISHMENT',
         description: 'শান্তিকালীন ও যুদ্ধকালীন অনুমোদিত বনাম পোস্টকৃত জনবল ডাটাবেজ',
@@ -302,7 +302,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'parade_records',
         icon: Calendar,
         color: 'text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/30',
-        count: Object.keys(paradeRecords).length + dailyParadePoints.length,
+        count: Object.keys(paradeRecords || {}).length + (dailyParadePoints || []).length,
         unit: 'Records & Points',
         targetTab: 'PARADE_STATES',
         description: '২৯টি প্যারেড পয়েন্টের তথ্য ও তারিখভিত্তিক সংরক্ষিত হিস্ট্রি ডাটাবেজ',
@@ -341,7 +341,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
         collectionName: 'audit_logs',
         icon: Activity,
         color: 'text-slate-300 bg-slate-800 border-slate-700',
-        count: auditLogs.length,
+        count: (auditLogs || []).length,
         unit: 'Audit Events',
         targetTab: 'AUDIT',
         description: 'প্রতিটি প্রশাসনিক পদক্ষেপ, লগইন ও পরিবর্তনের অপরিবর্তনীয় রেকর্ড',
@@ -398,8 +398,8 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
 
     // Check Personnel for missing attributes
     let fixedPersonnel = 0;
-    personnelList.forEach((p) => {
-      if (!p.battery || !p.rk || !p.name) {
+    (personnelList || []).forEach((p) => {
+      if (!p || !p.battery || !p.rk || !p.name) {
         fixedPersonnel++;
       }
     });

@@ -50,7 +50,8 @@ export const PersonnelDatabaseTab: React.FC = () => {
     let rBty = 0;
     let hqBty = 0;
 
-    personnelList.forEach((p) => {
+    (personnelList || []).forEach((p) => {
+      if (!p) return;
       const rk = p.rk;
       if (['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(rk)) officers++;
       else if (['SWO', 'WO', 'MWO'].includes(rk)) jcos++;
@@ -99,11 +100,11 @@ export const PersonnelDatabaseTab: React.FC = () => {
       'Remarks',
     ];
 
-    const rows = personnelList.map((p) => [
+    const rows = (personnelList || []).map((p) => [
       `"${p.snkNo}"`,
       `"${p.rk}"`,
       `"${p.trade || 'GD'}"`,
-      `"${p.name.replace(/"/g, '""')}"`,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
       `"${p.battery}"`,
       `"${p.bloodGroup || 'O+'}"`,
       `"${p.medicalCategory || 'AYE'}"`,

@@ -51,18 +51,19 @@ export const DutyDatabaseTab: React.FC = () => {
 
   // Filtered assignments
   const filteredAssignments = useMemo(() => {
-    return currentAssignments.filter((a) => {
+    return (currentAssignments || []).filter((a) => {
+      if (!a) return false;
       if (selectedCategoryFilter !== 'All' && a.category !== selectedCategoryFilter) {
         return false;
       }
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const matches =
-          a.name.toLowerCase().includes(q) ||
-          a.snkNo.toLowerCase().includes(q) ||
-          a.dutyName.toLowerCase().includes(q) ||
-          a.rank.toLowerCase().includes(q) ||
-          a.battery.toLowerCase().includes(q) ||
+          (a.name || '').toLowerCase().includes(q) ||
+          (a.snkNo || '').toLowerCase().includes(q) ||
+          (a.dutyName || '').toLowerCase().includes(q) ||
+          (a.rank || '').toLowerCase().includes(q) ||
+          (a.battery || '').toLowerCase().includes(q) ||
           (a.location && a.location.toLowerCase().includes(q));
         if (!matches) return false;
       }
@@ -72,13 +73,14 @@ export const DutyDatabaseTab: React.FC = () => {
 
   // Quick statistics
   const stats = useMemo(() => {
-    const total = currentAssignments.length;
+    const total = (currentAssignments || []).length;
     let unitSy = 0;
     let fixed = 0;
     let working = 0;
     let others = 0;
 
-    currentAssignments.forEach((a) => {
+    (currentAssignments || []).forEach((a) => {
+      if (!a) return;
       if (a.category === 'Unit Sy') unitSy++;
       else if (a.category === 'Fixed Duty') fixed++;
       else if (a.category === 'working') working++;
@@ -100,7 +102,7 @@ export const DutyDatabaseTab: React.FC = () => {
       return;
     }
 
-    const person = personnelList.find((p) => p.id === selectedPersonnelId);
+    const person = (personnelList || []).find((p) => p && p.id === selectedPersonnelId);
     if (!person) {
       showNotification('সৈন্য খুঁজে পাওয়া যায়নি।');
       return;
@@ -152,13 +154,13 @@ export const DutyDatabaseTab: React.FC = () => {
   // Export Duty List to CSV
   const handleExportCSV = () => {
     const headers = ['Army No', 'Rank', 'Name', 'Battery', 'Category', 'Duty Name', 'Shift Time', 'Post / Location', 'Weapon / Ammo', 'Remarks'];
-    const rows = filteredAssignments.map((a) => [
-      `"${a.snkNo}"`,
-      `"${a.rank}"`,
-      `"${a.name}"`,
-      `"${a.battery}"`,
-      `"${a.category}"`,
-      `"${a.dutyName}"`,
+    const rows = (filteredAssignments || []).map((a) => [
+      `"${a.snkNo || ''}"`,
+      `"${a.rank || ''}"`,
+      `"${a.name || ''}"`,
+      `"${a.battery || ''}"`,
+      `"${a.category || ''}"`,
+      `"${a.dutyName || ''}"`,
       `"${a.dutyTime || ''}"`,
       `"${a.location || ''}"`,
       `"${a.weaponOrAmmo || ''}"`,
@@ -431,7 +433,7 @@ export const DutyDatabaseTab: React.FC = () => {
                   className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:border-orange-500 focus:outline-none"
                 >
                   <option value="">-- Choose Soldier from Nominal Roll --</option>
-                  {personnelList.map((p) => (
+                  {(personnelList || []).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.rk} {p.name} ({p.snkNo}) - {p.battery} [{p.status}]
                     </option>

@@ -13,6 +13,7 @@ import {
   getSqlAuditLogs,
   insertSqlAuditLog,
 } from './src/db/queries.ts';
+import { isSqlConfigured } from './src/db/index.ts';
 
 async function startServer() {
   const app = express();
@@ -30,6 +31,16 @@ async function startServer() {
   // Cloud SQL Status
   app.get('/api/sql/status', async (req, res) => {
     try {
+      if (!isSqlConfigured()) {
+        const personnelSample = await getSqlPersonnelList();
+        return res.json({
+          status: 'not_configured',
+          engine: 'In-Memory Mock (Cloud SQL not connected)',
+          recordsCount: {
+            personnel: personnelSample.length,
+          },
+        });
+      }
       const personnelSample = await getSqlPersonnelList();
       res.json({
         status: 'connected',

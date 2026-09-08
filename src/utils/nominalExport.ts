@@ -52,13 +52,15 @@ export const exportNominalRollToPdf = (
     hour12: true,
   });
 
+  const safeList = Array.isArray(personnelList) ? personnelList.filter(Boolean) : [];
+
   // Calculate statistics
-  const total = personnelList.length;
-  const present = personnelList.filter((p) => p.status === 'Present').length;
-  const onDuty = personnelList.filter((p) => p.status === 'On Duty').length;
-  const cmh = personnelList.filter((p) => p.status === 'CMH/Sick').length;
-  const leave = personnelList.filter((p) => p.status === 'Leave').length;
-  const course = personnelList.filter((p) => p.status === 'Course/Trg').length;
+  const total = safeList.length;
+  const present = safeList.filter((p) => p.status === 'Present').length;
+  const onDuty = safeList.filter((p) => p.status === 'On Duty').length;
+  const cmh = safeList.filter((p) => p.status === 'CMH/Sick').length;
+  const leave = safeList.filter((p) => p.status === 'Leave').length;
+  const course = safeList.filter((p) => p.status === 'Course/Trg').length;
   const others = total - (present + onDuty + cmh + leave + course);
 
   // Document Header
@@ -88,14 +90,14 @@ export const exportNominalRollToPdf = (
   doc.text(`Generated: ${dateStr} at ${timeStr} hrs`, 790, 84, { align: 'right' });
 
   // Prepare table data with SEPARATE Rank and Trade columns
-  const tableRows = personnelList.map((person, index) => [
+  const tableRows = safeList.map((person, index) => [
     (index + 1).toString(),
-    person.snkNo,
-    person.rk,
+    person.snkNo || '',
+    person.rk || '',
     person.trade || 'GD',
-    person.name,
-    person.battery,
-    person.status,
+    person.name || '',
+    person.battery || '',
+    person.status || '',
     person.medicalCategory || 'AYE',
     person.bloodGroup || 'O+',
   ]);
@@ -198,25 +200,27 @@ export const exportNominalRollToWord = (
     hour12: true,
   });
 
-  const total = personnelList.length;
-  const present = personnelList.filter((p) => p.status === 'Present').length;
-  const onDuty = personnelList.filter((p) => p.status === 'On Duty').length;
-  const cmh = personnelList.filter((p) => p.status === 'CMH/Sick').length;
-  const leave = personnelList.filter((p) => p.status === 'Leave').length;
-  const course = personnelList.filter((p) => p.status === 'Course/Trg').length;
+  const safeList = Array.isArray(personnelList) ? personnelList.filter(Boolean) : [];
+
+  const total = safeList.length;
+  const present = safeList.filter((p) => p.status === 'Present').length;
+  const onDuty = safeList.filter((p) => p.status === 'On Duty').length;
+  const cmh = safeList.filter((p) => p.status === 'CMH/Sick').length;
+  const leave = safeList.filter((p) => p.status === 'Leave').length;
+  const course = safeList.filter((p) => p.status === 'Course/Trg').length;
   const others = total - (present + onDuty + cmh + leave + course);
 
-  const tableRowsHtml = personnelList
+  const tableRowsHtml = safeList
     .map(
       (p, idx) => `
       <tr style="${idx % 2 === 1 ? 'background-color: #f8fafc;' : 'background-color: #ffffff;'}">
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${idx + 1}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-family: monospace; font-weight: bold; font-size: 11px;">${p.snkNo}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px;">${p.rk}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-family: monospace; font-weight: bold; font-size: 11px;">${p.snkNo || ''}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px;">${p.rk || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px; color: #0284c7;">${p.trade || 'GD'}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; font-size: 11px;">${p.name}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.battery}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px; font-weight: 500;">${p.status}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; font-size: 11px;">${p.name || ''}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.battery || ''}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px; font-weight: 500;">${p.status || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.medicalCategory || 'AYE'}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.bloodGroup || 'O+'}</td>
       </tr>

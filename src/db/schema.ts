@@ -1,10 +1,10 @@
 import { pgTable, serial, text, integer, timestamp, varchar } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
-// Users table linked to Firebase Auth UID
+// Users table linked to Auth UID
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
-  uid: text('uid').notNull().unique(), // Firebase Auth UID
+  uid: text('uid').notNull().unique(), // Auth UID
   email: text('email').notNull(),
   name: text('name'),
   role: varchar('role', { length: 50 }).default('GUEST'),

@@ -58,7 +58,7 @@ export const AdminPanelPage: React.FC = () => {
     setCustomLogo,
     syncNominalRollToCloud,
     syncAllToCloud,
-    firebaseUser,
+    authUser,
     loginWithGoogle,
     isRealAdmin,
     isSimulating,
@@ -69,7 +69,7 @@ export const AdminPanelPage: React.FC = () => {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<
-    'DATABASE_HUB' | 'PERSONNEL_DB' | 'DUTY_DB' | 'SYSTEM_SETTINGS' | 'CATEGORIES' | 'PARADE_STATES' | 'ESTABLISHMENT' | 'SUB_UNITS' | 'CALCULATIONS' | 'ROLES' | 'GOOGLE_WHITELIST' | 'AUDIT' | 'LOGO' | 'FIREBASE'
+    'DATABASE_HUB' | 'PERSONNEL_DB' | 'DUTY_DB' | 'SYSTEM_SETTINGS' | 'CATEGORIES' | 'PARADE_STATES' | 'ESTABLISHMENT' | 'SUB_UNITS' | 'CALCULATIONS' | 'ROLES' | 'GOOGLE_WHITELIST' | 'AUDIT' | 'LOGO' | 'CLOUD_SYNC'
   >('DATABASE_HUB');
   const [userSearch, setUserSearch] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('All');
@@ -404,9 +404,9 @@ export const AdminPanelPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveTab('FIREBASE')}
+            onClick={() => setActiveTab('CLOUD_SYNC')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'FIREBASE'
+              activeTab === 'CLOUD_SYNC'
                 ? 'bg-rose-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-white bg-slate-900'
             }`}
@@ -870,36 +870,36 @@ export const AdminPanelPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 4: Firebase Schema Architecture */}
-      {activeTab === 'FIREBASE' && (
+      {/* Tab: Cloud Schema Architecture */}
+      {activeTab === 'CLOUD_SYNC' && (
         <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 text-xs">
           <div className="flex items-center gap-2">
-            <Server className="w-5 h-5 text-amber-400" />
+            <Server className="w-5 h-5 text-emerald-400" />
             <h3 className="text-base font-bold text-white">
-              Firebase Firestore & Authentication Ready Architecture
+              Cloud Database & PostgreSQL Architecture
             </h3>
           </div>
           <p className="text-slate-400">
-            The frontend application is architected with clear TypeScript interfaces and modular service separation:
+            The frontend and backend applications are architected with clean TypeScript schemas, Supabase PostgreSQL, and Cloud SQL:
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 font-mono">
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="font-bold text-amber-400">1. /users Collection</div>
+              <div className="font-bold text-amber-400">1. Users Table / Schema</div>
               <p className="text-[11px] text-slate-400">
-                Maps to Firebase Authentication UID. Stores rank, name, username, role (CO, Officers, Adjt, RSM, BSM, Admin), assignedBatteries array.
+                Stores rank, name, username, role (CO, Officers, Adjt, RSM, BSM, Admin), assignedBatteries array, password hashes, and authorization.
               </p>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="font-bold text-blue-400">2. /personnel Collection</div>
+              <div className="font-bold text-blue-400">2. Personnel Table / Schema</div>
               <p className="text-[11px] text-slate-400">
-                Stores military snkNo, rank (Offr, JCO, NCO, Snk), trade (TA, OCU, DMT, Gnr, Ck(U)), name, battery, status, bloodGroup, medicalCategory.
+                Stores military armyNo, rank (Offr, JCO, NCO, Snk), trade (TA, OCU, DMT, Gnr, Ck(U)), name, battery, paradeStatus, bloodGroup, medicalCategory.
               </p>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="font-bold text-emerald-400">3. /parade_states Collection</div>
+              <div className="font-bold text-emerald-400">3. Parade Records Table</div>
               <p className="text-[11px] text-slate-400">
                 Daily morning & evening consolidated muster states with date, battery totals, submittedBy, and approval stages.
               </p>
@@ -912,29 +912,29 @@ export const AdminPanelPage: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                    firebaseUser
+                    authUser
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                       : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                   }`}>
-                    {firebaseUser ? 'LIVE CLOUD AUTO-SYNC: ON' : 'LOCAL MODE: AUTO-SYNC OFF'}
+                    {authUser ? 'LIVE CLOUD AUTO-SYNC: ON' : 'LOCAL MODE: AUTO-SYNC OFF'}
                   </span>
-                  {firebaseUser && (
+                  {authUser && (
                     <span className="text-[11px] font-mono text-slate-300">
-                      Connected: <strong className="text-white">{firebaseUser.email}</strong>
+                      Connected: <strong className="text-white">{authUser.email}</strong>
                     </span>
                   )}
                 </div>
                 <h4 className="font-bold text-white text-sm">
-                  {firebaseUser ? 'Real-Time Cloud Synchronization Active' : 'Connect to Firebase to Enable Real-Time Server Sync'}
+                  {authUser ? 'Real-Time Cloud Synchronization Active' : 'Connect Account for Cloud Sync'}
                 </h4>
                 <p className="text-xs text-slate-400">
-                  {firebaseUser
-                    ? 'All edits to users, nominal roll, and parade states are automatically saved to Firebase Cloud Firestore.'
-                    : 'Connect your Google account to automatically push and sync all edits directly to the Google Cloud server.'}
+                  {authUser
+                    ? 'All edits to users, nominal roll, and parade states are automatically saved to Cloud Database.'
+                    : 'Connect your account to automatically push and sync all edits directly to the Cloud server.'}
                 </p>
               </div>
 
-              {!firebaseUser && (
+              {!authUser && (
                 <button
                   type="button"
                   onClick={async () => {
@@ -943,7 +943,7 @@ export const AdminPanelPage: React.FC = () => {
                   className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shadow-lg shadow-emerald-950/50"
                 >
                   <Cloud className="w-4 h-4" />
-                  <span>Connect Google Cloud</span>
+                  <span>Connect Account</span>
                 </button>
               )}
             </div>
@@ -952,10 +952,10 @@ export const AdminPanelPage: React.FC = () => {
               <div className="space-y-0.5 text-left w-full sm:w-auto">
                 <div className="text-xs font-bold text-white flex items-center gap-1.5">
                   <Database className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Push All Current Data to Firebase Cloud</span>
+                  <span>Push All Current Data to Cloud Database</span>
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  Uploads all users, sub-units, ranks, calculation rules, parade states, and the 606 personnel.
+                  Uploads all users, sub-units, ranks, calculation rules, parade states, and personnel.
                 </div>
               </div>
 

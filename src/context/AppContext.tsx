@@ -60,10 +60,11 @@ import {
   onSnapshot,
   onAuthStateChanged,
   getDocFromServer,
+  AuthUser,
   FirebaseUser,
   handleFirestoreError,
   OperationType,
-} from '../lib/firebase';
+} from '../lib/auth';
 import {
   isSupabaseConfigured,
   syncAuthorizedUsersToSupabase,
@@ -248,8 +249,10 @@ interface AppContextType {
   realUser: UserAccount | null;
   exitSimulation: () => void;
 
-  // Firebase Auth & Cloud Sync
-  firebaseUser: FirebaseUser | null;
+  // Auth & Cloud Sync
+  authUser: AuthUser | null;
+  firebaseUser: AuthUser | null;
+  isAuthReady: boolean;
   isFirebaseReady: boolean;
   cloudPermissionDenied: boolean;
   loginWithGoogle: (emailInput?: string) => Promise<{ success: boolean; error?: string; code?: string; domain?: string; isPending?: boolean }>;
@@ -382,7 +385,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.SYSTEM_CATEGORIES);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((cat) => ({
+            ...cat,
+            subCategories: Array.isArray(cat?.subCategories) ? cat.subCategories : [],
+            applicableSubUnits: Array.isArray(cat?.applicableSubUnits) ? cat.applicableSubUnits : [],
+            applicableRankCategories: Array.isArray(cat?.applicableRankCategories) ? cat.applicableRankCategories : [],
+            assignedParadeStates: Array.isArray(cat?.assignedParadeStates) ? cat.assignedParadeStates : [],
+          }));
+        }
       } catch (e) {}
     }
     return INITIAL_SYSTEM_CATEGORIES;
@@ -393,7 +405,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.SUB_UNITS);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return INITIAL_SUB_UNITS;
@@ -404,7 +417,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.MILITARY_RANKS);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return INITIAL_RANKS;
@@ -415,7 +429,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.MILITARY_TRADES);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return INITIAL_TRADES;
@@ -426,7 +441,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.AUTH_ESTABLISHMENT);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
     return INITIAL_AUTH_ESTABLISHMENT;
@@ -509,7 +525,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.PERSONNEL);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         /* fallback */
       }
@@ -521,7 +538,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.DUTY);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         /* fallback */
       }
@@ -533,7 +551,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.LOGS);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         /* fallback */
       }
@@ -545,7 +564,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.PARADE_POINTS);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         /* fallback */
       }
@@ -2157,7 +2177,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const code = err?.code || 'auth/unknown';
       const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
       if (code === 'auth/unauthorized-domain') {
-        const msg = `ফায়ারবেস ডোমেইন সিকিউরিটি বার্তা: বর্তমান ডোমেইনটি (${currentDomain}) Firebase Console-এ অনুমোদিত নয়।`;
+        const msg = `ডোমেইন সিকিউরিটি বার্তা: বর্তমান ডোমেইনটি (${currentDomain}) কনসোলে অনুমোদিত নয়।`;
         showNotification(msg);
         return {
           success: false,
@@ -3759,7 +3779,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         realUser,
         exitSimulation,
 
+        authUser: firebaseUser,
         firebaseUser,
+        isAuthReady: isFirebaseReady,
         isFirebaseReady,
         cloudPermissionDenied,
         loginWithGoogle,

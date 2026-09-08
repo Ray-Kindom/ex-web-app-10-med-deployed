@@ -652,10 +652,9 @@ export const GoogleWhitelistTab: React.FC = () => {
         </div>
 
         <div className="text-[11px] text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 space-y-1">
-          <div className="font-semibold text-slate-300">যদি <code>auth/unauthorized-domain</code> এরর দেখা দেয়:</div>
-          <div>1. <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" className="text-rose-400 hover:underline inline-flex items-center gap-1">Firebase Console <ExternalLink className="w-2.5 h-2.5" /></a>-এ যান।</div>
-          <div>2. <strong>Authentication</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Authorized domains</strong>-এ যান।</div>
-          <div>3. <strong>Add domain</strong>-এ ক্লিক করে উপরের ডোমেইনটি পেস্ট করে সেভ করুন।</div>
+          <div className="font-semibold text-slate-300">যদি <code>auth/unauthorized-domain</code> বা সিকিউরিটি সতর্কতা দেখা দেয়:</div>
+          <div>1. ক্লাউড অথরাইজড ডোমেইন সেটিংসে বর্তমান হোস্ট ডোমেইনটি যুক্ত আছে কিনা নিশ্চিত করুন।</div>
+          <div>2. উপরে প্রদর্শিত বর্তমান ডোমেইনটি কপি করে আপনার অথেন্টিকেশন সেটিংসে সেভ করুন।</div>
         </div>
       </div>
 

@@ -84,7 +84,8 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
 
   // Filter out soft-deleted/archived parade states for normal display across all dashboards
   const activeParadeTypes = useMemo(() => {
-    return paradeTypes.filter((t) => !t.isDeleted && !t.deleted && t.isActive !== false);
+    const list = Array.isArray(paradeTypes) ? paradeTypes : [];
+    return list.filter((t) => t && !t.isDeleted && !t.deleted && t.isActive !== false);
   }, [paradeTypes]);
 
   const getStatusBadge = (status: string) => {
@@ -242,7 +243,7 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
       {/* PRIMARY PARADE STATE TYPE BOXES/CARDS (Morning, Second Period, Games + Dynamic) */}
       <div className="space-y-2">
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {activeParadeTypes.map((type) => {
+          {(activeParadeTypes || []).map((type) => {
             const btyRecord = getParadeRecord(selectedParadeDate, type.name, assignedBty);
             const badge = getStatusBadge(btyRecord.status);
             const stats = getParadeTypeStats(type.name);

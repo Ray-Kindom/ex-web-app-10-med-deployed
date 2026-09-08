@@ -212,7 +212,7 @@ export const CategoryManagementTab: React.FC = () => {
 
       {/* Main Categories List */}
       <div className="space-y-3">
-        {categoriesList.map((cat, catIdx) => {
+        {(categoriesList || []).map((cat, catIdx) => {
           const isExpanded = expandedCatId === cat.id;
 
           return (
@@ -238,7 +238,7 @@ export const CategoryManagementTab: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleMoveCategory(catIdx, 'down')}
-                      disabled={catIdx === categoriesList.length - 1}
+                      disabled={catIdx === (categoriesList || []).length - 1}
                       className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20 hover:bg-slate-800"
                       title="Move Category Down"
                     >
@@ -256,7 +256,7 @@ export const CategoryManagementTab: React.FC = () => {
                         {cat.code}
                       </span>
                       <span className="text-[10px] font-mono text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                        {cat.subCategories.length} sub-categories
+                        {cat.subCategories?.length || 0} sub-categories
                       </span>
                       {!cat.isActive && (
                         <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
@@ -348,7 +348,7 @@ export const CategoryManagementTab: React.FC = () => {
                 <div className="px-4 pb-4 pt-1 border-t border-slate-800/80 space-y-2">
                   <div className="flex items-center justify-between text-xs text-slate-400 py-1">
                     <span className="font-semibold text-slate-300">
-                      Sub-Categories under "{cat.name}" ({cat.subCategories.length})
+                      Sub-Categories under "{cat.name}" ({cat.subCategories?.length || 0})
                     </span>
                     <button
                       onClick={() => handleOpenAddSub(cat.id)}
@@ -359,13 +359,13 @@ export const CategoryManagementTab: React.FC = () => {
                     </button>
                   </div>
 
-                  {cat.subCategories.length === 0 ? (
+                  {(!cat.subCategories || cat.subCategories.length === 0) ? (
                     <div className="p-4 text-center text-xs text-slate-500 rounded-lg bg-slate-950/50 border border-dashed border-slate-800">
                       No sub-categories defined. Click "+ Add Sub-category" above.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-1.5">
-                      {cat.subCategories.map((sub, sIdx) => {
+                      {(cat.subCategories || []).map((sub, sIdx) => {
                         return (
                           <div
                             key={sub.id}

@@ -109,12 +109,12 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const { personnelList, usersList, ranksList, subUnitsList } = useApp();
 
   const dynamicRanks = React.useMemo(() => {
-    if (ranksList && ranksList.length > 0) {
+    if (ranksList && Array.isArray(ranksList) && ranksList.length > 0) {
       const seen = new Set<string>();
       return ranksList
-        .filter((r) => r.isActive !== false)
+        .filter((r) => r && r.isActive !== false)
         .filter((r) => {
-          if (seen.has(r.name)) return false;
+          if (!r || !r.name || seen.has(r.name)) return false;
           seen.add(r.name);
           return true;
         })
@@ -127,8 +127,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   }, [ranksList]);
 
   const dynamicBatteries = React.useMemo(() => {
-    if (subUnitsList && subUnitsList.length > 0) {
-      return subUnitsList.filter((u) => u.isActive !== false).map((u) => u.name as Battery);
+    if (subUnitsList && Array.isArray(subUnitsList) && subUnitsList.length > 0) {
+      return subUnitsList.filter((u) => u && u.isActive !== false).map((u) => u.name as Battery);
     }
     return AVAILABLE_BATTERIES;
   }, [subUnitsList]);
@@ -293,12 +293,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
   // Search filter for dropdown
   const matchingPersonnel = searchQuery.trim().length >= 1
-    ? personnelList.filter((p) => {
+    ? (personnelList || []).filter((p) => {
+        if (!p) return false;
         const q = searchQuery.toLowerCase();
         return (
-          p.snkNo.toLowerCase().includes(q) ||
-          p.name.toLowerCase().includes(q) ||
-          p.rk.toLowerCase().includes(q)
+          (p.snkNo || '').toLowerCase().includes(q) ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.rk || '').toLowerCase().includes(q)
         );
       }).slice(0, 6)
     : [];

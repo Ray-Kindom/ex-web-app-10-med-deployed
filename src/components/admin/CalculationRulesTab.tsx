@@ -129,7 +129,7 @@ export const CalculationRulesTab: React.FC = () => {
               </p>
 
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                {categoriesList.map((cat) => {
+                {(categoriesList || []).map((cat) => {
                   const isChecked = totalOutCats.includes(cat.name);
                   return (
                     <label
@@ -150,7 +150,7 @@ export const CalculationRulesTab: React.FC = () => {
                         <span>{cat.name}</span>
                       </div>
                       <span className="text-[10px] font-mono text-slate-500">
-                        {cat.subCategories.length} sub-points
+                        {cat.subCategories?.length || 0} sub-points
                       </span>
                     </label>
                   );
@@ -173,7 +173,7 @@ export const CalculationRulesTab: React.FC = () => {
               </p>
 
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                {categoriesList.map((cat) => {
+                {(categoriesList || []).map((cat) => {
                   const isChecked = offParadeCats.includes(cat.name);
                   return (
                     <label
@@ -194,7 +194,7 @@ export const CalculationRulesTab: React.FC = () => {
                         <span>{cat.name}</span>
                       </div>
                       <span className="text-[10px] font-mono text-slate-500">
-                        {cat.subCategories.length} sub-points
+                        {cat.subCategories?.length || 0} sub-points
                       </span>
                     </label>
                   );

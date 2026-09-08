@@ -42,15 +42,15 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
 
   // Dynamic rank options from Admin configuration
   const availableRanks = React.useMemo(() => {
-    const list = enlistmentRanks && enlistmentRanks.length > 0
+    const list = enlistmentRanks && Array.isArray(enlistmentRanks) && enlistmentRanks.length > 0
       ? enlistmentRanks
-      : ranksList.filter((r) => r.isActive !== false);
+      : (ranksList || []).filter((r) => r && r.isActive !== false);
     return list.length > 0 ? list : [{ id: 'snk', name: 'Snk', code: 'Snk', category: 'OR' as const, order: 1, seniority: 1, isActive: true }];
   }, [enlistmentRanks, ranksList]);
 
   // Dynamic battery options from Admin configuration
   const availableBatteries = React.useMemo(() => {
-    const activeUnits = subUnitsList.filter((u) => u.isActive !== false);
+    const activeUnits = (subUnitsList || []).filter((u) => u && u.isActive !== false);
     return activeUnits.length > 0 ? activeUnits.map((u) => u.name as Battery) : ALL_BATTERIES;
   }, [subUnitsList]);
 
@@ -62,9 +62,10 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
   // Dynamic trades for current rank
   const availableTrades = React.useMemo(() => {
     if (getTradesForRank) {
-      return getTradesForRank(rk);
+      const tr = getTradesForRank(rk);
+      if (Array.isArray(tr)) return tr;
     }
-    return tradesList.filter((t) => t.isActive !== false);
+    return (tradesList || []).filter((t) => t && t.isActive !== false);
   }, [getTradesForRank, rk, tradesList]);
 
   const [trade, setTrade] = useState<Trade | string>('Gnr');
@@ -248,7 +249,7 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
                   onChange={(e) => setRk(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-white font-medium focus:outline-none focus:border-rose-500"
                 >
-                  {availableRanks.map((rankOption) => (
+                  {(availableRanks || []).map((rankOption) => (
                     <option key={rankOption.id} value={rankOption.name}>
                       {rankOption.name} {rankOption.banglaName ? `(${rankOption.banglaName})` : ''} - {rankOption.category}
                     </option>
@@ -280,7 +281,7 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
                     onChange={(e) => setTrade(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-white font-mono focus:outline-none focus:border-rose-500"
                   >
-                    {availableTrades.map((tradeOption) => (
+                    {(availableTrades || []).map((tradeOption) => (
                       <option key={tradeOption.id} value={tradeOption.name}>
                         {tradeOption.name} {tradeOption.banglaName ? `(${tradeOption.banglaName})` : ''}
                       </option>
@@ -298,7 +299,7 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
                   onChange={(e) => setBattery(e.target.value as Battery)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-white font-mono focus:outline-none focus:border-rose-500"
                 >
-                  {availableBatteries.map((b) => (
+                  {(availableBatteries || []).map((b) => (
                     <option key={b} value={b}>
                       {b}
                     </option>

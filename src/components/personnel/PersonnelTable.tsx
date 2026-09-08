@@ -31,7 +31,7 @@ interface PersonnelTableProps {
 }
 
 export const PersonnelTable: React.FC<PersonnelTableProps> = ({
-  personnel,
+  personnel = [],
   fixedBattery,
   onViewDossier,
   onOpenAddModal,
@@ -41,6 +41,10 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
   title,
 }) => {
   const { updateParadeStatus, currentUser, showNotification, searchQuery, setSearchQuery, isGuest, ranksList, tradesList } = useApp();
+
+  const safePersonnel = useMemo(() => (Array.isArray(personnel) ? personnel.filter(Boolean) : []), [personnel]);
+  const safeRanks = useMemo(() => (Array.isArray(ranksList) ? ranksList.filter(Boolean) : []), [ranksList]);
+  const safeTrades = useMemo(() => (Array.isArray(tradesList) ? tradesList.filter(Boolean) : []), [tradesList]);
 
   // Filter States - synced with header search query
   const [localSearchTerm, setLocalSearchTerm] = useState('');
@@ -77,8 +81,8 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     ];
 
     // Individual active ranks from ranksList
-    const specificRanks = ranksList
-      .filter((r) => r.isActive !== false)
+    const specificRanks = safeRanks
+      .filter((r) => r && r.isActive !== false)
       .map((r) => ({ value: r.name, label: r.banglaName ? `${r.name} (${r.banglaName})` : r.name }));
 
     // Deduplicate so options with the same value are not repeated
@@ -93,14 +97,14 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     }
 
     return combined;
-  }, [ranksList]);
+  }, [safeRanks]);
 
   // Dynamic Trade Filter Options (populated from Admin tradesList & active personnel)
   const tradeFilterOptions = useMemo(() => {
     const uniqueTrades = Array.from(
       new Set([
-        ...tradesList.filter((t) => t.isActive !== false).map((t) => t.name),
-        ...personnel.map((p) => p.trade).filter(Boolean) as string[],
+        ...safeTrades.filter((t) => t && t.isActive !== false).map((t) => t.name),
+        ...safePersonnel.map((p) => p && p.trade).filter(Boolean) as string[],
       ])
     ).filter((t) => t !== '-');
 
@@ -108,7 +112,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       { value: 'All', label: 'All Trades' },
       ...uniqueTrades.map((t) => ({ value: t, label: t })),
     ];
-  }, [tradesList, personnel]);
+  }, [safeTrades, safePersonnel]);
 
   // Blood Group Options
   const bloodFilterOptions = [
@@ -134,17 +138,18 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
   // Filter Logic
   const filteredPersonnel = useMemo(() => {
-    return personnel.filter((person) => {
+    return safePersonnel.filter((person) => {
+      if (!person) return false;
       // 1. Text Search across SnkNo, Name, Rank, Trade, Battery, Status, Blood
       if (activeSearch.trim()) {
         const query = activeSearch.toLowerCase().trim();
         const matchesQuery =
-          person.snkNo.toLowerCase().includes(query) ||
-          person.name.toLowerCase().includes(query) ||
-          person.rk.toLowerCase().includes(query) ||
+          (person.snkNo || '').toLowerCase().includes(query) ||
+          (person.name || '').toLowerCase().includes(query) ||
+          (person.rk || '').toLowerCase().includes(query) ||
           (person.trade && person.trade.toLowerCase().includes(query)) ||
-          person.battery.toLowerCase().includes(query) ||
-          person.status.toLowerCase().includes(query) ||
+          (person.battery || '').toLowerCase().includes(query) ||
+          (person.status || '').toLowerCase().includes(query) ||
           (person.bloodGroup && person.bloodGroup.toLowerCase().includes(query));
 
         if (!matchesQuery) return false;
@@ -153,19 +158,19 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       // 2. Rank Filter
       if (selectedRank !== 'All') {
         if (selectedRank === 'Offr') {
-          const officerRanks = ranksList.filter((r) => r.category === 'Officer').map((r) => r.name);
+          const officerRanks = safeRanks.filter((r) => r && r.category === 'Officer').map((r) => r.name);
           const list = officerRanks.length > 0 ? officerRanks : ['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'];
           if (!list.includes(person.rk)) return false;
         } else if (selectedRank === 'JCO') {
-          const jcoRanks = ranksList.filter((r) => r.category === 'JCO').map((r) => r.name);
+          const jcoRanks = safeRanks.filter((r) => r && r.category === 'JCO').map((r) => r.name);
           const list = jcoRanks.length > 0 ? jcoRanks : ['SWO', 'WO', 'MWO'];
           if (!list.includes(person.rk)) return false;
         } else if (selectedRank === 'OR') {
-          const orRanks = ranksList.filter((r) => r.category === 'OR').map((r) => r.name);
+          const orRanks = safeRanks.filter((r) => r && r.category === 'OR').map((r) => r.name);
           const list = orRanks.length > 0 ? orRanks : ['Sgt', 'Cpl', 'Lcpl', 'Snk', 'Gnr', 'SNK DMT)'];
           if (!list.includes(person.rk)) return false;
         } else if (selectedRank === 'Civilian') {
-          const civRanks = ranksList.filter((r) => r.category === 'Civilian').map((r) => r.name);
+          const civRanks = safeRanks.filter((r) => r && r.category === 'Civilian').map((r) => r.name);
           if (!civRanks.includes(person.rk) && person.rk !== 'Civilian' && person.rk !== 'NC(E)' && person.rk !== 'NC(U)' && person.trade !== 'Civilian' && person.trade !== 'NC(E)') return false;
         } else if (selectedRank === 'RCO') {
           if (person.rk !== 'RCO' && person.trade !== 'RCO') return false;
@@ -198,7 +203,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
       return true;
     });
-  }, [personnel, activeSearch, selectedRank, selectedTrade, selectedBlood, selectedBattery, fixedBattery, selectedStatus]);
+  }, [safePersonnel, safeRanks, activeSearch, selectedRank, selectedTrade, selectedBlood, selectedBattery, fixedBattery, selectedStatus]);
 
   const handleQuickStatusChange = (personId: string, newStatus: ParadeStatus) => {
     updateParadeStatus(personId, newStatus);

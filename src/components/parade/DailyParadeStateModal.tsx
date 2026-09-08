@@ -95,14 +95,16 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
 
   // Combine dynamic categories with daily parade points so any ADMIN category changes reflect here automatically
   const dynamicParadePoints = useMemo<DailyParadePoint[]>(() => {
-    if (categoriesList && categoriesList.length > 0) {
+    const safeDailyPoints = Array.isArray(dailyParadePoints) ? dailyParadePoints : [];
+    if (categoriesList && Array.isArray(categoriesList) && categoriesList.length > 0) {
       const list: DailyParadePoint[] = [];
       categoriesList.forEach((cat) => {
-        if (!cat.isActive) return;
-        cat.subCategories.forEach((sub) => {
-          if (!sub.isActive) return;
-          const existing = dailyParadePoints.find(
-            (dp) => dp.id === sub.id || dp.name.toLowerCase() === sub.name.toLowerCase()
+        if (!cat || !cat.isActive) return;
+        const subCats = Array.isArray(cat.subCategories) ? cat.subCategories : [];
+        subCats.forEach((sub) => {
+          if (!sub || !sub.isActive) return;
+          const existing = safeDailyPoints.find(
+            (dp) => dp && (dp.id === sub.id || (dp.name && dp.name.toLowerCase() === sub.name.toLowerCase()))
           );
 
           list.push({
@@ -130,7 +132,7 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
       });
       return list;
     }
-    return dailyParadePoints;
+    return safeDailyPoints;
   }, [categoriesList, dailyParadePoints]);
 
   // Active view tab: 'HQ Bty' | 'P Bty' | 'Q Bty' | 'R Bty' | 'Consolidated'
@@ -317,9 +319,10 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
   const pointSuggestions = useMemo(() => {
     if (!newPointName.trim()) return [];
     const query = newPointName.toLowerCase();
-    const existingNames = dailyParadePoints.map((p) => p.name.toLowerCase());
-    return DEFAULT_PARADE_POINTS.filter(
-      (p) => p.toLowerCase().includes(query) && !existingNames.includes(p.toLowerCase())
+    const safeDailyPoints = Array.isArray(dailyParadePoints) ? dailyParadePoints : [];
+    const existingNames = safeDailyPoints.map((p) => (p && p.name ? p.name.toLowerCase() : ''));
+    return (DEFAULT_PARADE_POINTS || []).filter(
+      (p) => p && p.toLowerCase().includes(query) && !existingNames.includes(p.toLowerCase())
     ).slice(0, 6);
   }, [newPointName, dailyParadePoints]);
 
