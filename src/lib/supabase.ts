@@ -88,6 +88,8 @@ export const testSupabaseConnection = async (): Promise<{
 
 /**
  * Synchronize Authorized Users (Gmail Whitelist & Admin User Accounts) to Supabase
+ * Handles full reconciliation: deletes users from Supabase that are not in the local active users list,
+ * and upserts all remaining active users.
  */
 export const syncAuthorizedUsersToSupabase = async (
   users: UserAccount[]
@@ -98,11 +100,29 @@ export const syncAuthorizedUsersToSupabase = async (
   }
 
   try {
+    // 1. Fetch current users in Supabase to calculate difference (prune deleted users)
+    const { data: existingRows, error: fetchErr } = await client
+      .from('authorized_users')
+      .select('id, email, name');
+
+    if (fetchErr) {
+      console.warn('Supabase fetch existing users notice:', fetchErr.message);
+    }
+
+    // Build sets of active user identifiers
+    const activeEmails = new Set<string>();
+    const activeIds = new Set<string>();
+    const activeUsernames = new Set<string>();
+
     const payload = users.map((u) => {
-      // Ensure there's a valid email or synthesized unique identifier email for non-google local accounts
       const userEmail = (u.email && u.email.trim().length > 0)
         ? u.email.toLowerCase().trim()
         : `${(u.username || u.id).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}@10med.internal`;
+
+      activeEmails.add(userEmail);
+      if (u.email) activeEmails.add(u.email.toLowerCase().trim());
+      if (u.id) activeIds.add(u.id);
+      if (u.username) activeUsernames.add(u.username.toLowerCase().trim());
 
       return {
         id: u.id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -117,10 +137,42 @@ export const syncAuthorizedUsersToSupabase = async (
       };
     });
 
+    // 2. Prune rows from Supabase that were deleted locally
+    if (existingRows && existingRows.length > 0) {
+      const idsToDelete: string[] = [];
+      const emailsToDelete: string[] = [];
+
+      for (const row of existingRows) {
+        const rowEmail = (row.email || '').toLowerCase().trim();
+        const rowId = row.id;
+        const rowUsername = rowEmail.endsWith('@10med.internal')
+          ? rowEmail.replace('@10med.internal', '')
+          : (rowEmail.split('@')[0] || '');
+
+        const isMatch =
+          (rowEmail && activeEmails.has(rowEmail)) ||
+          (rowId && activeIds.has(rowId)) ||
+          (rowUsername && activeUsernames.has(rowUsername));
+
+        if (!isMatch) {
+          if (rowId) idsToDelete.push(rowId);
+          if (rowEmail) emailsToDelete.push(rowEmail);
+        }
+      }
+
+      if (idsToDelete.length > 0) {
+        await client.from('authorized_users').delete().in('id', idsToDelete);
+      }
+      if (emailsToDelete.length > 0) {
+        await client.from('authorized_users').delete().in('email', emailsToDelete);
+      }
+    }
+
     if (payload.length === 0) {
       return { success: true, count: 0 };
     }
 
+    // 3. Upsert current active users
     const { error } = await client
       .from('authorized_users')
       .upsert(payload, { onConflict: 'email' });
@@ -136,7 +188,7 @@ export const syncAuthorizedUsersToSupabase = async (
 };
 
 /**
- * Delete Authorized User from Supabase
+ * Delete Authorized User from Supabase by ID, email, username, or synthetic internal email
  */
 export const deleteAuthorizedUserFromSupabase = async (
   userId: string,
@@ -150,18 +202,23 @@ export const deleteAuthorizedUserFromSupabase = async (
 
   try {
     // Delete by ID
-    let deleteQuery = client.from('authorized_users').delete().eq('id', userId);
-    const { error: idError } = await deleteQuery;
-    if (idError) {
-      console.warn('Delete by ID failed in Supabase, trying email:', idError);
+    if (userId) {
+      await client.from('authorized_users').delete().eq('id', userId);
     }
 
-    // Also delete by email if available
-    if (userEmail && userEmail.includes('@')) {
-      await client.from('authorized_users').delete().eq('email', userEmail.toLowerCase().trim());
-    } else if (username) {
-      const syntheticEmail = `${username.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}@10med.internal`;
+    // Delete by explicit email if available
+    if (userEmail && userEmail.trim()) {
+      const cleanEmail = userEmail.toLowerCase().trim();
+      await client.from('authorized_users').delete().eq('email', cleanEmail);
+    }
+
+    // Delete by synthetic email and username variants
+    if (username && username.trim()) {
+      const cleanU = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '_');
+      const syntheticEmail = `${cleanU}@10med.internal`;
       await client.from('authorized_users').delete().eq('email', syntheticEmail);
+      await client.from('authorized_users').delete().eq('id', cleanU);
+      await client.from('authorized_users').delete().eq('id', `user_${cleanU}`);
     }
 
     return { success: true };
@@ -248,7 +305,6 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
 
     const mapped: UserAccount[] = (data || []).map((row: any) => {
       const isInternalEmail = row.email && row.email.endsWith('@10med.internal');
-      const cleanEmail = isInternalEmail ? undefined : row.email;
       const parsedUsername = isInternalEmail 
         ? row.email.replace('@10med.internal', '') 
         : row.email ? row.email.split('@')[0] : `user_${row.id}`;
@@ -264,7 +320,7 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
           row.role === 'Admin' || row.role === 'CO' || row.role === 'Offr' || row.role === 'RSM'
             ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
             : [row.assigned_battery],
-        email: cleanEmail,
+        email: row.email,
         isApproved: row.is_approved !== false,
         approvedBy: row.approved_by,
         approvedAt: row.approved_at,

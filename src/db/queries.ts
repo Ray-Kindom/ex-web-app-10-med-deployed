@@ -1,6 +1,8 @@
 import { db, isSqlConfigured } from './index.ts';
 import { users, personnel, paradeRecords, dutyRoster, auditLogs } from './schema.ts';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, or } from 'drizzle-orm';
+
+import { INITIAL_PERSONNEL, INITIAL_USERS } from '../data/initialData.ts';
 
 // In-memory fallback stores for when Cloud SQL is not configured
 const inMemoryUsers = new Map<string, any>();
@@ -8,6 +10,43 @@ const inMemoryPersonnel = new Map<string, any>();
 const inMemoryParadeRecords: any[] = [];
 const inMemoryDutyRoster: any[] = [];
 const inMemoryAuditLogs: any[] = [];
+
+// Initialize in-memory personnel from Nominal Roll
+if (INITIAL_PERSONNEL && INITIAL_PERSONNEL.length > 0) {
+  INITIAL_PERSONNEL.forEach((p) => {
+    const armyNo = p.snkNo || p.id;
+    inMemoryPersonnel.set(armyNo, {
+      id: armyNo,
+      armyNo: armyNo,
+      rank: p.rk,
+      name: p.name,
+      battery: p.battery,
+      trade: p.trade || 'GD',
+      paradeStatus: p.status || 'PRESENT',
+      statusDetails: p.statusDetails || '',
+      bloodGroup: p.bloodGroup || '',
+      phone: p.phone || '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  });
+}
+
+// Initialize in-memory users
+if (INITIAL_USERS && INITIAL_USERS.length > 0) {
+  INITIAL_USERS.forEach((u) => {
+    inMemoryUsers.set(u.id, {
+      id: u.id,
+      uid: u.id,
+      email: `${u.username}@10med.internal`,
+      name: u.name,
+      role: u.role,
+      battery: u.assignedBatteries?.[0] || 'ALL',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  });
+}
 
 // User Helpers
 export async function getOrCreateSqlUser(uid: string, email: string, name?: string, role = 'GUEST', battery = 'ALL') {
@@ -61,6 +100,40 @@ export async function getOrCreateSqlUser(uid: string, email: string, name?: stri
     inMemoryUsers.set(uid, fallbackUser);
     return fallbackUser;
   }
+}
+
+export async function deleteSqlUser(identifier: string) {
+  if (!identifier) return { success: true };
+  const clean = identifier.toLowerCase().trim();
+
+  // Delete matching entries from inMemoryUsers
+  for (const [key, user] of inMemoryUsers.entries()) {
+    const keyLower = String(key).toLowerCase().trim();
+    const uidLower = String(user.uid || '').toLowerCase().trim();
+    const emailLower = String(user.email || '').toLowerCase().trim();
+    const idLower = String(user.id || '').toLowerCase().trim();
+    const nameLower = String(user.name || '').toLowerCase().trim();
+
+    if (
+      keyLower === clean ||
+      uidLower === clean ||
+      idLower === clean ||
+      emailLower === clean ||
+      nameLower === clean ||
+      emailLower.startsWith(`${clean}@`)
+    ) {
+      inMemoryUsers.delete(key);
+    }
+  }
+
+  if (isSqlConfigured()) {
+    try {
+      await db.delete(users).where(or(eq(users.uid, identifier), eq(users.email, clean)));
+    } catch (e) {
+      console.warn('SQL delete user error:', e);
+    }
+  }
+  return { success: true };
 }
 
 // Personnel Helpers

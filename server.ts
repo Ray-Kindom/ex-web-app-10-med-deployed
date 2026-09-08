@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import {
   getOrCreateSqlUser,
+  deleteSqlUser,
   getSqlPersonnelList,
   upsertSqlPersonnel,
   deleteSqlPersonnel,
@@ -184,6 +185,19 @@ async function startServer() {
       }
       const user = await getOrCreateSqlUser(uid, email, name, role, battery);
       res.json({ success: true, data: user });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // User deletion
+  app.post('/api/sql/users/delete', async (req, res) => {
+    try {
+      const { uid, email, username } = req.body;
+      if (uid) await deleteSqlUser(uid);
+      if (email) await deleteSqlUser(email);
+      if (username) await deleteSqlUser(username);
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }

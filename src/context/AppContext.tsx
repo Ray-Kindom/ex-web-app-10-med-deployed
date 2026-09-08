@@ -103,15 +103,22 @@ interface AppContextType {
   addAuditLog: (action: string, details: string, category: AuditLogItem['category']) => void;
   getBatterySummaries: () => BatteryParadeSummary[];
   getRegimentalTotals: () => {
+    totalPersonnel: number;
     totalPosted: number;
+    civilian: number;
+    ere: number;
+    totalOutOfUnit: number;
     totalPresent: number;
     totalDuty: number;
     totalSick: number;
     totalLeave: number;
     totalCourse: number;
-    totalTempDuty: number;
+    totalMsn: number;
     totalAttached: number;
+    totalTempDuty: number;
+    totalFdmn: number;
     totalAbsent: number;
+    totalLineSick: number;
     presentPercentage: number;
   };
   getParadeSummary: (
@@ -309,7 +316,61 @@ const STORAGE_KEYS = {
   AUTH_ESTABLISHMENT: '10med_auth_establishment_v1',
   CALCULATION_CONFIG: '10med_calc_config_v1',
   SYSTEM_SETTINGS: '10med_system_settings_v1',
+  DELETED_USERS: '10med_deleted_user_identifiers_v1',
 };
+
+// Helper to manage deleted user tombstones across syncs and reloads
+function getDeletedUserIdentifiers(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.DELETED_USERS);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return new Set(arr.map((s: string) => String(s).toLowerCase().trim()));
+      }
+    }
+  } catch {}
+  return new Set();
+}
+
+function addDeletedUserIdentifier(identifiers: (string | undefined | null)[]) {
+  try {
+    const existing = getDeletedUserIdentifiers();
+    for (const id of identifiers) {
+      if (id && String(id).trim()) {
+        existing.add(String(id).toLowerCase().trim());
+      }
+    }
+    localStorage.setItem(STORAGE_KEYS.DELETED_USERS, JSON.stringify(Array.from(existing)));
+  } catch {}
+}
+
+function removeDeletedUserIdentifier(identifiers: (string | undefined | null)[]) {
+  try {
+    const existing = getDeletedUserIdentifiers();
+    let changed = false;
+    for (const id of identifiers) {
+      if (id && String(id).trim()) {
+        const clean = String(id).toLowerCase().trim();
+        if (existing.has(clean)) {
+          existing.delete(clean);
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      localStorage.setItem(STORAGE_KEYS.DELETED_USERS, JSON.stringify(Array.from(existing)));
+    }
+  } catch {}
+}
+
+function isUserDeleted(user: { id?: string; username?: string; email?: string }, deletedSet?: Set<string>): boolean {
+  const set = deletedSet || getDeletedUserIdentifiers();
+  if (user.id && set.has(String(user.id).toLowerCase().trim())) return true;
+  if (user.username && set.has(String(user.username).toLowerCase().trim())) return true;
+  if (user.email && set.has(String(user.email).toLowerCase().trim())) return true;
+  return false;
+}
 
 // Helper to strip undefined values so Firestore does not throw serialization error
 function sanitizeForFirestore<T>(obj: T): T {
@@ -330,17 +391,21 @@ function sanitizeForFirestore<T>(obj: T): T {
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Local states initialized from localStorage cache or initial seed
+  // Local states initialized from localStorage cache or initial seed, filtering out deleted tombstones
   const [usersList, setUsersList] = useState<UserAccount[]>(() => {
+    const deleted = getDeletedUserIdentifiers();
     const saved = localStorage.getItem(STORAGE_KEYS.USERS_LIST);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((u: UserAccount) => !isUserDeleted(u, deleted));
+        }
       } catch (e) {
         /* fallback */
       }
     }
-    return INITIAL_USERS;
+    return INITIAL_USERS.filter((u) => !isUserDeleted(u, deleted));
   });
 
   const [currentUser, setCurrentUserState] = useState<UserAccount>(() => {
@@ -2035,12 +2100,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetchAuthorizedUsersFromSupabase()
         .then((res) => {
           if (res.success && res.users && res.users.length > 0) {
+            const deleted = getDeletedUserIdentifiers();
             setUsersList((prev) => {
               const existingEmails = new Set(prev.map((u) => u.email?.toLowerCase()).filter(Boolean));
-              const newFromSupabase = res.users.filter(
-                (u) => u.email && !existingEmails.has(u.email.toLowerCase())
-              );
-              return [...prev, ...newFromSupabase];
+              const existingUsernames = new Set(prev.map((u) => u.username?.toLowerCase()).filter(Boolean));
+              const existingIds = new Set(prev.map((u) => u.id));
+
+              const newFromSupabase = res.users.filter((u) => {
+                if (isUserDeleted(u, deleted)) return false;
+                const emailMatch = u.email && existingEmails.has(u.email.toLowerCase());
+                const usernameMatch = u.username && existingUsernames.has(u.username.toLowerCase());
+                const idMatch = u.id && existingIds.has(u.id);
+                return !emailMatch && !usernameMatch && !idMatch;
+              });
+              if (newFromSupabase.length === 0) return prev;
+              const merged = [...prev, ...newFromSupabase];
+              localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(merged));
+              return merged;
             });
           }
         })
@@ -3049,6 +3125,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.CALCULATION_CONFIG, JSON.stringify(INITIAL_CALCULATION_CONFIG));
     localStorage.setItem(STORAGE_KEYS.PARADE_POINTS, JSON.stringify(INITIAL_PARADE_POINTS));
     localStorage.removeItem(STORAGE_KEYS.LOGO);
+    localStorage.removeItem(STORAGE_KEYS.DELETED_USERS);
 
     addAuditLog('FACTORY_RESET', 'System was restored to factory defaults', 'SYSTEM');
     showNotification('সিস্টেম ফ্যাক্টরি ডিফল্ট-এ সফলভাবে ফিরিয়ে নেওয়া হয়েছে।');
@@ -3142,7 +3219,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         user.assignedBatteries && user.assignedBatteries.length > 0 ? user.assignedBatteries[0] : user.assignedBattery,
       lastLogin: 'Never',
     };
-    setUsersList((prev) => [...prev, newUser]);
+    
+    // Clear any previous tombstone for this user
+    removeDeletedUserIdentifier([
+      newId,
+      newUser.username,
+      newUser.email,
+      newUser.username ? `${newUser.username.toLowerCase()}@10med.internal` : null,
+    ]);
+
+    setUsersList((prev) => {
+      const next = [...prev, newUser];
+      localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(next));
+      return next;
+    });
+
     showNotification(`User account @${newUser.username} (${newUser.rank} ${newUser.name}) created successfully.`);
     addAuditLog(
       'User Created (Admin)',
@@ -3168,8 +3259,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     let finalUpdated: UserAccount | null = null;
-    setUsersList((prev) =>
-      prev.map((u) => {
+    setUsersList((prev) => {
+      const next = prev.map((u) => {
         if (u.id === id) {
           finalUpdated = { ...u, ...updated };
           if (currentUser.id === id || (currentUser.email && u.email && currentUser.email.toLowerCase() === u.email.toLowerCase())) {
@@ -3179,8 +3270,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return finalUpdated;
         }
         return u;
-      })
-    );
+      });
+      localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(next));
+      return next;
+    });
+
+    if (finalUpdated) {
+      removeDeletedUserIdentifier([
+        (finalUpdated as UserAccount).id,
+        (finalUpdated as UserAccount).username,
+        (finalUpdated as UserAccount).email,
+      ]);
+    }
+
     showNotification(`User account updated successfully.`);
     addAuditLog('User Updated (Admin)', `Modified user settings for ID ${id}`, 'SECURITY');
     // Sync to Firestore
@@ -3225,18 +3327,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('Cannot delete your currently active user account.');
       return;
     }
-    setUsersList((prev) => prev.filter((u) => u.id !== id));
+
+    // Permanently tombstone all identifiers of this user so they cannot resurrect
+    addDeletedUserIdentifier([
+      target.id,
+      target.username,
+      target.email,
+      target.username ? `${target.username.toLowerCase()}@10med.internal` : null,
+    ]);
+
+    const remainingUsers = usersList.filter((u) => u.id !== id);
+    setUsersList(remainingUsers);
+    localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(remainingUsers));
+
     showNotification(`User @${target.username} (${target.name}) removed.`);
     addAuditLog('User Deleted (Admin)', `Deleted user account @${target.username} (${target.name})`, 'SECURITY');
+    
     // Delete from Firestore
     syncDoc(deleteDoc(doc(db, 'users', id)), 'delete user');
 
-    // Delete from Supabase Cloud for cross-browser persistence
+    // Delete from Supabase Cloud and immediately reconcile
     if (isSupabaseConfigured()) {
-      deleteAuthorizedUserFromSupabase(target.id, target.email, target.username).catch((e) =>
-        console.warn('Supabase delete error on deleteUser:', e)
-      );
+      deleteAuthorizedUserFromSupabase(target.id, target.email, target.username)
+        .then(() => {
+          syncAuthorizedUsersToSupabase(remainingUsers).catch((err) =>
+            console.warn('Supabase post-delete sync note:', err)
+          );
+        })
+        .catch((e) =>
+          console.warn('Supabase delete error on deleteUser:', e)
+        );
     }
+
+    // Delete from PostgreSQL / Cloud SQL server
+    fetch('/api/sql/users/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: target.id, email: target.email, username: target.username }),
+    }).catch((e) => console.warn('SQL delete user error:', e));
   };
 
   const addPersonnel = (person: Omit<Personnel, 'id'>) => {
@@ -3647,15 +3775,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const batteries: Battery[] = ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
     return batteries.map((bty) => {
       const btyMembers = personnelList.filter((p) => p.battery === bty);
-      const posted = btyMembers.length;
-      const present = btyMembers.filter((p) => p.status === 'Present').length;
-      const onDuty = btyMembers.filter((p) => p.status === 'On Duty').length;
-      const sick = btyMembers.filter((p) => p.status === 'CMH/Sick').length;
-      const leave = btyMembers.filter((p) => p.status === 'Leave').length;
-      const course = btyMembers.filter((p) => p.status === 'Course/Trg').length;
-      const tempDuty = btyMembers.filter((p) => p.status === 'Temp Duty').length;
-      const attached = btyMembers.filter((p) => p.status === 'Attached Out').length;
-      const absent = btyMembers.filter((p) => p.status === 'AWOL/OSL').length;
+      const totalPersonnel = btyMembers.length;
+
+      // Civilian & ERE
+      let civilian = 0;
+      let ere = 0;
+      btyMembers.forEach((p) => {
+        const isCiv =
+          p.rk === 'Civilian' ||
+          p.trade === 'Civilian' ||
+          (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
+        if (isCiv) civilian++;
+        else if (p.outOfUnitCategory === 'ERE') ere++;
+      });
+
+      // Posted = Total Personnel - (ERE + Civilian)
+      const posted = Math.max(0, totalPersonnel - civilian - ere);
+
+      // Out of Unit for posted military personnel:
+      // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
+      let leave = 0;
+      let course = 0;
+      let sick = 0;
+      let msn = 0;
+      let attached = 0;
+      let tempDuty = 0;
+      let fdmn = 0;
+      let absent = 0;
+
+      btyMembers.forEach((p) => {
+        const isCiv =
+          p.rk === 'Civilian' ||
+          p.trade === 'Civilian' ||
+          (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
+        if (isCiv || p.outOfUnitCategory === 'ERE') return;
+
+        if (p.outOfUnitCategory === 'P/Lve' || p.outOfUnitCategory === 'C/Lve' || p.status === 'Leave') {
+          leave++;
+        } else if (p.outOfUnitCategory === 'Course' || p.status === 'Course/Trg') {
+          course++;
+        } else if (p.outOfUnitCategory === 'CMH' || p.status === 'CMH/Sick') {
+          sick++;
+        } else if (p.outOfUnitCategory === 'Msn') {
+          msn++;
+        } else if (p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
+          attached++;
+        } else if (p.outOfUnitCategory === 'Comd' || p.status === 'Temp Duty') {
+          tempDuty++;
+        } else if (p.outOfUnitCategory === 'FDMN') {
+          fdmn++;
+        } else if (p.status === 'AWOL/OSL') {
+          absent++;
+        }
+      });
+
+      const outOfUnit = leave + course + sick + msn + attached + tempDuty + fdmn + absent;
+      const present = Math.max(0, posted - outOfUnit);
+      const onDuty = dutyRoster.filter((d) => d.battery === bty).length;
 
       const btyStatus = paradeBatteryStatus[bty] || { status: 'Pending', lastUpdated: '0630 HRS' };
 
@@ -3685,28 +3861,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getRegimentalTotals = () => {
-    const totalPosted = personnelList.length;
-    const totalPresent = personnelList.filter((p) => p.status === 'Present').length;
-    const totalDuty = personnelList.filter((p) => p.status === 'On Duty').length;
-    const totalSick = personnelList.filter((p) => p.status === 'CMH/Sick').length;
-    const totalLeave = personnelList.filter((p) => p.status === 'Leave').length;
-    const totalCourse = personnelList.filter((p) => p.status === 'Course/Trg').length;
-    const totalTempDuty = personnelList.filter((p) => p.status === 'Temp Duty').length;
-    const totalAttached = personnelList.filter((p) => p.status === 'Attached Out').length;
-    const totalAbsent = personnelList.filter((p) => p.status === 'AWOL/OSL').length;
-    const effectivePresent = totalPresent + totalDuty;
-    const presentPercentage = totalPosted > 0 ? Math.round((effectivePresent / totalPosted) * 100) : 0;
+    const totalPersonnel = personnelList.length;
+
+    let civilian = 0;
+    let ere = 0;
+    personnelList.forEach((p) => {
+      const isCiv =
+        p.rk === 'Civilian' ||
+        p.trade === 'Civilian' ||
+        (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
+      if (isCiv) civilian++;
+      else if (p.outOfUnitCategory === 'ERE') ere++;
+    });
+
+    // Posted = Total Personnel - (ERE + Civilian)
+    const totalPosted = Math.max(0, totalPersonnel - civilian - ere);
+
+    // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
+    let totalLeave = 0;
+    let totalCourse = 0;
+    let totalSick = 0; // CMH
+    let totalMsn = 0;
+    let totalAttached = 0; // Att
+    let totalTempDuty = 0; // Comd
+    let totalFdmn = 0;
+    let totalAbsent = 0; // AWOL
+    let totalLineSick = 0;
+
+    personnelList.forEach((p) => {
+      const isCiv =
+        p.rk === 'Civilian' ||
+        p.trade === 'Civilian' ||
+        (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
+      if (isCiv || p.outOfUnitCategory === 'ERE') return;
+
+      if (p.outOfUnitCategory === 'P/Lve' || p.outOfUnitCategory === 'C/Lve' || p.status === 'Leave') {
+        totalLeave++;
+      } else if (p.outOfUnitCategory === 'Course' || p.status === 'Course/Trg') {
+        totalCourse++;
+      } else if (p.outOfUnitCategory === 'CMH' || p.status === 'CMH/Sick') {
+        totalSick++;
+      } else if (p.outOfUnitCategory === 'Msn') {
+        totalMsn++;
+      } else if (p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
+        totalAttached++;
+      } else if (p.outOfUnitCategory === 'Comd' || p.status === 'Temp Duty') {
+        totalTempDuty++;
+      } else if (p.outOfUnitCategory === 'FDMN') {
+        totalFdmn++;
+      } else if (p.status === 'AWOL/OSL') {
+        totalAbsent++;
+      }
+
+      if (
+        p.statusDetails?.toLowerCase().includes('line sick') ||
+        p.statusDetails?.toLowerCase().includes('morning sick') ||
+        p.statusDetails?.toLowerCase().includes('sick in qtr')
+      ) {
+        totalLineSick++;
+      }
+    });
+
+    const totalOutOfUnit = totalLeave + totalCourse + totalSick + totalMsn + totalAttached + totalTempDuty + totalFdmn + totalAbsent;
+    const totalPresent = Math.max(0, totalPosted - totalOutOfUnit);
+    const totalDuty = dutyRoster.length;
+    const presentPercentage = totalPosted > 0 ? Math.round((totalPresent / totalPosted) * 100) : 0;
 
     return {
+      totalPersonnel,
       totalPosted,
+      civilian,
+      ere,
+      totalOutOfUnit,
       totalPresent,
       totalDuty,
       totalSick,
       totalLeave,
       totalCourse,
-      totalTempDuty,
+      totalMsn,
       totalAttached,
+      totalTempDuty,
+      totalFdmn,
       totalAbsent,
+      totalLineSick,
       presentPercentage,
     };
   };
@@ -3717,7 +3954,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sessionType: string = 'Morning'
   ): SimpleParadeSummary => {
     const rawDuty = getParadeDutyAssignments(date, sessionType);
-    return calculateSimpleParadeState(personnelList, rawDuty, batteryScope);
+    return calculateSimpleParadeState(personnelList, rawDuty, batteryScope, dailyParadePoints);
   };
 
   const hasModulePermission = (moduleKey: string, userRole?: string): boolean => {
