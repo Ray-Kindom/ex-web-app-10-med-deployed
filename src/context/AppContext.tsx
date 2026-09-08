@@ -71,6 +71,8 @@ import {
   syncPersonnelToSupabase,
   fetchAuthorizedUsersFromSupabase,
   testSupabaseConnection,
+  saveDutyDetailingToSupabase,
+  fetchAllDutyDetailingFromSupabase,
 } from '../lib/supabase';
 
 export const MASTER_ADMIN_EMAIL = 'mdraiyan1512@gmail.com';
@@ -1046,13 +1048,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const removeParadeDutyAssignment = (id: string, date: string, sessionType: string) => {
     const key = `${date}_${sessionType}`;
+    const userDisplay = `${currentUser.rank} ${currentUser.name}`;
+    let updatedAssignments: ParadeDutyAssignment[] = [];
     setParadeDutyAssignments((prev) => {
       const existing = prev[key] || [];
       const filtered = existing.filter((a) => a.id !== id);
+      updatedAssignments = filtered;
       const next = { ...prev, [key]: filtered };
       localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
       return next;
     });
+
+    // Auto-sync removal with Supabase Cloud
+    const currentStatus = dutySessionStatuses[key]?.status || 'Draft';
+    saveDutyDetailingToSupabase(date, sessionType, updatedAssignments, currentStatus, userDisplay).catch(() => {});
 
     syncDoc(
       setDoc(
@@ -1060,7 +1069,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sanitizeForFirestore({
           date,
           sessionType,
-          assignments: (paradeDutyAssignments[key] || []).filter((a) => a.id !== id),
+          assignments: updatedAssignments,
         }),
         { merge: true }
       ),
@@ -1074,13 +1083,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     category?: ParadeDutyCategory
   ) => {
     const key = `${date}_${sessionType}`;
+    const userDisplay = `${currentUser.rank} ${currentUser.name}`;
+    let updatedAssignments: ParadeDutyAssignment[] = [];
     setParadeDutyAssignments((prev) => {
       const existing = prev[key] || [];
       const nextList = category ? existing.filter((a) => a.category !== category) : [];
+      updatedAssignments = nextList;
       const next = { ...prev, [key]: nextList };
       localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
       return next;
     });
+
+    // Auto-sync cleared category with Supabase Cloud
+    const currentStatus = dutySessionStatuses[key]?.status || 'Draft';
+    saveDutyDetailingToSupabase(date, sessionType, updatedAssignments, currentStatus, userDisplay).catch(() => {});
 
     syncDoc(
       setDoc(
@@ -1088,9 +1104,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sanitizeForFirestore({
           date,
           sessionType,
-          assignments: category
-            ? (paradeDutyAssignments[key] || []).filter((a) => a.category !== category)
-            : [],
+          assignments: updatedAssignments,
         }),
         { merge: true }
       ),
@@ -1134,6 +1148,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
+    // Save directly to Supabase Cloud Database (parade_records table)
+    const currentAssignments = paradeDutyAssignments[key] || [];
+    saveDutyDetailingToSupabase(date, sessionType, currentAssignments, 'Saved', userDisplay).then((res) => {
+      if (res.success) {
+        console.log(`[Supabase] Duty detailing auto-saved to cloud for ${date} (${sessionType})`);
+      } else {
+        console.warn('[Supabase] Note: Local save succeeded, cloud note:', res.error);
+      }
+    });
+
     syncDoc(
       setDoc(
         doc(db, 'parade_duty_assignments', key),
@@ -1155,7 +1179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'PARADE_STATE'
     );
 
-    showNotification(`✅ Duty Detailing for ${sessionType} saved successfully (সংরক্ষিত হয়েছে)`);
+    showNotification(`✅ Duty Detailing for ${sessionType} saved to Cloud & Local (সংরক্ষিত হয়েছে)`);
   };
 
   const editDutySession = (date: string, sessionType: string) => {
@@ -1172,6 +1196,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
       return next;
     });
+
+    const currentAssignments = paradeDutyAssignments[key] || [];
+    saveDutyDetailingToSupabase(date, sessionType, currentAssignments, 'Draft', userDisplay).catch(() => {});
 
     syncDoc(
       setDoc(
@@ -1216,6 +1243,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = { ...prev, [key]: updated };
       localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
       return next;
+    });
+
+    const currentAssignments = paradeDutyAssignments[key] || [];
+    saveDutyDetailingToSupabase(date, sessionType, currentAssignments, 'Sent to Adjt', userDisplay).then((res) => {
+      if (res.success) {
+        console.log(`[Supabase] Duty detailing submitted to Adjt on cloud for ${date} (${sessionType})`);
+      }
     });
 
     syncDoc(
@@ -2009,6 +2043,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         })
         .catch((e) => console.warn('Supabase bootstrap note:', e));
+
+      // Auto-load any previously saved Duty Detailing from Supabase Cloud
+      fetchAllDutyDetailingFromSupabase()
+        .then((res) => {
+          if (res.success && res.records && res.records.length > 0) {
+            setParadeDutyAssignments((prev) => {
+              const next = { ...prev };
+              res.records!.forEach((r) => {
+                const key = `${r.date}_${r.sessionType}`;
+                if (r.assignments && r.assignments.length > 0) {
+                  next[key] = r.assignments;
+                }
+              });
+              localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
+              return next;
+            });
+
+            setDutySessionStatuses((prev) => {
+              const next = { ...prev };
+              res.records!.forEach((r) => {
+                const key = `${r.date}_${r.sessionType}`;
+                if (r.status) {
+                  next[key] = r.status;
+                }
+              });
+              localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
+              return next;
+            });
+          }
+        })
+        .catch((e) => console.warn('Supabase duty load note:', e));
     }
   }, []);
 

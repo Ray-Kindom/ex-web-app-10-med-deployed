@@ -254,6 +254,97 @@ export const fetchPersonnelFromSupabase = async (): Promise<{
 };
 
 /**
+ * Save Duty Detailing Assignments and Session Status to Supabase
+ */
+export const saveDutyDetailingToSupabase = async (
+  date: string,
+  sessionType: string,
+  assignments: any[],
+  status: string = 'Saved',
+  savedBy?: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const recordId = `duty_${date}_${sessionType}`;
+    const now = new Date().toISOString();
+    const payload = {
+      id: recordId,
+      date,
+      battery: 'Consolidated',
+      submitted_by: savedBy || 'RSM',
+      status,
+      summary: {
+        sessionType,
+        status,
+        savedBy: savedBy || 'RSM',
+        savedAt: now,
+        assignments,
+      },
+    };
+
+    const { error } = await client
+      .from('parade_records')
+      .upsert([payload], { onConflict: 'id' });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Failed to save duty detailing to Supabase:', err);
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Fetch All Saved Duty Detailings from Supabase
+ */
+export const fetchAllDutyDetailingFromSupabase = async (): Promise<{
+  success: boolean;
+  records?: Array<{
+    date: string;
+    sessionType: string;
+    assignments: any[];
+    status: any;
+  }>;
+  error?: string;
+}> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('parade_records')
+      .select('*')
+      .like('id', 'duty_%');
+
+    if (error) throw error;
+
+    const parsed = (data || []).map((row: any) => {
+      const summary = row.summary || {};
+      return {
+        date: row.date,
+        sessionType: summary.sessionType || 'morning',
+        assignments: Array.isArray(summary.assignments) ? summary.assignments : [],
+        status: {
+          status: summary.status || row.status || 'Saved',
+          savedAt: summary.savedAt || row.created_at,
+          savedBy: summary.savedBy || row.submitted_by,
+        },
+      };
+    });
+
+    return { success: true, records: parsed };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
  * SQL Schema DDL Generator for Supabase SQL Editor
  */
 export const getSupabaseSchemaSql = (): string => {
