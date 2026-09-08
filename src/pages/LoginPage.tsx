@@ -312,17 +312,6 @@ export const LoginPage: React.FC = () => {
                         <Shield className="w-3 h-3 text-emerald-400" />
                         <span>mdraiyan1512@gmail.com (Master Admin)</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGoogleEmailInput('int10med2026@gmail.com');
-                          handleGoogleSignIn('int10med2026@gmail.com');
-                        }}
-                        className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <Shield className="w-3 h-3 text-sky-400" />
-                        <span>int10med2026@gmail.com (Admin)</span>
-                      </button>
                     </div>
 
                     {/* Big Google Sign-In Button */}

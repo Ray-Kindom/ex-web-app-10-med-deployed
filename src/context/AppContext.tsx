@@ -73,8 +73,8 @@ import {
   testSupabaseConnection,
 } from '../lib/supabase';
 
-export const MASTER_ADMIN_EMAIL = 'int10med2026@gmail.com';
-export const OWNER_EMAILS: string[] = [MASTER_ADMIN_EMAIL, 'mdraiyan1512@gmail.com'];
+export const MASTER_ADMIN_EMAIL = 'mdraiyan1512@gmail.com';
+export const OWNER_EMAILS: string[] = ['mdraiyan1512@gmail.com'];
 
 interface AppContextType {
   currentUser: UserAccount;
