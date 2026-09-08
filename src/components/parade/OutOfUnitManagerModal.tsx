@@ -53,8 +53,30 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
   } = useApp();
 
   const [currentCategory, setCurrentCategory] = useState<OutOfUnitCategory>(
-    defaultCategory || activeOutOfUnitCategory || 'Msn'
+    defaultCategory || activeOutOfUnitCategory || 'Comd'
   );
+  const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>(
+    defaultBattery || (currentUser.assignedBattery as Battery) || 'All'
+  );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAddingSoldier, setIsAddingSoldier] = useState(false);
+
+  // Synchronize category immediately when defaultCategory or activeOutOfUnitCategory changes
+  const [prevDefaultCategory, setPrevDefaultCategory] = useState(defaultCategory);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      const targetCat = defaultCategory || activeOutOfUnitCategory || 'Comd';
+      setCurrentCategory(targetCat);
+      setIsAddingSoldier(false);
+      setSearchQuery('');
+    }
+  } else if (defaultCategory && defaultCategory !== prevDefaultCategory) {
+    setPrevDefaultCategory(defaultCategory);
+    setCurrentCategory(defaultCategory);
+  }
 
   useEffect(() => {
     if (defaultCategory) {
@@ -63,11 +85,6 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
       setCurrentCategory(activeOutOfUnitCategory);
     }
   }, [defaultCategory, activeOutOfUnitCategory, isOpen]);
-  const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>(
-    defaultBattery || (currentUser.assignedBattery as Battery) || 'All'
-  );
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isAddingSoldier, setIsAddingSoldier] = useState(false);
 
   // Form State for Adding Soldier to Category
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
@@ -90,17 +107,37 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     return (personnelList || []).filter((p) => {
       if (!p) return false;
       // Check if matches category
+      const details = (p.statusDetails || '').toLowerCase();
+      const loc = (p.outOfUnitLocation || '').toLowerCase();
+      const rem = (p.outOfUnitRemarks || '').toLowerCase();
+
+      const isFdmn =
+        p.outOfUnitCategory === 'FDMN' ||
+        details.includes('fdmn') ||
+        loc.includes('camp') ||
+        details.includes('camp') ||
+        loc.includes('হোয়াইকং');
+
+      const isComd =
+        !isFdmn &&
+        (p.outOfUnitCategory === 'Comd' ||
+          Boolean(p.comdAssignment) ||
+          details.includes('comd') ||
+          (p.status === 'Temp Duty' && !p.outOfUnitCategory));
+
       const matchesCategory =
-        p.outOfUnitCategory === currentCategory ||
-        (currentCategory === 'CMH' && p.status === 'CMH/Sick') ||
-        (currentCategory === 'Course' && p.status === 'Course/Trg') ||
-        (currentCategory === 'P/Lve' && p.leaveType === 'P/Lve') ||
-        (currentCategory === 'C/Lve' && p.leaveType === 'C/Lve') ||
-        (currentCategory === 'Att' && p.status === 'Attached Out') ||
-        (currentCategory === 'ERE' && p.statusDetails?.toLowerCase().includes('ere')) ||
-        (currentCategory === 'Msn' && (p.statusDetails?.toLowerCase().includes('mission') || p.statusDetails?.toLowerCase().includes('un'))) ||
-        (currentCategory === 'FDMN' && p.statusDetails?.toLowerCase().includes('fdmn')) ||
-        (currentCategory === 'Comd' && p.statusDetails?.toLowerCase().includes('comd'));
+        currentCategory === 'FDMN'
+          ? isFdmn
+          : currentCategory === 'Comd'
+          ? isComd
+          : p.outOfUnitCategory === currentCategory ||
+            (currentCategory === 'CMH' && p.status === 'CMH/Sick') ||
+            (currentCategory === 'Course' && p.status === 'Course/Trg') ||
+            (currentCategory === 'P/Lve' && p.leaveType === 'P/Lve') ||
+            (currentCategory === 'C/Lve' && p.leaveType === 'C/Lve') ||
+            (currentCategory === 'Att' && p.status === 'Attached Out') ||
+            (currentCategory === 'ERE' && details.includes('ere')) ||
+            (currentCategory === 'Msn' && (details.includes('mission') || details.includes('un')));
 
       if (!matchesCategory) return false;
 
@@ -176,7 +213,26 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
       if (!p) return;
       if (selectedBattery !== 'All' && p.battery !== selectedBattery) return;
 
-      if (p.outOfUnitCategory) {
+      const details = (p.statusDetails || '').toLowerCase();
+      const loc = (p.outOfUnitLocation || '').toLowerCase();
+
+      const isFdmn =
+        p.outOfUnitCategory === 'FDMN' ||
+        details.includes('fdmn') ||
+        loc.includes('camp') ||
+        details.includes('camp') ||
+        loc.includes('হোয়াইকং');
+
+      if (isFdmn) {
+        counts['FDMN'] += 1;
+      } else if (
+        p.outOfUnitCategory === 'Comd' ||
+        Boolean(p.comdAssignment) ||
+        details.includes('comd') ||
+        (p.status === 'Temp Duty' && !p.outOfUnitCategory)
+      ) {
+        counts['Comd'] += 1;
+      } else if (p.outOfUnitCategory) {
         counts[p.outOfUnitCategory] = (counts[p.outOfUnitCategory] || 0) + 1;
       } else if (p.status === 'CMH/Sick') {
         counts['CMH'] += 1;
@@ -188,14 +244,10 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
         counts['C/Lve'] += 1;
       } else if (p.status === 'Attached Out') {
         counts['Att'] += 1;
-      } else if (p.statusDetails?.toLowerCase().includes('ere')) {
+      } else if (details.includes('ere')) {
         counts['ERE'] += 1;
-      } else if (p.statusDetails?.toLowerCase().includes('mission') || p.statusDetails?.toLowerCase().includes('un')) {
+      } else if (details.includes('mission') || details.includes('un')) {
         counts['Msn'] += 1;
-      } else if (p.statusDetails?.toLowerCase().includes('fdmn')) {
-        counts['FDMN'] += 1;
-      } else if (p.statusDetails?.toLowerCase().includes('comd')) {
-        counts['Comd'] += 1;
       }
     });
 

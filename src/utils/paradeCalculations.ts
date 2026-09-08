@@ -147,10 +147,15 @@ export function calculateSimpleParadeState(
       msn++;
     } else if (p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
       att++;
-    } else if (p.outOfUnitCategory === 'Comd' || p.status === 'Temp Duty') {
-      comd++;
     } else if (p.outOfUnitCategory === 'FDMN') {
       fdmn++;
+    } else if (
+      p.outOfUnitCategory === 'Comd' ||
+      Boolean(p.comdAssignment) ||
+      p.statusDetails?.toLowerCase().includes('comd') ||
+      (p.status === 'Temp Duty' && p.outOfUnitCategory !== 'FDMN')
+    ) {
+      comd++;
     } else if (p.status === 'AWOL/OSL') {
       awol++;
     }

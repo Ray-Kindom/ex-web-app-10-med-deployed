@@ -66,7 +66,18 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
     const details = (p.statusDetails || '').toLowerCase();
     const loc = (p.outOfUnitLocation || '').toLowerCase();
     const rem = (p.outOfUnitRemarks || '').toLowerCase();
-    return details.includes('fdmn') || loc.includes('fdmn') || rem.includes('fdmn') || loc.includes('camp') || details.includes('camp');
+    return details.includes('fdmn') || loc.includes('fdmn') || rem.includes('fdmn') || loc.includes('camp') || details.includes('camp') || loc.includes('হোয়াইকং');
+  }).length;
+
+  // Count personnel detailed to Command (Comd)
+  const comdCount = personnelList.filter((p) => {
+    if (p.outOfUnitCategory === 'Comd') return true;
+    if (p.outOfUnitCategory === 'FDMN') return false;
+    const details = (p.statusDetails || '').toLowerCase();
+    const loc = (p.outOfUnitLocation || '').toLowerCase();
+    const rem = (p.outOfUnitRemarks || '').toLowerCase();
+    if (details.includes('fdmn') || loc.includes('fdmn') || rem.includes('fdmn') || loc.includes('camp') || details.includes('camp') || loc.includes('হোয়াইকং')) return false;
+    return details.includes('comd') || Boolean(p.comdAssignment) || (p.status === 'Temp Duty' && !p.outOfUnitCategory);
   }).length;
 
   // Count personnel detailed to Att & Msn (Attached / UN Mission)
@@ -260,11 +271,11 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
         />
         <StatCard
           title="Command"
-          value={totals.totalTempDuty + totals.totalAttached}
-          subtitle="TD & Attached"
+          value={comdCount}
+          subtitle="Comd Duty"
           icon={Compass}
           colorScheme="indigo"
-          badge={totals.totalTempDuty + totals.totalAttached > 0 ? `${totals.totalTempDuty + totals.totalAttached} Out` : 'Nil Command'}
+          badge={comdCount > 0 ? `${comdCount} Out` : 'Nil Command'}
           onClick={() => {
             setActiveOutOfUnitCategory('Comd');
             setOutOfUnitModalOpen(true);

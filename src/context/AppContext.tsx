@@ -37,6 +37,7 @@ import {
   INITIAL_DUTY_ROSTER,
   INITIAL_AUDIT_LOGS,
   GUEST_USER,
+  FDMN_NOMINATIONS_WHYE_KONG,
 } from '../data/initialData';
 import { INITIAL_PARADE_POINTS } from '../data/paradePointsData';
 import {
@@ -594,8 +595,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(STORAGE_KEYS.PERSONNEL);
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        const parsed: Personnel[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Sync official course nominations (Dated: 05-09-2026) into existing localStorage
+          const courseSnkNos = [
+            'BA-9043',
+            'BA-10776',
+            'BA-12471',
+            'BA-12781',
+            '1249400',
+            '1249312',
+            '1228024',
+            '1233234',
+            '1233187',
+            '1236311',
+            '1242900',
+            '1246164',
+          ];
+          const coursePersonnelMap = new Map(
+            INITIAL_PERSONNEL.filter((p) => courseSnkNos.includes(p.snkNo)).map((p) => [p.snkNo, p])
+          );
+
+          let hasChanges = false;
+          const updatedList = parsed.map((p) => {
+            const courseData = coursePersonnelMap.get(p.snkNo);
+            if (courseData && p.status !== 'Course/Trg') {
+              hasChanges = true;
+              return {
+                ...p,
+                status: 'Course/Trg' as ParadeStatus,
+                outOfUnitCategory: 'Course' as const,
+                outOfUnitLocation: courseData.outOfUnitLocation,
+                outOfUnitStartDate: courseData.outOfUnitStartDate,
+                outOfUnitEndDate: courseData.outOfUnitEndDate,
+                outOfUnitRemarks: courseData.outOfUnitRemarks,
+                statusDetails: courseData.statusDetails,
+              };
+            }
+            return p;
+          });
+
+          // Check if any officers or personnel are missing from the parsed list
+          coursePersonnelMap.forEach((courseData, snkNo) => {
+            const exists = updatedList.some((p) => p.snkNo === snkNo);
+            if (!exists) {
+              hasChanges = true;
+              updatedList.push(courseData);
+            }
+          });
+
+          // Sync FDMN nominations (Whye-kong Army Camp, 32 personnel) into existing localStorage
+          FDMN_NOMINATIONS_WHYE_KONG.forEach((fdmn) => {
+            const initialMatch = INITIAL_PERSONNEL.find(
+              (ip) => ip.snkNo === fdmn.snkNo || (fdmn.altSnkNos && fdmn.altSnkNos.includes(ip.snkNo))
+            );
+            const index = updatedList.findIndex(
+              (p) => p.snkNo === fdmn.snkNo || (fdmn.altSnkNos && fdmn.altSnkNos.includes(p.snkNo))
+            );
+
+            if (index !== -1) {
+              const current = updatedList[index];
+              if (current.outOfUnitCategory !== 'FDMN') {
+                hasChanges = true;
+                updatedList[index] = {
+                  ...current,
+                  status: 'Temp Duty' as ParadeStatus,
+                  outOfUnitCategory: 'FDMN' as const,
+                  outOfUnitLocation: 'হোয়াইকং আর্মি ক্যাম্প',
+                  outOfUnitStartDate: fdmn.startDate,
+                  outOfUnitEndDate: fdmn.endDate,
+                  outOfUnitRemarks: `FDMN (${fdmn.days.toString().padStart(2, '0')} দিন)`,
+                  statusDetails: 'FDMN - হোয়াইকং আর্মি ক্যাম্প',
+                };
+              }
+            } else if (initialMatch) {
+              hasChanges = true;
+              updatedList.push(initialMatch);
+            }
+          });
+
+          if (hasChanges) {
+            localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(updatedList));
+          }
+          return updatedList;
+        }
       } catch (e) {
         /* fallback */
       }
@@ -2870,12 +2953,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncNominalRollToCloud = async () => {
     try {
-      showNotification('Supabase PostgreSQL ডাটাবেজে ৬০৬ জন সদস্য সিঙ্ক করা হচ্ছে...');
+      showNotification(`Supabase PostgreSQL ডাটাবেজে ${INITIAL_PERSONNEL.length} জন সদস্য সিঙ্ক করা হচ্ছে...`);
       const res = await syncPersonnelToSupabase(INITIAL_PERSONNEL);
       if (res.success) {
         setPersonnelList(INITIAL_PERSONNEL);
         setCloudPermissionDenied(false);
-        showNotification('সফলভাবে ৬০৬ জন সদস্য Supabase ডাটাবেজে সিঙ্ক হয়েছে!');
+        showNotification(`সফলভাবে ${INITIAL_PERSONNEL.length} জন সদস্য Supabase ডাটাবেজে সিঙ্ক হয়েছে!`);
       } else {
         showNotification('Supabase সিঙ্ক নোট: ' + (res.error || 'ব্যর্থ হয়েছে'));
       }
@@ -3820,10 +3903,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           msn++;
         } else if (p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
           attached++;
-        } else if (p.outOfUnitCategory === 'Comd' || p.status === 'Temp Duty') {
-          tempDuty++;
         } else if (p.outOfUnitCategory === 'FDMN') {
           fdmn++;
+        } else if (
+          p.outOfUnitCategory === 'Comd' ||
+          Boolean(p.comdAssignment) ||
+          p.statusDetails?.toLowerCase().includes('comd') ||
+          (p.status === 'Temp Duty' && p.outOfUnitCategory !== 'FDMN')
+        ) {
+          tempDuty++;
         } else if (p.status === 'AWOL/OSL') {
           absent++;
         }
@@ -3905,10 +3993,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalMsn++;
       } else if (p.outOfUnitCategory === 'Att' || p.status === 'Attached Out') {
         totalAttached++;
-      } else if (p.outOfUnitCategory === 'Comd' || p.status === 'Temp Duty') {
-        totalTempDuty++;
       } else if (p.outOfUnitCategory === 'FDMN') {
         totalFdmn++;
+      } else if (
+        p.outOfUnitCategory === 'Comd' ||
+        Boolean(p.comdAssignment) ||
+        p.statusDetails?.toLowerCase().includes('comd') ||
+        (p.status === 'Temp Duty' && p.outOfUnitCategory !== 'FDMN')
+      ) {
+        totalTempDuty++;
       } else if (p.status === 'AWOL/OSL') {
         totalAbsent++;
       }

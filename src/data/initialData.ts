@@ -1,4 +1,4 @@
-import { Personnel, UserAccount, BatteryParadeSummary, DutyAssignment, AuditLogItem } from '../types';
+import { Personnel, UserAccount, BatteryParadeSummary, DutyAssignment, AuditLogItem, Battery } from '../types';
 
 // Complete Regimental Nominal Roll of 10 Medium Regiment Artillery
 // Extracted from August 2026 Cutting List, ERE List, Permanent Attached List, and UN Mission List
@@ -2248,11 +2248,17 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "snkNo": "1236311",
     "rk": "Lcpl",
     "trade": "TA",
-    "name": "MD HALIM MIA",
+    "name": "Md. Halim Mia",
     "battery": "Q Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "B+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "এডহক ৪৭ মর্টার রেজিঃ আর্টিলারি",
+    "outOfUnitStartDate": "2026-07-26",
+    "outOfUnitEndDate": "2026-09-17",
+    "outOfUnitRemarks": "পিসি কোর্স (০৮ সপ্তাহ)",
+    "statusDetails": "Course: পিসি কোর্স (এডহক ৪৭ মর্টার রেজিঃ আর্টিলারি, ২৬ জুলাই - ১৭ সেপ্টেম্বর ২০২৬)"
   },
   {
     "id": "202",
@@ -2980,11 +2986,17 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "snkNo": "1249312",
     "rk": "Snk",
     "trade": "DMT",
-    "name": "MD NAZMUL HUDA KHAN",
+    "name": "Md. Nazmul Huda",
     "battery": "Q Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "AB+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "১৫ ফিল্ড রেজিঃ আর্টিলারি",
+    "outOfUnitStartDate": "2026-07-26",
+    "outOfUnitEndDate": "2026-10-01",
+    "outOfUnitRemarks": "বিটিটি (ডিএমটি) - ১০ সপ্তাহ",
+    "statusDetails": "Course: বিটিটি (ডিএমটি) (১৫ ফিল্ড রেজিঃ আর্টিলারি, ২৬ জুলাই - ০১ অক্টোবর ২০২৬)"
   },
   {
     "id": "268",
@@ -3002,11 +3014,17 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "snkNo": "1249400",
     "rk": "Snk",
     "trade": "DMT",
-    "name": "SOJIB MIYA",
+    "name": "Sojib Miya",
     "battery": "Q Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "B+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "১৫ ফিল্ড রেজিঃ আর্টিলারি",
+    "outOfUnitStartDate": "2026-07-26",
+    "outOfUnitEndDate": "2026-10-01",
+    "outOfUnitRemarks": "বিটিটি (ডিএমটি) - ১০ সপ্তাহ",
+    "statusDetails": "Course: বিটিটি (ডিএমটি) (১৫ ফিল্ড রেজিঃ আর্টিলারি, ২৬ জুলাই - ০১ অক্টোবর ২০২৬)"
   },
   {
     "id": "270",
@@ -3246,11 +3264,15 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "snkNo": "1228024",
     "rk": "Sgt",
     "trade": "Gnr",
-    "name": "Md Kamrul Hasan",
+    "name": "Md. Kamrul Hasan",
     "battery": "R Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "AB+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "আর্টিলারি সেন্টার ও স্কুল",
+    "outOfUnitRemarks": "জেএনজিএসসি (JNGSC)",
+    "statusDetails": "Course: জেএনজিএসসি (আর্টিলারি সেন্টার ও স্কুল)"
   },
   {
     "id": "292",
@@ -3448,9 +3470,13 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "trade": "DMT",
     "name": "Ripon Kumar Das",
     "battery": "R Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "B+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "আর্টিলারি সেন্টার ও স্কুল",
+    "outOfUnitRemarks": "জেএনজিএসসি (JNGSC)",
+    "statusDetails": "Course: জেএনজিএসসি (আর্টিলারি সেন্টার ও স্কুল)"
   },
   {
     "id": "310",
@@ -4855,9 +4881,13 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "trade": "DMT",
     "name": "Sanu Mong Marma",
     "battery": "HQ Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "A+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "এনসিও একাডেমি",
+    "outOfUnitRemarks": "এনসিও'স কোর্স",
+    "statusDetails": "Course: এনসিও'স কোর্স (এনসিও একাডেমি)"
   },
   {
     "id": "437",
@@ -5229,9 +5259,15 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "trade": "TA",
     "name": "Md Asadujjaman Rimon",
     "battery": "HQ Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "O+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "১০১ ফিল্ড এ্যাম্বুলেন্স",
+    "outOfUnitStartDate": "2026-07-26",
+    "outOfUnitEndDate": "2026-09-17",
+    "outOfUnitRemarks": "কম্ব্যাট লাইফ সেভার ক্যাডার - ০৮ সপ্তাহ",
+    "statusDetails": "Course: কম্ব্যাট লাইফ সেভার ক্যাডার (১০১ ফিল্ড এ্যাম্বুলেন্স, ২৬ জুলাই - ১৭ সেপ্টেম্বর ২০২৬)"
   },
   {
     "id": "471",
@@ -5394,9 +5430,13 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "trade": "CLK",
     "name": "Abdul Latif",
     "battery": "HQ Bty",
-    "status": "Present",
+    "status": "Course/Trg",
     "bloodGroup": "B+",
-    "medicalCategory": "AYE"
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "এশিয়া স্কুল",
+    "outOfUnitRemarks": "বিটিটি ক্লার্ক",
+    "statusDetails": "Course: বিটিটি ক্লার্ক (এশিয়া স্কুল)"
   },
   {
     "id": "486",
@@ -6892,8 +6932,146 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "statusDetails": "UN Mission Deployment",
     "bloodGroup": "O+",
     "medicalCategory": "AYE"
+  },
+  {
+    "id": "607",
+    "snkNo": "BA-9043",
+    "rk": "Maj",
+    "trade": "-",
+    "name": "Maj Md Akib Hossain",
+    "battery": "HQ Bty",
+    "status": "Course/Trg",
+    "bloodGroup": "B+",
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitRemarks": "স্টাফ কোর্স-৫১ (Staff Course-51)",
+    "statusDetails": "Course: স্টাফ কোর্স-৫১"
+  },
+  {
+    "id": "608",
+    "snkNo": "BA-10776",
+    "rk": "Capt",
+    "trade": "-",
+    "name": "Capt Sheikh Mahdi Hasan Dhruvo",
+    "battery": "R Bty",
+    "status": "Course/Trg",
+    "bloodGroup": "O+",
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitRemarks": "জেসিএসসি-৭৯ (JC&SC-79)",
+    "statusDetails": "Course: জেসিএসসি-৭৯"
+  },
+  {
+    "id": "609",
+    "snkNo": "BA-12471",
+    "rk": "Lt",
+    "trade": "-",
+    "name": "Lt Samshad Rahman",
+    "battery": "P Bty",
+    "status": "Course/Trg",
+    "bloodGroup": "A+",
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitLocation": "আর্টিলারি সেন্টার ও স্কুল",
+    "outOfUnitRemarks": "ওবিসি ফিল্ড-৪৩ (OBC Fd-43)",
+    "statusDetails": "Course: ওবিসি ফিল্ড-৪৩ (আর্টিলারি সেন্টার ও স্কুল)"
+  },
+  {
+    "id": "610",
+    "snkNo": "BA-12781",
+    "rk": "Lt",
+    "trade": "-",
+    "name": "Lt Md Ruwayed Sarkar Siyam",
+    "battery": "HQ Bty",
+    "status": "Course/Trg",
+    "bloodGroup": "AB+",
+    "medicalCategory": "AYE",
+    "outOfUnitCategory": "Course",
+    "outOfUnitRemarks": "পিসিএটি-১৩ (PCAT-13)",
+    "statusDetails": "Course: পিসিএটি-১৩"
   }
 ];
+
+export interface FdmnNomination {
+  snkNo: string;
+  altSnkNos?: string[];
+  rk?: string;
+  trade?: string;
+  name?: string;
+  battery?: Battery;
+  startDate: string;
+  endDate: string;
+  days: number;
+}
+
+export const FDMN_NOMINATIONS_WHYE_KONG: FdmnNomination[] = [
+  { snkNo: 'BA-12145', rk: 'Lt', trade: '-', name: 'Lt Md Rayhan Majumder', battery: 'HQ Bty', startDate: '2026-08-19', endDate: '2026-09-07', days: 20 },
+  { snkNo: 'BJO-52470', startDate: '2026-08-25', endDate: '2026-09-07', days: 14 },
+  { snkNo: '1225473', startDate: '2026-08-25', endDate: '2026-09-07', days: 14 },
+  { snkNo: '1228399', startDate: '2026-08-17', endDate: '2026-09-07', days: 22 },
+  { snkNo: '1229259', startDate: '2026-08-15', endDate: '2026-09-07', days: 23 },
+  { snkNo: '1225506', startDate: '2026-08-01', endDate: '2026-09-07', days: 38 },
+  { snkNo: '2413815', startDate: '2026-08-01', endDate: '2026-09-07', days: 38 },
+  { snkNo: '1233743', altSnkNos: ['1232743'], startDate: '2026-08-01', endDate: '2026-09-07', days: 38 },
+  { snkNo: '1236062', startDate: '2026-09-07', endDate: '2026-09-07', days: 1 },
+  { snkNo: '1237663', startDate: '2026-09-07', endDate: '2026-09-07', days: 1 },
+  { snkNo: '1233237', altSnkNos: ['12332387'], startDate: '2026-09-07', endDate: '2026-09-07', days: 1 },
+  { snkNo: '1235407', startDate: '2026-08-15', endDate: '2026-09-07', days: 23 },
+  { snkNo: '1232287', startDate: '2026-08-05', endDate: '2026-09-07', days: 33 },
+  { snkNo: '1232650', startDate: '2026-08-01', endDate: '2026-09-07', days: 38 },
+  { snkNo: '1237199', startDate: '2026-09-03', endDate: '2026-09-07', days: 5 },
+  { snkNo: '1248668', altSnkNos: ['1248667'], startDate: '2026-09-02', endDate: '2026-09-07', days: 6 },
+  { snkNo: '1241287', startDate: '2026-08-26', endDate: '2026-09-07', days: 13 },
+  { snkNo: '1248928', startDate: '2026-08-25', endDate: '2026-09-07', days: 14 },
+  { snkNo: '1247570', startDate: '2026-09-03', endDate: '2026-09-07', days: 5 },
+  { snkNo: '1241350', startDate: '2026-08-15', endDate: '2026-09-07', days: 23 },
+  { snkNo: '1250983', startDate: '2026-08-01', endDate: '2026-09-07', days: 38 },
+  { snkNo: '1247176', startDate: '2026-08-01', endDate: '2026-09-07', days: 38 },
+  { snkNo: '1240506', startDate: '2026-09-03', endDate: '2026-09-07', days: 5 },
+  { snkNo: '1243526', rk: 'Snk', trade: 'TA', name: 'Md Nabi Hossen', battery: 'R Bty', startDate: '2026-09-02', endDate: '2026-09-07', days: 6 },
+  { snkNo: '1240767', startDate: '2026-09-02', endDate: '2026-09-07', days: 6 },
+  { snkNo: '1246224', rk: 'Snk', trade: 'OCU', name: 'Md Jihad', battery: 'HQ Bty', startDate: '2026-08-17', endDate: '2026-09-07', days: 22 },
+  { snkNo: '2418380', startDate: '2026-08-25', endDate: '2026-09-07', days: 14 },
+  { snkNo: '1246473', startDate: '2026-08-25', endDate: '2026-09-07', days: 14 },
+  { snkNo: '1241107', startDate: '2026-09-04', endDate: '2026-09-07', days: 4 },
+  { snkNo: '1242418', startDate: '2026-08-15', endDate: '2026-09-07', days: 23 },
+  { snkNo: '1239287', startDate: '2026-08-17', endDate: '2026-09-07', days: 22 },
+  { snkNo: '1251028', startDate: '2026-09-04', endDate: '2026-09-07', days: 4 },
+];
+
+// Apply FDMN nominations to INITIAL_PERSONNEL
+FDMN_NOMINATIONS_WHYE_KONG.forEach((f) => {
+  const p = INITIAL_PERSONNEL.find(
+    (person) => person.snkNo === f.snkNo || (f.altSnkNos && f.altSnkNos.includes(person.snkNo))
+  );
+  if (p) {
+    p.status = 'Temp Duty';
+    p.outOfUnitCategory = 'FDMN';
+    p.outOfUnitLocation = 'হোয়াইকং আর্মি ক্যাম্প';
+    p.outOfUnitStartDate = f.startDate;
+    p.outOfUnitEndDate = f.endDate;
+    p.outOfUnitRemarks = `FDMN (${f.days.toString().padStart(2, '0')} দিন)`;
+    p.statusDetails = 'FDMN - হোয়াইকং আর্মি ক্যাম্প';
+  } else if (f.rk && f.name && f.battery) {
+    INITIAL_PERSONNEL.push({
+      id: `fdmn-${f.snkNo}`,
+      snkNo: f.snkNo,
+      rk: f.rk,
+      trade: f.trade || '-',
+      name: f.name,
+      battery: f.battery,
+      status: 'Temp Duty',
+      bloodGroup: 'B+',
+      medicalCategory: 'AYE',
+      outOfUnitCategory: 'FDMN',
+      outOfUnitLocation: 'হোয়াইকং আর্মি ক্যাম্প',
+      outOfUnitStartDate: f.startDate,
+      outOfUnitEndDate: f.endDate,
+      outOfUnitRemarks: `FDMN (${f.days.toString().padStart(2, '0')} দিন)`,
+      statusDetails: 'FDMN - হোয়াইকং আর্মি ক্যাম্প',
+    });
+  }
+});
 
 export const INITIAL_USERS: UserAccount[] = [
   {
