@@ -68,6 +68,7 @@ import {
 import {
   isSupabaseConfigured,
   syncAuthorizedUsersToSupabase,
+  deleteAuthorizedUserFromSupabase,
   syncPersonnelToSupabase,
   fetchAuthorizedUsersFromSupabase,
   testSupabaseConnection,
@@ -280,6 +281,7 @@ interface AppContextType {
   hasModulePermission: (moduleKey: string, userRole?: string) => boolean;
   isSupabaseReady: boolean;
   syncToSupabase: () => Promise<{ success: boolean; message: string; count?: number }>;
+  syncUsersToSupabaseCloud: () => Promise<{ success: boolean; count?: number; error?: string }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -2857,6 +2859,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const syncUsersToSupabaseCloud = async (): Promise<{ success: boolean; count?: number; error?: string }> => {
+    try {
+      if (!isSupabaseConfigured()) {
+        const msg = 'Supabase কনফিগারেশন পাওয়া যায়নি।';
+        showNotification(msg);
+        return { success: false, error: msg };
+      }
+      showNotification('ইউজার তালিকা Supabase ক্লাউডে সিঙ্ক করা হচ্ছে...');
+      const res = await syncAuthorizedUsersToSupabase(usersList);
+      if (res.success) {
+        showNotification(`সফলভাবে ${res.count} জন ইউজার Supabase-এ সিঙ্ক সম্পন্ন হয়েছে!`);
+        addAuditLog('Supabase Users Sync', `Synchronized ${res.count} user accounts to Supabase`, 'SYSTEM');
+        return { success: true, count: res.count };
+      } else {
+        showNotification(`সিঙ্ক ত্রুটি: ${res.error || 'ব্যর্থ হয়েছে'}`);
+        return { success: false, error: res.error };
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Supabase Users sync failed';
+      showNotification(`সিঙ্ক ত্রুটি: ${msg}`);
+      return { success: false, error: msg };
+    }
+  };
+
   const updateSystemSettings = (updated: Partial<SystemSettings>): boolean => {
     if (isGuest) {
       showNotification('Guest mode is view-only. You cannot make any changes.');
@@ -3127,6 +3153,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     // Sync to Firestore
     syncDoc(setDoc(doc(db, 'users', newId), sanitizeForFirestore(newUser)), 'add user');
+
+    // Sync to Supabase Cloud for cross-browser persistence
+    if (isSupabaseConfigured()) {
+      syncAuthorizedUsersToSupabase([newUser]).catch((e) =>
+        console.warn('Supabase sync error on addUser:', e)
+      );
+    }
   };
 
   const updateUser = (id: string, updated: Partial<UserAccount>) => {
@@ -3171,6 +3204,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           })
         );
       }
+
+      // Sync updated user to Supabase Cloud for cross-browser persistence
+      if (isSupabaseConfigured()) {
+        syncAuthorizedUsersToSupabase([finalUpdated]).catch((e) =>
+          console.warn('Supabase sync error on updateUser:', e)
+        );
+      }
     }
   };
 
@@ -3190,6 +3230,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('User Deleted (Admin)', `Deleted user account @${target.username} (${target.name})`, 'SECURITY');
     // Delete from Firestore
     syncDoc(deleteDoc(doc(db, 'users', id)), 'delete user');
+
+    // Delete from Supabase Cloud for cross-browser persistence
+    if (isSupabaseConfigured()) {
+      deleteAuthorizedUserFromSupabase(target.id, target.email, target.username).catch((e) =>
+        console.warn('Supabase delete error on deleteUser:', e)
+      );
+    }
   };
 
   const addPersonnel = (person: Omit<Personnel, 'id'>) => {
@@ -3875,6 +3922,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Supabase Integration
         isSupabaseReady,
         syncToSupabase,
+        syncUsersToSupabaseCloud,
       }}
     >
       {children}

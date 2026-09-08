@@ -58,6 +58,7 @@ export const AdminPanelPage: React.FC = () => {
     setCustomLogo,
     syncNominalRollToCloud,
     syncAllToCloud,
+    syncUsersToSupabaseCloud,
     authUser,
     loginWithGoogle,
     isRealAdmin,
@@ -462,14 +463,27 @@ export const AdminPanelPage: React.FC = () => {
                   </h3>
                 </div>
 
-                <button
-                  onClick={handleOpenAddUser}
-                  id="btn-add-user-table-top"
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/40 transition-colors self-start sm:self-auto cursor-pointer"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>Add New User</span>
-                </button>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    onClick={() => syncUsersToSupabaseCloud()}
+                    id="btn-sync-users-cloud"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                    title="Sync User Accounts directly to Supabase PostgreSQL"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Sync Users to Cloud</span>
+                    <span className="sm:hidden">Sync</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenAddUser}
+                    id="btn-add-user-table-top"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/40 transition-colors cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Add New User</span>
+                  </button>
+                </div>
               </div>
 
               {/* User search & filter */}

@@ -87,7 +87,7 @@ export const testSupabaseConnection = async (): Promise<{
 };
 
 /**
- * Synchronize Authorized Users (Gmail Whitelist) to Supabase
+ * Synchronize Authorized Users (Gmail Whitelist & Admin User Accounts) to Supabase
  */
 export const syncAuthorizedUsersToSupabase = async (
   users: UserAccount[]
@@ -98,17 +98,24 @@ export const syncAuthorizedUsersToSupabase = async (
   }
 
   try {
-    const payload = users.map((u) => ({
-      id: u.id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      email: (u.email || '').toLowerCase().trim(),
-      name: u.name,
-      rank: u.rank,
-      role: u.role,
-      assigned_battery: u.assignedBattery || 'HQ Bty',
-      is_approved: u.isApproved !== false,
-      approved_by: u.approvedBy || 'Admin',
-      approved_at: u.approvedAt || new Date().toISOString(),
-    })).filter((u) => u.email.includes('@'));
+    const payload = users.map((u) => {
+      // Ensure there's a valid email or synthesized unique identifier email for non-google local accounts
+      const userEmail = (u.email && u.email.trim().length > 0)
+        ? u.email.toLowerCase().trim()
+        : `${(u.username || u.id).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}@10med.internal`;
+
+      return {
+        id: u.id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        email: userEmail,
+        name: u.name || u.username,
+        rank: u.rank || 'Capt',
+        role: u.role || 'Offr',
+        assigned_battery: u.assignedBattery || (u.assignedBatteries && u.assignedBatteries[0]) || 'HQ Bty',
+        is_approved: u.isApproved !== false,
+        approved_by: u.approvedBy || 'Admin',
+        approved_at: u.approvedAt || new Date().toISOString(),
+      };
+    });
 
     if (payload.length === 0) {
       return { success: true, count: 0 };
@@ -125,6 +132,41 @@ export const syncAuthorizedUsersToSupabase = async (
     return { success: true, count: payload.length };
   } catch (err: any) {
     return { success: false, count: 0, error: err?.message || 'Supabase sync failed' };
+  }
+};
+
+/**
+ * Delete Authorized User from Supabase
+ */
+export const deleteAuthorizedUserFromSupabase = async (
+  userId: string,
+  userEmail?: string,
+  username?: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase configured নয়।' };
+  }
+
+  try {
+    // Delete by ID
+    let deleteQuery = client.from('authorized_users').delete().eq('id', userId);
+    const { error: idError } = await deleteQuery;
+    if (idError) {
+      console.warn('Delete by ID failed in Supabase, trying email:', idError);
+    }
+
+    // Also delete by email if available
+    if (userEmail && userEmail.includes('@')) {
+      await client.from('authorized_users').delete().eq('email', userEmail.toLowerCase().trim());
+    } else if (username) {
+      const syntheticEmail = `${username.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}@10med.internal`;
+      await client.from('authorized_users').delete().eq('email', syntheticEmail);
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
   }
 };
 
@@ -200,26 +242,34 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
     const { data, error } = await client
       .from('authorized_users')
       .select('*')
-      .eq('is_approved', true);
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    const mapped: UserAccount[] = (data || []).map((row: any) => ({
-      id: row.id,
-      username: row.email.split('@')[0],
-      name: row.name,
-      rank: row.rank,
-      role: row.role,
-      assignedBattery: row.assigned_battery,
-      assignedBatteries:
-        row.role === 'Admin' || row.role === 'CO' || row.role === 'Offr' || row.role === 'RSM'
-          ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
-          : [row.assigned_battery],
-      email: row.email,
-      isApproved: row.is_approved,
-      approvedBy: row.approved_by,
-      approvedAt: row.approved_at,
-    }));
+    const mapped: UserAccount[] = (data || []).map((row: any) => {
+      const isInternalEmail = row.email && row.email.endsWith('@10med.internal');
+      const cleanEmail = isInternalEmail ? undefined : row.email;
+      const parsedUsername = isInternalEmail 
+        ? row.email.replace('@10med.internal', '') 
+        : row.email ? row.email.split('@')[0] : `user_${row.id}`;
+
+      return {
+        id: row.id,
+        username: parsedUsername,
+        name: row.name,
+        rank: row.rank,
+        role: row.role,
+        assignedBattery: row.assigned_battery,
+        assignedBatteries:
+          row.role === 'Admin' || row.role === 'CO' || row.role === 'Offr' || row.role === 'RSM'
+            ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+            : [row.assigned_battery],
+        email: cleanEmail,
+        isApproved: row.is_approved !== false,
+        approvedBy: row.approved_by,
+        approvedAt: row.approved_at,
+      };
+    });
 
     return { success: true, users: mapped };
   } catch (err: any) {
