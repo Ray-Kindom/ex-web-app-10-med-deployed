@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Shield,
   ShieldAlert,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -38,6 +39,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   } = useApp();
 
   const totals = getRegimentalTotals();
+  const outOfUnitCount = (personnelList || []).filter((p) => {
+    return (
+      Boolean(p.outOfUnitCategory) ||
+      p.status === 'CMH/Sick' ||
+      p.status === 'Course/Trg' ||
+      p.status === 'Attached Out' ||
+      p.status === 'Temp Duty' ||
+      p.leaveType === 'P/Lve' ||
+      p.leaveType === 'C/Lve'
+    );
+  }).length;
   const role = currentUser.role;
 
   // Build navigation items based on role specifications:
@@ -127,6 +139,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
     });
     items.push({
+      id: 'out_of_unit',
+      label: 'Out Of Unit',
+      description: 'Leave, CMH, Course & Detached',
+      icon: ArrowRightLeft,
+      badge: `${outOfUnitCount}`,
+      badgeColor: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+    });
+    items.push({
       id: 'master_personnel',
       label: 'Regt Nominal',
       description: 'All 10 Med Regt Nominal Roll',
@@ -209,6 +229,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: ShieldAlert,
       badge: 'Duty',
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+    });
+    items.push({
+      id: 'out_of_unit',
+      label: 'Out Of Unit',
+      description: 'Leave, CMH, Course & Detached',
+      icon: ArrowRightLeft,
+      badge: `${outOfUnitCount}`,
+      badgeColor: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
     });
     items.push({
       id: 'master_personnel',

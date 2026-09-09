@@ -8,6 +8,7 @@ import {
   Settings,
   ShieldAlert,
   Edit3,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 export const TopModuleNavBar: React.FC = () => {
@@ -18,6 +19,7 @@ export const TopModuleNavBar: React.FC = () => {
     setDailyParadeModalOpen,
     isRealAdmin,
     hasModulePermission,
+    personnelList,
   } = useApp();
 
   const role = currentUser.role;
@@ -33,6 +35,21 @@ export const TopModuleNavBar: React.FC = () => {
       : role === 'HQ BSM'
       ? 'HQ Bty'
       : 'P Bty');
+
+  const outOfUnitCount = React.useMemo(() => {
+    return (personnelList || []).filter((p) => {
+      if (isBsm && assignedBty && p.battery !== assignedBty) return false;
+      return (
+        Boolean(p.outOfUnitCategory) ||
+        p.status === 'CMH/Sick' ||
+        p.status === 'Course/Trg' ||
+        p.status === 'Attached Out' ||
+        p.status === 'Temp Duty' ||
+        p.leaveType === 'P/Lve' ||
+        p.leaveType === 'C/Lve'
+      );
+    }).length;
+  }, [personnelList, isBsm, assignedBty]);
 
   interface NavTab {
     id: string;
@@ -94,6 +111,13 @@ export const TopModuleNavBar: React.FC = () => {
       permissionKey: 'duty_detail',
     },
     {
+      id: 'out_of_unit',
+      label: 'Out Of Unit',
+      icon: ArrowRightLeft,
+      badge: outOfUnitCount > 0 ? `${outOfUnitCount}` : undefined,
+      permissionKey: 'out_of_unit',
+    },
+    {
       id: 'master_personnel',
       label: isBsm ? 'Bty Nominal' : 'Regt Nominal',
       icon: Users,
@@ -108,7 +132,7 @@ export const TopModuleNavBar: React.FC = () => {
             icon: Edit3,
             badge: 'Muster',
             action: () => setDailyParadeModalOpen(true),
-            permissionKey: 'out_of_unit',
+            permissionKey: 'parade_state',
           },
         ]
       : []),

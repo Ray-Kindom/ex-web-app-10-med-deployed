@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
-import { ParadeActionControls } from '../components/parade/ParadeActionControls';
 import { DailyParadeStateModal } from '../components/parade/DailyParadeStateModal';
 import { ParadeStateSummaryModal } from '../components/parade/ParadeStateSummaryModal';
 import { Personnel, Battery, isOfficerRank } from '../types';
@@ -375,11 +374,6 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
-
-      {/* Updt Out Of Unit Action Control Box (Only accessible to RSM and Admin) */}
-      {isRsm && (
-        <ParadeActionControls battery={undefined} />
-      )}
 
       {/* Battery-Wise Matrix */}
       <ParadeStateSummaryGrid

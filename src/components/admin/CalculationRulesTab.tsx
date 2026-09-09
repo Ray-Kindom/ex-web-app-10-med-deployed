@@ -218,62 +218,82 @@ export const CalculationRulesTab: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <span className="text-slate-400 font-semibold block text-[11px]">১. মোট ছুটি (Lve):</span>
-              <p className="font-mono text-purple-300 text-xs font-bold">
-                Lve = P/Lve + C/Lve
+              <span className="text-slate-400 font-semibold block text-[11px]">১. অনুমোদিত সংখ্যা (Auth Establishment):</span>
+              <p className="font-mono text-white text-xs font-bold">
+                Auth = 638
               </p>
               <p className="text-[10px] text-slate-500">
-                P/Lve (বাৎসরিক) ও C/Lve (নৈমিত্তিক) ছুটি একত্রিত করে মোট Lve হয়।
+                রেজিমেন্টের মোট অনুমোদিত জনবল (HQ: 154, P: 160, Q: 159, R: 159, Wksp: 6)।
               </p>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
               <span className="text-slate-400 font-semibold block text-[11px]">২. পোস্টেড সৈন্য (Posted Strength):</span>
               <p className="font-mono text-cyan-300 text-xs font-bold">
-                Posted = Total - (ERE + Civilian)
+                Posted = Total - (ERE + Civilian) [= 563]
               </p>
               <p className="text-[10px] text-slate-500">
-                ERE ও Civilian সরাসরি মোট সৈন্য থেকে বাদ যায়, Out of Unit-এ যোগ হয় না।
+                ERE ও Civilian সরাসরি মোট সৈন্য থেকে বাদ যায়, পোস্টিং হিসেবে গণ্য হয় না।
               </p>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <span className="text-slate-400 font-semibold block text-[11px]">৩. ইউনিটের বাইরে (Total Out of Unit):</span>
+            <div className="p-3 rounded-xl bg-slate-950 border border-rose-500/20 space-y-1">
+              <span className="text-rose-400 font-semibold block text-[11px]">৩. ইউনিটের বাইরে (Out of Unit):</span>
               <p className="font-mono text-rose-300 text-xs font-bold">
-                Out = Lve + Course + CMH + Msn + Att + Comd + FDMN
+                Out of Unit = Msn + Att [= 57]
               </p>
               <p className="text-[10px] text-slate-500">
-                ছুটি, কোর্স, সিএমএইচ, মিশন, এটাচমেন্ট, কমান্ড ও এফডিএমএন-এর যোগফল।
+                শুধুমাত্র জাতিসংঘ মিশন (Msn) ও অন্যত্র অ্যাটাচড (Att) জনবল।
               </p>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <span className="text-slate-400 font-semibold block text-[11px]">৪. ইউনিটে উপস্থিতি (Present in Unit):</span>
-              <p className="font-mono text-blue-300 text-xs font-bold">
-                Present in Unit = Total Posted - Total Out of Unit
-              </p>
-              <p className="text-[10px] text-slate-500">
-                পোস্টেড সৈন্য সংখ্যা থেকে ইউনিটের বাইরে থাকা সৈন্য বিয়োগ।
-              </p>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <span className="text-slate-400 font-semibold block text-[11px]">৫. অফ প্যারেড (Off Parade):</span>
+            <div className="p-3 rounded-xl bg-slate-950 border border-amber-500/20 space-y-1">
+              <span className="text-amber-400 font-semibold block text-[11px]">৪. নিয়ন্ত্রণে থাকা জনবল (Held Strength):</span>
               <p className="font-mono text-amber-300 text-xs font-bold">
-                Off Parade = Detailing Duties + Line Sick
+                Held = Posted - Out of Unit (Msn + Att) [= 506]
               </p>
               <p className="text-[10px] text-slate-500">
-                রোস্টারের সব ডিউটি/গার্ড এবং লাইন সিক সৈন্যদের যোগফল।
+                পোস্টেড সৈন্য থেকে মিশন ও অ্যাটাচড সৈন্য বাদ দিয়ে অর্জিত সংখ্যা।
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-purple-500/20 space-y-1">
+              <span className="text-purple-400 font-semibold block text-[11px]">৫. মোট আউট (Total Out):</span>
+              <p className="font-mono text-purple-300 text-xs font-bold">
+                Total Out = Leave + Course + CMH + Comd + FDMN + AWOL [= 66]
+              </p>
+              <p className="text-[10px] text-slate-500">
+                আগের আউটের বাকি উপাদানগুলো (ছুটি, কোর্স, সিএমএইচ, কমান্ড, এফডিএমএন, ইত্যাদি)।
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-sky-500/20 space-y-1">
+              <span className="text-sky-400 font-semibold block text-[11px]">৬. ইউনিটে উপস্থিতি (Present in Unit):</span>
+              <p className="font-mono text-sky-300 text-xs font-bold">
+                Present in Unit = Held - Total Out [= 440]
+              </p>
+              <p className="text-[10px] text-slate-500">
+                হেল্ড সৈন্য থেকে টোটাল আউট বাদ দিলে প্রকৃত রেজিমেন্টে উপস্থিত সৈন্য।
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-slate-400 font-semibold block text-[11px]">৭. অফ প্যারেড (Off Parade):</span>
+              <p className="font-mono text-amber-300 text-xs font-bold">
+                Off Parade = Detailing Duties (রোস্টার ডিউটি)
+              </p>
+              <p className="text-[10px] text-slate-500">
+                ডিউটি রোস্টারে ডিটেইল্ড মোট সৈন্য সংখ্যা (সিকিউরিটি, ওয়ার্কিং, ফিক্সড ডিউটি)।
               </p>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 bg-emerald-950/10 space-y-1">
-              <span className="text-emerald-400 font-semibold block text-[11px]">৬. প্যারেডে হাজির (On Parade):</span>
+              <span className="text-emerald-400 font-semibold block text-[11px]">৮. প্যারেডে হাজির (On Parade):</span>
               <p className="font-mono text-emerald-300 text-xs font-bold">
-                On Parade = Present in Unit - Off Parade
+                On Parade = Present in Unit - Off Parade [= 440]
               </p>
               <p className="text-[10px] text-emerald-400/70">
-                উপস্থিত সৈন্য থেকে অফ-প্যারেড (ডিউটি ও লাইন সিক) বাদ দিলে চূড়ান্ত প্যারেড সৈন্য সংখ্যা।
+                উপস্থিত সৈন্য থেকে অফ-প্যারেড (ডিটেইলিং ডিউটি) বাদ দিলে চূড়ান্ত প্যারেড সৈন্য।
               </p>
             </div>
           </div>

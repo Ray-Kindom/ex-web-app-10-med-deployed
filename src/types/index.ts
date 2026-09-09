@@ -533,7 +533,11 @@ export interface DateWiseParadeRecord {
 
 export interface BatteryParadeSummary {
   battery: Battery;
+  auth?: number;
   posted: number;
+  outOfUnit?: number;
+  held?: number;
+  totalOut?: number;
   present: number;
   onDuty: number;
   sick: number;

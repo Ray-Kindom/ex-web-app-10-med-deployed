@@ -305,22 +305,42 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
         </div>
       </div>
 
-      {/* 2. SLIM STATS & STATUS STRIP (MINIMAL & FUNCTIONAL) */}
+      {/* 2. SLIM STATS & STATUS STRIP (SINGLE LINE MILITARY PARADE STATE) */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs font-mono">
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
           <div className="flex items-center gap-1 text-slate-400">
-            <span>Present In Unit:</span>
-            <strong className="text-cyan-300">{paradeSummary.presentInUnit}</strong>
+            <span>Auth:</span>
+            <strong className="text-white font-bold">{paradeSummary.auth}</strong>
           </div>
           <span className="text-slate-600">•</span>
           <div className="flex items-center gap-1 text-slate-400">
-            <span>Off Parade (Duty):</span>
-            <strong className="text-rose-400">{paradeSummary.offParade}</strong>
+            <span>Out of Unit (Msn+Att):</span>
+            <strong className="text-rose-400 font-bold">{paradeSummary.outOfUnit}</strong>
+          </div>
+          <span className="text-slate-600">•</span>
+          <div className="flex items-center gap-1 text-slate-400">
+            <span>Held:</span>
+            <strong className="text-amber-300 font-bold">{paradeSummary.held}</strong>
+          </div>
+          <span className="text-slate-600">•</span>
+          <div className="flex items-center gap-1 text-slate-400">
+            <span>Total Out:</span>
+            <strong className="text-purple-300 font-bold">{paradeSummary.totalOut}</strong>
+          </div>
+          <span className="text-slate-600">•</span>
+          <div className="flex items-center gap-1 text-slate-400">
+            <span>Present in Unit:</span>
+            <strong className="text-cyan-300 font-bold">{paradeSummary.presentInUnit}</strong>
+          </div>
+          <span className="text-slate-600">•</span>
+          <div className="flex items-center gap-1 text-slate-400">
+            <span>Off Parade:</span>
+            <strong className="text-amber-400 font-bold">{paradeSummary.offParade}</strong>
           </div>
           <span className="text-slate-600">•</span>
           <div className="flex items-center gap-1 text-slate-400">
             <span>On Parade:</span>
-            <strong className="text-emerald-400">{paradeSummary.onParade}</strong>
+            <strong className="text-emerald-400 font-bold">{paradeSummary.onParade}</strong>
           </div>
         </div>
 
@@ -401,18 +421,22 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
                 <span>Session:</span>
                 <span className="text-white font-bold">{selectedParadeDate} • {selectedDutySession}</span>
               </div>
-              <div className="grid grid-cols-3 gap-1 pt-1 text-center">
-                <div className="p-1 rounded bg-slate-900 border border-slate-800">
-                  <div className="text-[9px] text-cyan-400">Present</div>
-                  <div className="text-sm font-bold text-white">{paradeSummary.presentInUnit}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1 text-center">
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                  <div className="text-[9px] text-slate-400">Auth / Held</div>
+                  <div className="text-xs font-bold text-white">{paradeSummary.auth} / {paradeSummary.held}</div>
                 </div>
-                <div className="p-1 rounded bg-slate-900 border border-slate-800">
-                  <div className="text-[9px] text-rose-400">Off Parade</div>
-                  <div className="text-sm font-bold text-rose-400">{paradeSummary.offParade}</div>
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                  <div className="text-[9px] text-purple-400">Total Out</div>
+                  <div className="text-xs font-bold text-purple-300">{paradeSummary.totalOut}</div>
                 </div>
-                <div className="p-1 rounded bg-slate-900 border border-slate-800">
-                  <div className="text-[9px] text-emerald-400">On Parade</div>
-                  <div className="text-sm font-bold text-emerald-400">{paradeSummary.onParade}</div>
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                  <div className="text-[9px] text-cyan-400">Present in Unit</div>
+                  <div className="text-xs font-bold text-cyan-300">{paradeSummary.presentInUnit}</div>
+                </div>
+                <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                  <div className="text-[9px] text-emerald-400">On Parade (Eff)</div>
+                  <div className="text-xs font-bold text-emerald-400">{paradeSummary.onParade}</div>
                 </div>
               </div>
             </div>

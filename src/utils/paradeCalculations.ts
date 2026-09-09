@@ -1,19 +1,24 @@
-import { Personnel, Battery, ParadeDutyAssignment, DailyParadePoint } from '../types';
+import { Personnel, Battery, ParadeDutyAssignment, DailyParadePoint, AuthEstablishmentItem } from '../types';
 
 export interface SimpleParadeSummary {
   battery: Battery | 'Consolidated';
+  auth: number;           // Authorized strength (638 Consolidated, or battery-specific)
   totalPersonnel: number; // All entries including Civilian
   civilian: number;       // Civilian non-military personnel
   ere: number;            // Extra Regimental Employment (deputation out)
-  totalPosted: number;    // Total Personnel - (ERE + Civilian) = (Offr + JCO + RCO + OR + NC(E) + NC(U)) - ERE
-  outOfUnit: number;      // Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
-  presentInUnit: number;  // Posted - Out of Unit
-  offParade: number;      // Pure count of Detailed Duties (Duty Detailing)
-  onParade: number;       // Present in Unit - Off Parade
+  totalPosted: number;    // Total Personnel - (ERE + Civilian) = 563
+  outOfUnit: number;      // ONLY Msn + Att (Mission & Attached) = 57
+  held: number;           // Posted - Out of Unit (Msn+Att) = 506
+  totalOut: number;       // Rest of Out: Leave + Course + CMH + Comd + FDMN + AWOL = 66
+  presentInUnit: number;  // Held - Total Out = 440
+  offParade: number;      // Detailed duty count
+  onParade: number;       // Present in Unit - Off Parade = 440
   detailingCount: number; // Total duty detailing assignments
   lineSick: number;       // Line Sick / Morning Sick count
   onParadePercentage: number;
   presentInUnitPercentage: number;
+  // Backward compatibility aliases
+  totalOutOfUnit?: number; // alias for totalOut
   outOfUnitBreakdown: {
     lve: number;          // P/Lve + C/Lve
     pLve: number;
@@ -30,6 +35,8 @@ export interface SimpleParadeSummary {
     tempDuty: number;
     attachedOut: number;
     awol: number;
+    outOfUnitOnly: number; // msn + att
+    totalOutRest: number;  // lve + course + cmh + comd + fdmn + awol
   };
   dutyBreakdown: {
     unitSy: number;
@@ -40,29 +47,69 @@ export interface SimpleParadeSummary {
 }
 
 /**
- * Checks whether a personnel is physically away from the unit (Out of Unit).
- * Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
+ * Returns authorized establishment count for a battery or Consolidated (total 638).
+ */
+export function getAuthorizedEstablishment(
+  batteryScope: Battery | 'Consolidated' = 'Consolidated',
+  authList?: AuthEstablishmentItem[]
+): number {
+  if (authList && Array.isArray(authList)) {
+    const totalItem = authList.find((a) => a.id === 'auth-total');
+    if (totalItem) {
+      if (batteryScope === 'Consolidated') return totalItem.authorized || 638;
+      if (batteryScope === 'HQ Bty') return totalItem.hqBty || 154;
+      if (batteryScope === 'P Bty') return totalItem.pBty || 160;
+      if (batteryScope === 'Q Bty') return totalItem.qBty || 159;
+      if (batteryScope === 'R Bty') return totalItem.rBty || 159;
+    }
+  }
+  if (batteryScope === 'Consolidated') return 638;
+  if (batteryScope === 'HQ Bty') return 154;
+  if (batteryScope === 'P Bty') return 160;
+  if (batteryScope === 'Q Bty') return 159;
+  if (batteryScope === 'R Bty') return 159;
+  return 638;
+}
+
+/**
+ * Checks whether a personnel is strictly in Out of Unit (Msn + Att only).
  */
 export function isPersonnelOutOfUnit(p: Personnel): boolean {
+  if (p.outOfUnitCategory === 'Msn' || p.outOfUnitCategory === 'Att') {
+    return true;
+  }
+  if (p.status === 'Msn' || p.status === 'Att' || p.status === 'Attached Out') {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Checks whether a personnel is in Total Out (Leave, Course, CMH, Comd, FDMN, AWOL).
+ */
+export function isPersonnelTotalOut(p: Personnel): boolean {
   if (
     p.outOfUnitCategory === 'P/Lve' ||
     p.outOfUnitCategory === 'C/Lve' ||
     p.outOfUnitCategory === 'Course' ||
     p.outOfUnitCategory === 'CMH' ||
-    p.outOfUnitCategory === 'Msn' ||
-    p.outOfUnitCategory === 'Att' ||
     p.outOfUnitCategory === 'Comd' ||
-    p.outOfUnitCategory === 'FDMN' ||
-    p.outOfUnitCategory === 'ERE'
+    p.outOfUnitCategory === 'FDMN'
   ) {
     return true;
   }
   if (
     p.status === 'Leave' ||
+    p.status === 'P/Lve' ||
+    p.status === 'C/Lve' ||
+    p.status === 'Course' ||
     p.status === 'Course/Trg' ||
+    p.status === 'CMH' ||
     p.status === 'CMH/Sick' ||
     p.status === 'Temp Duty' ||
-    p.status === 'Attached Out' ||
+    p.status === 'Comd' ||
+    p.status === 'FDMN' ||
+    p.status === 'AWOL' ||
     p.status === 'AWOL/OSL'
   ) {
     return true;
@@ -71,19 +118,29 @@ export function isPersonnelOutOfUnit(p: Personnel): boolean {
 }
 
 /**
- * Pure, simple parade state calculation:
- * 1. Total Personnel = All Entries (including Civilian)
- * 2. Posted = Total Personnel - (ERE + Civilian) = (Offr + JCO + RCO + OR + NC(E) + NC(U)) - ERE
- * 3. Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN
- * 4. Present in Unit = Posted - Out of Unit
- * 5. Off Parade = Sum of all Detailing + Line Sick/Morning Sick
- * 6. On Parade = Present in Unit - Off Parade
+ * Checks whether a personnel is physically away from the unit (either Out of Unit or Total Out).
+ */
+export function isPersonnelAway(p: Personnel): boolean {
+  return isPersonnelOutOfUnit(p) || isPersonnelTotalOut(p) || p.status === 'ERE' || p.outOfUnitCategory === 'ERE';
+}
+
+/**
+ * Military Parade State Calculation:
+ * 1. Auth: Regiment authorized establishment = 638 (or battery specific)
+ * 2. Posted: Total Personnel - (ERE + Civilian) = 563
+ * 3. Out of Unit: ONLY Msn + Att (Mission & Attached personnel) = 57
+ * 4. Held: Posted - Out of Unit (Msn+Att) = 506
+ * 5. Total Out: Rest of Out: Leave (P/Lve + C/Lve) + Course + CMH + Comd + FDMN + AWOL = 66
+ * 6. Present in Unit: Held - Total Out = 440
+ * 7. Off Parade: Detailed duty count (Duty Detailing)
+ * 8. On Parade: Present in Unit - Off Parade = 440
  */
 export function calculateSimpleParadeState(
   personnelList: Personnel[],
   dutyAssignments: ParadeDutyAssignment[],
   batteryScope: Battery | 'Consolidated' = 'Consolidated',
-  lineSickOrPoints?: number | DailyParadePoint[]
+  lineSickOrPoints?: number | DailyParadePoint[],
+  authList?: AuthEstablishmentItem[]
 ): SimpleParadeSummary {
   // 1. Filter personnel by battery scope
   const scopedPersonnel =
@@ -93,7 +150,10 @@ export function calculateSimpleParadeState(
 
   const totalPersonnel = scopedPersonnel.length;
 
-  // 2. Count Civilian & ERE
+  // 2. Authorized establishment (Consolidated = 638)
+  const auth = getAuthorizedEstablishment(batteryScope, authList);
+
+  // 3. Count Civilian & ERE
   let civilian = 0;
   let ere = 0;
 
@@ -110,11 +170,12 @@ export function calculateSimpleParadeState(
     }
   });
 
-  // Posted = Total Personnel - (ERE + Civilian)
+  // Posted = Total Personnel - (ERE + Civilian) = 563
   const totalPosted = Math.max(0, totalPersonnel - (ere + civilian));
 
-  // 3. Count Out of Unit strictly for posted strength:
-  // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN + AWOL
+  // 4. Breakdown calculation:
+  // Out of Unit: ONLY Msn + Att
+  // Total Out: Leave (P/Lve + C/Lve) + Course + CMH + Comd + FDMN + AWOL
   let pLve = 0;
   let cLve = 0;
   let course = 0;
@@ -127,7 +188,7 @@ export function calculateSimpleParadeState(
   let personnelLineSick = 0;
 
   scopedPersonnel.forEach((p) => {
-    // Skip Civilians and ERE from Out of Unit since they are already removed from Posted
+    // Skip Civilians and ERE since they are already removed from Posted
     const isCiv =
       p.status === 'Civilian' ||
       p.rk === 'Civilian' ||
@@ -172,12 +233,21 @@ export function calculateSimpleParadeState(
   });
 
   const lve = pLve + cLve;
-  const outOfUnit = lve + course + cmh + msn + att + comd + fdmn + awol;
 
-  // 4. Present in the Unit = Posted - Out of Unit
-  const presentInUnit = Math.max(0, totalPosted - outOfUnit);
+  // New Logic Definitions:
+  // Out of Unit: ONLY Msn + Att = 57
+  const outOfUnit = msn + att;
 
-  // 5. Duty Detailing count
+  // Held: Posted - Out of Unit (Msn+Att) = 506
+  const held = Math.max(0, totalPosted - outOfUnit);
+
+  // Total Out: Leave + Course + CMH + Comd + FDMN + AWOL = 66
+  const totalOut = lve + course + cmh + comd + fdmn + awol;
+
+  // Present in Unit: Held - Total Out = 440
+  const presentInUnit = Math.max(0, held - totalOut);
+
+  // Duty Detailing count
   const scopedDuties =
     batteryScope === 'Consolidated'
       ? dutyAssignments
@@ -185,7 +255,7 @@ export function calculateSimpleParadeState(
 
   const detailingCount = scopedDuties.length;
 
-  // 6. Line Sick / Morning Sick calculation
+  // Line Sick / Morning Sick calculation
   let lineSick = personnelLineSick;
   if (typeof lineSickOrPoints === 'number') {
     lineSick = lineSickOrPoints;
@@ -207,7 +277,7 @@ export function calculateSimpleParadeState(
     }
   }
 
-  // 7. Off Parade (Duty Detailing) = Pure count of personnel detailed to duties
+  // Off Parade (Duty Detailing) = Pure count of personnel detailed to duties
   const offParade = detailingCount;
 
   let unitSy = 0;
@@ -222,7 +292,7 @@ export function calculateSimpleParadeState(
     else others++;
   });
 
-  // 8. On Parade = Present in Unit - Off Parade
+  // On Parade = Present in Unit - Off Parade
   const onParade = Math.max(0, presentInUnit - offParade);
 
   const onParadePercentage =
@@ -232,11 +302,15 @@ export function calculateSimpleParadeState(
 
   return {
     battery: batteryScope,
+    auth,
     totalPersonnel,
     civilian,
     ere,
     totalPosted,
     outOfUnit,
+    held,
+    totalOut,
+    totalOutOfUnit: totalOut,
     presentInUnit,
     offParade,
     onParade,
@@ -259,6 +333,8 @@ export function calculateSimpleParadeState(
       tempDuty: comd,
       attachedOut: att,
       awol,
+      outOfUnitOnly: outOfUnit,
+      totalOutRest: totalOut,
     },
     dutyBreakdown: {
       unitSy,

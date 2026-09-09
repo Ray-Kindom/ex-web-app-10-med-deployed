@@ -121,10 +121,14 @@ interface AppContextType {
   addAuditLog: (action: string, details: string, category: AuditLogItem['category']) => void;
   getBatterySummaries: () => BatteryParadeSummary[];
   getRegimentalTotals: () => {
+    auth: number;
     totalPersonnel: number;
     totalPosted: number;
     civilian: number;
     ere: number;
+    outOfUnit: number;
+    held: number;
+    totalOut: number;
     totalOutOfUnit: number;
     totalPresent: number;
     presentInUnit: number;
@@ -4170,8 +4174,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       });
 
-      const outOfUnit = leave + course + sick + msn + attached + tempDuty + fdmn + absent;
-      const present = Math.max(0, posted - outOfUnit);
+      // New Military Parade State Logic:
+      // Out of Unit: ONLY Msn + Att
+      const outOfUnit = msn + attached;
+      // Held: posted - outOfUnit
+      const held = Math.max(0, posted - outOfUnit);
+      // Total Out: leave + course + sick + tempDuty + fdmn + absent
+      const totalOut = leave + course + sick + tempDuty + fdmn + absent;
+      // Present in Unit: held - totalOut
+      const present = Math.max(0, held - totalOut);
       const onDuty = dutyRoster.filter((d) => d.battery === bty).length;
 
       const btyStatus = paradeBatteryStatus[bty] || { status: 'Pending', lastUpdated: '0630 HRS' };
@@ -4179,6 +4190,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         battery: bty,
         posted,
+        outOfUnit,
+        held,
+        totalOut,
         present,
         onDuty,
         sick,
@@ -4216,10 +4230,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else if (p.status === 'ERE' || p.outOfUnitCategory === 'ERE') ere++;
     });
 
-    // Posted = Total Personnel - (ERE + Civilian)
+    // Posted = Total Personnel - (ERE + Civilian) = 563
     const totalPosted = Math.max(0, totalPersonnel - civilian - ere);
 
-    // Out of Unit = Lve (P/Lve + C/Lve) + Course + CMH + Msn + Att + Comd + FDMN + AWOL
     let pLve = 0;
     let cLve = 0;
     let totalCourse = 0;
@@ -4276,8 +4289,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const totalLeave = pLve + cLve;
-    const totalOutOfUnit = totalLeave + totalCourse + totalSick + totalMsn + totalAttached + totalTempDuty + totalFdmn + totalAbsent;
-    const totalPresent = Math.max(0, totalPosted - totalOutOfUnit);
+
+    // New Military Parade State Logic:
+    // Auth: 638
+    const auth = 638;
+    // Out of Unit: ONLY Msn + Att = 57
+    const outOfUnit = totalMsn + totalAttached;
+    // Held: Posted - Out of Unit = 506
+    const held = Math.max(0, totalPosted - outOfUnit);
+    // Total Out: Rest of Out: Leave + Course + CMH + Comd + FDMN + AWOL = 66
+    const totalOut = totalLeave + totalCourse + totalSick + totalTempDuty + totalFdmn + totalAbsent;
+    // Present in Unit: Held - Total Out = 440
+    const totalPresent = Math.max(0, held - totalOut);
     const totalDuty = dutyRoster.length;
     const offParade = totalDuty + totalLineSick;
     const onParade = Math.max(0, totalPresent - offParade);
@@ -4286,11 +4309,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const onParadePercentage = totalPresent > 0 ? Math.round((onParade / totalPresent) * 100) : 0;
 
     return {
+      auth,
       totalPersonnel,
       totalPosted,
       civilian,
       ere,
-      totalOutOfUnit,
+      outOfUnit,
+      held,
+      totalOut,
+      totalOutOfUnit: totalOut,
       totalPresent,
       presentInUnit: totalPresent,
       totalDuty,
@@ -4319,7 +4346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sessionType: string = 'Morning'
   ): SimpleParadeSummary => {
     const rawDuty = getParadeDutyAssignments(date, sessionType);
-    return calculateSimpleParadeState(personnelList, rawDuty, batteryScope, dailyParadePoints);
+    return calculateSimpleParadeState(personnelList, rawDuty, batteryScope, dailyParadePoints, authEstablishmentList);
   };
 
   const hasModulePermission = (moduleKey: string, userRole?: string): boolean => {

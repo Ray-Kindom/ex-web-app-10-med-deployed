@@ -200,31 +200,35 @@ export const ExecutiveDailyBriefingModal: React.FC<ExecutiveDailyBriefingModalPr
               </div>
             </div>
 
-            {/* Part I: Executive KPI Strip */}
-            <div className="mt-3 grid grid-cols-6 gap-1.5 text-center font-mono">
+            {/* Part I: Executive KPI Strip (Military Parade State) */}
+            <div className="mt-3 grid grid-cols-7 gap-1.5 text-center font-mono">
               <div className="p-2 bg-slate-100 border border-slate-400 rounded">
-                <div className="text-[9px] text-slate-600 font-bold uppercase">Total Posted</div>
-                <div className="text-base font-black text-slate-900">{regtSummary.totalPosted}</div>
+                <div className="text-[9px] text-slate-600 font-bold uppercase">Auth</div>
+                <div className="text-base font-black text-slate-900">{regtSummary.auth}</div>
               </div>
-              <div className="p-2 bg-slate-100 border border-slate-400 rounded">
-                <div className="text-[9px] text-slate-600 font-bold uppercase">Out of Unit</div>
+              <div className="p-2 bg-rose-50 border border-rose-300 rounded">
+                <div className="text-[9px] text-rose-700 font-bold uppercase">Out (Msn+Att)</div>
                 <div className="text-base font-black text-rose-700">{regtSummary.outOfUnit}</div>
               </div>
-              <div className="p-2 bg-slate-100 border border-slate-400 rounded">
-                <div className="text-[9px] text-slate-600 font-bold uppercase">Present in Unit</div>
-                <div className="text-base font-black text-blue-900">{regtSummary.presentInUnit}</div>
+              <div className="p-2 bg-amber-50 border border-amber-300 rounded">
+                <div className="text-[9px] text-amber-800 font-bold uppercase">Held</div>
+                <div className="text-base font-black text-amber-800">{regtSummary.held}</div>
+              </div>
+              <div className="p-2 bg-purple-50 border border-purple-300 rounded">
+                <div className="text-[9px] text-purple-800 font-bold uppercase">Total Out</div>
+                <div className="text-base font-black text-purple-800">{regtSummary.totalOut}</div>
+              </div>
+              <div className="p-2 bg-sky-50 border border-sky-300 rounded">
+                <div className="text-[9px] text-sky-800 font-bold uppercase">Present in Unit</div>
+                <div className="text-base font-black text-sky-900">{regtSummary.presentInUnit}</div>
               </div>
               <div className="p-2 bg-slate-100 border border-slate-400 rounded">
-                <div className="text-[9px] text-slate-600 font-bold uppercase">Off Parade (Duty)</div>
+                <div className="text-[9px] text-slate-600 font-bold uppercase">Off Parade</div>
                 <div className="text-base font-black text-amber-700">{regtSummary.offParade}</div>
               </div>
               <div className="p-2 bg-emerald-50 border border-emerald-600 rounded">
                 <div className="text-[9px] text-emerald-800 font-bold uppercase">On Parade</div>
                 <div className="text-base font-black text-emerald-800">{regtSummary.onParade}</div>
-              </div>
-              <div className="p-2 bg-slate-100 border border-slate-400 rounded">
-                <div className="text-[9px] text-slate-600 font-bold uppercase">Combat Fit %</div>
-                <div className="text-base font-black text-slate-900">{regtSummary.presentInUnitPercentage}%</div>
               </div>
             </div>
 
@@ -238,45 +242,51 @@ export const ExecutiveDailyBriefingModal: React.FC<ExecutiveDailyBriefingModalPr
               <table className="w-full text-xs text-left border border-slate-800 border-collapse">
                 <thead>
                   <tr className="bg-slate-200 text-slate-900 font-mono text-[9px] uppercase border-b border-slate-800">
-                    <th className="p-1.5 border-r border-slate-400">Sub-Unit</th>
-                    <th className="p-1.5 text-center border-r border-slate-400">Posted</th>
-                    <th className="p-1.5 text-center border-r border-slate-400">Out of Unit</th>
-                    <th className="p-1.5 text-center border-r border-slate-400">Present in Unit</th>
-                    <th className="p-1.5 text-center border-r border-slate-400">Off Parade (Duty)</th>
-                    <th className="p-1.5 text-center border-r border-slate-400 bg-emerald-100 font-bold">On Parade</th>
-                    <th className="p-1.5 text-center">On Parade %</th>
+                    <th className="p-1 border-r border-slate-400">Sub-Unit</th>
+                    <th className="p-1 text-center border-r border-slate-400">Auth</th>
+                    <th className="p-1 text-center border-r border-slate-400">Out of Unit</th>
+                    <th className="p-1 text-center border-r border-slate-400">Held</th>
+                    <th className="p-1 text-center border-r border-slate-400">Total Out</th>
+                    <th className="p-1 text-center border-r border-slate-400">Present in Unit</th>
+                    <th className="p-1 text-center border-r border-slate-400">Off Parade</th>
+                    <th className="p-1 text-center border-r border-slate-400 bg-emerald-100 font-bold">On Parade</th>
+                    <th className="p-1 text-center">On Parade %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-300 font-mono text-[10px]">
                   {batterySummaries.map((b) => (
                     <tr key={b.battery} className="hover:bg-slate-50">
-                      <td className="p-1.5 font-bold border-r border-slate-300">{b.battery}</td>
-                      <td className="p-1.5 text-center border-r border-slate-300">{b.totalPosted}</td>
-                      <td className="p-1.5 text-center border-r border-slate-300 text-rose-700 font-bold">
+                      <td className="p-1 font-bold border-r border-slate-300">{b.battery}</td>
+                      <td className="p-1 text-center border-r border-slate-300">{b.auth}</td>
+                      <td className="p-1 text-center border-r border-slate-300 text-rose-700 font-bold">
                         {b.outOfUnit}
                       </td>
-                      <td className="p-1.5 text-center border-r border-slate-300">{b.presentInUnit}</td>
-                      <td className="p-1.5 text-center border-r border-slate-300 text-amber-800 font-bold">
+                      <td className="p-1 text-center border-r border-slate-300 font-bold text-amber-800">{b.held}</td>
+                      <td className="p-1 text-center border-r border-slate-300 font-bold text-purple-800">{b.totalOut}</td>
+                      <td className="p-1 text-center border-r border-slate-300 font-bold text-sky-900">{b.presentInUnit}</td>
+                      <td className="p-1 text-center border-r border-slate-300 text-amber-800 font-bold">
                         {b.offParade}
                       </td>
-                      <td className="p-1.5 text-center border-r border-slate-300 bg-emerald-50/50 font-bold text-emerald-900">
+                      <td className="p-1 text-center border-r border-slate-300 bg-emerald-50/50 font-bold text-emerald-900">
                         {b.onParade}
                       </td>
-                      <td className="p-1.5 text-center font-bold">
+                      <td className="p-1 text-center font-bold">
                         {b.onParadePercentage}%
                       </td>
                     </tr>
                   ))}
                   <tr className="bg-slate-100 font-bold border-t-2 border-slate-800 text-[10px]">
-                    <td className="p-1.5 border-r border-slate-300 uppercase">Regiment Total</td>
-                    <td className="p-1.5 text-center border-r border-slate-300">{regtSummary.totalPosted}</td>
-                    <td className="p-1.5 text-center border-r border-slate-300 text-rose-800">{regtSummary.outOfUnit}</td>
-                    <td className="p-1.5 text-center border-r border-slate-300">{regtSummary.presentInUnit}</td>
-                    <td className="p-1.5 text-center border-r border-slate-300 text-amber-800">{regtSummary.offParade}</td>
-                    <td className="p-1.5 text-center border-r border-slate-300 bg-emerald-100 text-emerald-950 font-black">
+                    <td className="p-1 border-r border-slate-300 uppercase">Regiment Total</td>
+                    <td className="p-1 text-center border-r border-slate-300">{regtSummary.auth}</td>
+                    <td className="p-1 text-center border-r border-slate-300 text-rose-800">{regtSummary.outOfUnit}</td>
+                    <td className="p-1 text-center border-r border-slate-300 font-bold text-amber-800">{regtSummary.held}</td>
+                    <td className="p-1 text-center border-r border-slate-300 font-bold text-purple-800">{regtSummary.totalOut}</td>
+                    <td className="p-1 text-center border-r border-slate-300 font-bold text-sky-900">{regtSummary.presentInUnit}</td>
+                    <td className="p-1 text-center border-r border-slate-300 text-amber-800">{regtSummary.offParade}</td>
+                    <td className="p-1 text-center border-r border-slate-300 bg-emerald-100 text-emerald-950 font-black">
                       {regtSummary.onParade}
                     </td>
-                    <td className="p-1.5 text-center font-black">
+                    <td className="p-1 text-center font-black">
                       {regtSummary.onParadePercentage}%
                     </td>
                   </tr>
