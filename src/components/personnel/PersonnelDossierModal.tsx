@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Personnel, ParadeStatus, isNCERank } from '../../types';
+import { Personnel, ParadeStatus, isNCERank, isCivilianRank } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StatusBadge } from '../common/StatusBadge';
 import { RankBadge } from '../common/RankBadge';
@@ -96,9 +96,15 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
             </div>
 
             <div className="flex flex-col items-start sm:items-end">
-              <span className="text-[10px] uppercase font-mono text-slate-400">Assigned Battery</span>
-              <span className="text-sm font-bold font-mono text-rose-400 bg-rose-950/40 px-3 py-1 rounded-lg border border-rose-800/60 mt-0.5">
-                {person.battery}
+              <span className="text-[10px] uppercase font-mono text-slate-400">
+                {isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? 'Establishment' : 'Assigned Battery'}
+              </span>
+              <span className={`text-sm font-bold font-mono px-3 py-1 rounded-lg border mt-0.5 ${
+                isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian'
+                  ? 'text-purple-300 bg-purple-950/40 border-purple-800/60'
+                  : 'text-rose-400 bg-rose-950/40 border-rose-800/60'
+              }`}>
+                {isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? 'Civilian (No Battery)' : person.battery}
               </span>
             </div>
           </div>
@@ -220,7 +226,11 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Sub-Unit / Battery:</span>
-                  <span className="font-semibold text-rose-400 font-mono">{person.battery}</span>
+                  <span className={`font-semibold font-mono ${
+                    isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? 'text-purple-300' : 'text-rose-400'
+                  }`}>
+                    {isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? 'Civilian (No Battery)' : person.battery}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-slate-400">Service Status:</span>

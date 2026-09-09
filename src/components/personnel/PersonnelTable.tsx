@@ -170,7 +170,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     { value: 'AB-', label: 'AB-' },
   ];
 
-  // Battery Filter Options - Serial: P Bty, Q Bty, R Bty, HQ Bty, EME
+  // Battery Filter Options - Serial: P Bty, Q Bty, R Bty, HQ Bty, EME, and Civilian Staff
   const batteryFilterOptions = [
     { value: 'All', label: 'All Batteries' },
     { value: 'P Bty', label: 'P Bty' },
@@ -178,6 +178,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     { value: 'R Bty', label: 'R Bty' },
     { value: 'HQ Bty', label: 'HQ Bty' },
     { value: 'EME', label: 'EME' },
+    { value: 'Civilian', label: 'Civilian (No Battery)' },
   ];
 
   // Filter Logic
@@ -237,7 +238,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       // 5. Battery Filter
       const activeBatteryFilter = fixedBattery || selectedBattery;
       if (activeBatteryFilter !== 'All') {
-        if (person.battery !== activeBatteryFilter) return false;
+        if (activeBatteryFilter === 'Civilian') {
+          if (!isCivilianRank(person.rk, person.trade) && person.battery !== 'Civilian') return false;
+        } else {
+          if (person.battery !== activeBatteryFilter) return false;
+        }
       }
 
       // 6. Status Filter
@@ -711,9 +716,15 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
                     {/* 6. Battery */}
                     <td className="py-2.5 px-3 text-center font-mono text-xs whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
-                        {person.battery}
-                      </span>
+                      {isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? (
+                        <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/80 text-purple-300 font-semibold shadow-sm">
+                          Civilian
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                          {person.battery || '-'}
+                        </span>
+                      )}
                     </td>
 
                     {/* 7. Parade State with inline quick update */}

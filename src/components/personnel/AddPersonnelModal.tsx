@@ -304,6 +304,9 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
                       {b}
                     </option>
                   ))}
+                  {!availableBatteries.includes('Civilian') && (
+                    <option value="Civilian">Civilian (No Battery)</option>
+                  )}
                 </select>
               </div>
 

@@ -1,0 +1,199 @@
+[
+  {
+    "id": "user_mdraiyan1512_gmail_com",
+    "username": "mdraiyan1512",
+    "password": "admin123",
+    "name": "Master Admin",
+    "email": "mdraiyan1512@gmail.com",
+    "snkNo": "OWNER-10M",
+    "rank": "Owner / Admin",
+    "role": "Admin",
+    "accessLevel": "Full System Administrator & Owner",
+    "assignedBatteries": [
+      "P Bty",
+      "Q Bty",
+      "R Bty",
+      "HQ Bty",
+      "EME"
+    ],
+    "assignedBattery": "HQ Bty",
+    "isApproved": true,
+    "approvedBy": "System / Owner",
+    "lastLogin": "Today, 09:15 hrs"
+  },
+  {
+    "id": "u-1",
+    "username": "co",
+    "name": "Lt Col Md Shafiqul Islam Rubel, PSC, G",
+    "email": "co@10med.internal",
+    "snkNo": "BA-7592",
+    "rank": "Lt Col",
+    "role": "CO",
+    "accessLevel": "Executive Strategic View",
+    "assignedBatteries": [
+      "P Bty",
+      "Q Bty",
+      "R Bty",
+      "HQ Bty",
+      "EME"
+    ],
+    "assignedBattery": "HQ Bty",
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 08:15 hrs"
+  },
+  {
+    "id": "u-2",
+    "username": "offr",
+    "name": "Capt Iftekhar Mahmud Abir",
+    "email": "offr@10med.internal",
+    "snkNo": "BA-11735",
+    "rank": "Capt",
+    "role": "Offr",
+    "accessLevel": "Regimental Officer Access (Adjutant)",
+    "assignedBatteries": [
+      "P Bty",
+      "Q Bty",
+      "R Bty",
+      "HQ Bty",
+      "EME"
+    ],
+    "assignedBattery": "HQ Bty",
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 07:45 hrs"
+  },
+  {
+    "id": "u-3",
+    "username": "rsm",
+    "name": "SWO Nasir",
+    "email": "rsm@10med.internal",
+    "snkNo": "BJO-52470",
+    "rank": "SWO",
+    "role": "RSM",
+    "accessLevel": "Consolidated Muster & Enlistment",
+    "assignedBatteries": [
+      "P Bty",
+      "Q Bty",
+      "R Bty",
+      "HQ Bty",
+      "EME"
+    ],
+    "assignedBattery": "HQ Bty",
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 06:30 hrs"
+  },
+  {
+    "id": "u-4",
+    "username": "p_bsm",
+    "name": "SWO Mohammad Rezaul Karim",
+    "email": "p_bsm@10med.internal",
+    "snkNo": "BJO-52668",
+    "rank": "SWO",
+    "role": "P BSM",
+    "accessLevel": "P Battery In-Charge",
+    "assignedBattery": "P Bty",
+    "assignedBatteries": [
+      "P Bty"
+    ],
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 06:45 hrs"
+  },
+  {
+    "id": "u-5",
+    "username": "q_bsm",
+    "name": "SWO MD NASHIR UDDIN",
+    "email": "q_bsm@10med.internal",
+    "snkNo": "BJO-52470",
+    "rank": "SWO",
+    "role": "Q BSM",
+    "accessLevel": "Q Battery In-Charge",
+    "assignedBattery": "Q Bty",
+    "assignedBatteries": [
+      "Q Bty"
+    ],
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 06:50 hrs"
+  },
+  {
+    "id": "u-6",
+    "username": "r_bsm",
+    "name": "SWO Muhammad Mostafa",
+    "email": "r_bsm@10med.internal",
+    "snkNo": "BJO-52689",
+    "rank": "SWO",
+    "role": "R BSM",
+    "accessLevel": "R Battery In-Charge",
+    "assignedBattery": "R Bty",
+    "assignedBatteries": [
+      "R Bty"
+    ],
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 06:55 hrs"
+  },
+  {
+    "id": "u-7",
+    "username": "hq_bsm",
+    "name": "MWO Md Sahinur Alam",
+    "email": "hq_bsm@10med.internal",
+    "snkNo": "BJO-52253",
+    "rank": "MWO",
+    "role": "HQ BSM",
+    "accessLevel": "HQ Battery In-Charge",
+    "assignedBattery": "HQ Bty",
+    "assignedBatteries": [
+      "HQ Bty"
+    ],
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 07:00 hrs"
+  },
+  {
+    "id": "u-8",
+    "username": "admin",
+    "password": "admin123",
+    "name": "Regimental IT Administrator",
+    "email": "admin@10med.internal",
+    "snkNo": "ADM-10M",
+    "rank": "Admin",
+    "role": "Admin",
+    "accessLevel": "Full System Administrator",
+    "assignedBatteries": [
+      "P Bty",
+      "Q Bty",
+      "R Bty",
+      "HQ Bty",
+      "EME"
+    ],
+    "assignedBattery": "HQ Bty",
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Today, 09:00 hrs"
+  },
+  {
+    "id": "guest-account",
+    "username": "Guest",
+    "password": "guest123",
+    "name": "Guest Viewer",
+    "email": "guest@10med.internal",
+    "snkNo": "GUEST-10M",
+    "rank": "Visitor",
+    "role": "Guest",
+    "accessLevel": "GUEST — VIEW ONLY",
+    "assignedBatteries": [
+      "P Bty",
+      "Q Bty",
+      "R Bty",
+      "HQ Bty",
+      "EME"
+    ],
+    "assignedBattery": "P Bty",
+    "isApproved": true,
+    "approvedBy": "System Bootstrap",
+    "lastLogin": "Active Demo Session"
+  }
+]

@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import {
   getOrCreateSqlUser,
@@ -15,6 +16,49 @@ import {
   insertSqlAuditLog,
 } from './src/db/queries.ts';
 import { isSqlConfigured } from './src/db/index.ts';
+import { INITIAL_USERS } from './src/data/initialData.ts';
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const USERS_FILE_PATH = path.join(DATA_DIR, 'users.json');
+const APP_STATE_FILE_PATH = path.join(DATA_DIR, 'app_state.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch (e) {
+    console.warn('Could not create data dir:', e);
+  }
+}
+
+function loadServerUsers(): any[] {
+  try {
+    if (fs.existsSync(USERS_FILE_PATH)) {
+      const content = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading server users:', err);
+  }
+  // Initialize with INITIAL_USERS
+  try {
+    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(INITIAL_USERS, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Error writing initial server users:', err);
+  }
+  return INITIAL_USERS;
+}
+
+function saveServerUsers(users: any[]): void {
+  try {
+    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving server users:', err);
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -197,6 +241,105 @@ async function startServer() {
       if (uid) await deleteSqlUser(uid);
       if (email) await deleteSqlUser(email);
       if (username) await deleteSqlUser(username);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // --- Centralized User Accounts & State Auto-Sync APIs ---
+
+  // 1. Get all centralized users
+  app.get('/api/users', (req, res) => {
+    try {
+      const users = loadServerUsers();
+      res.json({ success: true, count: users.length, users });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 2. Bulk sync users across all browsers and devices
+  app.post('/api/users/sync', (req, res) => {
+    try {
+      const { users } = req.body;
+      if (!Array.isArray(users) || users.length === 0) {
+        return res.status(400).json({ success: false, error: 'Expected non-empty users array' });
+      }
+      saveServerUsers(users);
+      res.json({ success: true, count: users.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 3. Upsert / update a single user (e.g. password change, profile edit)
+  app.post('/api/users', (req, res) => {
+    try {
+      const user = req.body.user || req.body;
+      if (!user || (!user.id && !user.username)) {
+        return res.status(400).json({ success: false, error: 'Valid user object required' });
+      }
+      const current = loadServerUsers();
+      const targetUsername = (user.username || '').toLowerCase();
+      const targetId = user.id;
+
+      const idx = current.findIndex(
+        (u) =>
+          (targetId && u.id === targetId) ||
+          (targetUsername && u.username && u.username.toLowerCase() === targetUsername)
+      );
+
+      if (idx >= 0) {
+        current[idx] = { ...current[idx], ...user };
+      } else {
+        current.push(user);
+      }
+      saveServerUsers(current);
+      res.json({ success: true, user: idx >= 0 ? current[idx] : user, count: current.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 4. Delete a user
+  app.delete('/api/users/:id', (req, res) => {
+    try {
+      const target = (req.params.id || '').toLowerCase();
+      const current = loadServerUsers();
+      const filtered = current.filter(
+        (u) =>
+          u.id.toLowerCase() !== target &&
+          (!u.username || u.username.toLowerCase() !== target) &&
+          (!u.email || u.email.toLowerCase() !== target)
+      );
+      saveServerUsers(filtered);
+      res.json({ success: true, count: filtered.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 5. Centralized app state sync
+  app.get('/api/sync/state', (req, res) => {
+    try {
+      if (fs.existsSync(APP_STATE_FILE_PATH)) {
+        const content = fs.readFileSync(APP_STATE_FILE_PATH, 'utf-8');
+        res.json({ success: true, state: JSON.parse(content) });
+      } else {
+        res.json({ success: true, state: null });
+      }
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/sync/state', (req, res) => {
+    try {
+      const { state } = req.body;
+      if (state) {
+        fs.writeFileSync(APP_STATE_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
+      }
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });

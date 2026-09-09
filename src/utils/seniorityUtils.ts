@@ -77,12 +77,17 @@ export const RANK_SENIORITY_MAP: Record<string, number> = {
   'civilian': 500,
   'civillian': 500,
   'civ': 500,
+  'dupi contractor': 508,
   'dupi': 510,
   'dhobi': 510,
+  'barber contractor': 518,
   'barbar': 520,
   'barber': 520,
-  'mali': 530,
-  'carpenter': 540,
+  'tailor contractor': 524,
+  'tailor': 526,
+  'carpenter': 530,
+  'mali': 535,
+  'auto driver': 540,
 };
 
 /**
@@ -103,10 +108,15 @@ export function getRankSeniorityScore(
   if (isNCURank(rank, trade)) return 410;
   if (isRCORank(rank, trade)) return 150;
   if (isCivilianRank(rank, trade)) {
-    if (cleanTrade === 'dupi' || cleanRank === 'dupi' || cleanTrade === 'dhobi') return 510;
-    if (cleanTrade === 'barbar' || cleanRank === 'barbar' || cleanTrade === 'barber') return 520;
-    if (cleanTrade === 'mali' || cleanRank === 'mali') return 530;
-    if (cleanTrade === 'carpenter' || cleanRank === 'carpenter') return 540;
+    if (cleanTrade.includes('dupi contractor')) return 508;
+    if (cleanTrade.includes('dupi') || cleanRank === 'dupi' || cleanTrade.includes('dhobi')) return 510;
+    if (cleanTrade.includes('barber contractor')) return 518;
+    if (cleanTrade.includes('barbar') || cleanRank === 'barbar' || cleanTrade.includes('barber')) return 520;
+    if (cleanTrade.includes('tailor contractor')) return 524;
+    if (cleanTrade.includes('tailor')) return 526;
+    if (cleanTrade.includes('carpenter') || cleanRank === 'carpenter') return 530;
+    if (cleanTrade.includes('mali') || cleanRank === 'mali') return 535;
+    if (cleanTrade.includes('auto driver')) return 540;
     return 500;
   }
 

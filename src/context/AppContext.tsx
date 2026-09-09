@@ -34,6 +34,7 @@ import {
 } from '../types';
 import {
   INITIAL_PERSONNEL,
+  CIVILIAN_PERSONNEL,
   INITIAL_USERS,
   INITIAL_DUTY_ROSTER,
   INITIAL_AUDIT_LOGS,
@@ -80,6 +81,12 @@ import {
   saveDutyDetailingToSupabase,
   fetchAllDutyDetailingFromSupabase,
 } from '../lib/supabase';
+import {
+  fetchServerUsers,
+  syncUsersToServer,
+  saveUserToServer,
+  deleteUserFromServer,
+} from '../lib/serverUserSync';
 
 export const MASTER_ADMIN_EMAIL = 'mdraiyan1512@gmail.com';
 export const OWNER_EMAILS: string[] = ['mdraiyan1512@gmail.com'];
@@ -469,57 +476,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentUser, setCurrentUserState] = useState<UserAccount>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.USER);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.username === 'co' || parsed.snkNo === 'BA-7124' || parsed.name?.includes('Tariq')) {
-          const newCo = INITIAL_USERS[0];
-          try {
-            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newCo));
-          } catch (e) {}
-          return newCo;
+    // Only restore currentUser if there is an active session in this browser tab
+    const isAuth = sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    if (isAuth) {
+      const saved = sessionStorage.getItem(STORAGE_KEYS.USER);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.username) return parsed;
+        } catch (e) {
+          /* fallback */
         }
-        if (parsed.username === 'offr' || parsed.snkNo === 'BA-9844' || parsed.name?.includes('Saifuddin')) {
-          const newOffr = INITIAL_USERS[1];
-          try {
-            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newOffr));
-          } catch (e) {}
-          return newOffr;
-        }
-        return parsed;
-      } catch (e) {
-        /* fallback */
       }
     }
-    return INITIAL_USERS[0]; // Default to CO
+    return INITIAL_USERS[0]; // Default to first user profile for structure
   });
 
-  // The genuinely authenticated user account (prior to any role simulation)
+  // The genuinely authenticated user account (strictly session-based)
   const [realUser, setRealUser] = useState<UserAccount | null>(() => {
-    const savedReal = localStorage.getItem(STORAGE_KEYS.REAL_USER);
-    if (savedReal) {
-      try {
-        return JSON.parse(savedReal);
-      } catch (e) {
-        /* fallback */
-      }
-    }
-    const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
-    if (savedUser) {
-      try {
-        const u = JSON.parse(savedUser);
-        if (
-          u &&
-          (u.role === 'Admin' ||
-            (u.email && u.email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase()) ||
-            u.username?.toLowerCase() === 'admin' ||
-            u.role === 'Guest' ||
-            u.username?.toLowerCase() === 'guest')
-        ) {
-          return u;
+    const isAuth = sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    if (isAuth) {
+      const savedReal = sessionStorage.getItem(STORAGE_KEYS.REAL_USER);
+      if (savedReal) {
+        try {
+          return JSON.parse(savedReal);
+        } catch (e) {
+          /* fallback */
         }
-      } catch (e) {}
+      }
+      const savedUser = sessionStorage.getItem(STORAGE_KEYS.USER);
+      if (savedUser) {
+        try {
+          const u = JSON.parse(savedUser);
+          if (u && (u.role === 'Admin' || u.username?.toLowerCase() === 'admin' || u.role === 'Guest' || u.username?.toLowerCase() === 'guest')) {
+            return u;
+          }
+        } catch (e) {}
+      }
     }
     return null;
   });
@@ -568,7 +561,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_RANKS;
   });
 
-  // Trades & Specializations Configuration (Strictly 10 Artillery/Unit Trades)
+  // Trades & Specializations Configuration (Artillery & Civilian Trades)
   const [tradesList, setTradesList] = useState<TradeConfig[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.MILITARY_TRADES);
     if (saved) {
@@ -576,22 +569,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const nonTradeNames = new Set([
-            'dupi',
-            'barbar',
-            'mali',
-            'carpenter',
             'nc(e)',
             'nc(u)',
             'civilian',
             'rco',
             'gd',
           ]);
-          const filtered = parsed.filter(
+          let workingTrades = parsed.filter(
             (t: TradeConfig) => t && t.name && !nonTradeNames.has(t.name.trim().toLowerCase())
           );
-          if (filtered.length === INITIAL_TRADES.length) {
-            return filtered;
+          // Ensure all trades from INITIAL_TRADES are available
+          let changed = false;
+          INITIAL_TRADES.forEach((initTrade) => {
+            if (!workingTrades.some((t: TradeConfig) => t.name.toLowerCase() === initTrade.name.toLowerCase())) {
+              workingTrades.push(initTrade);
+              changed = true;
+            }
+          });
+          if (changed) {
+            localStorage.setItem(STORAGE_KEYS.MILITARY_TRADES, JSON.stringify(workingTrades));
           }
+          return workingTrades;
         }
       } catch (e) {}
     }
@@ -899,6 +897,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
 
+          // Sync Civilian Staff (18 personnel) - Strictly Under Civilian (Not in any military battery)
+          CIVILIAN_PERSONNEL.forEach((civ) => {
+            const index = updatedList.findIndex(
+              (p) => p.snkNo === civ.snkNo || (p.name && p.name.trim().toLowerCase() === civ.name.trim().toLowerCase())
+            );
+            if (index !== -1) {
+              const current = updatedList[index];
+              if (
+                current.rk !== 'Civilian' ||
+                current.trade !== civ.trade ||
+                current.status !== 'Civilian' ||
+                current.snkNo !== civ.snkNo ||
+                current.battery !== 'Civilian'
+              ) {
+                hasChanges = true;
+                updatedList[index] = {
+                  ...current,
+                  snkNo: civ.snkNo,
+                  rk: 'Civilian',
+                  trade: civ.trade,
+                  status: 'Civilian',
+                  battery: 'Civilian',
+                  name: civ.name,
+                  statusDetails: civ.statusDetails || current.statusDetails,
+                };
+              }
+            } else {
+              hasChanges = true;
+              updatedList.push(civ);
+            }
+          });
+
           if (hasChanges) {
             localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(updatedList));
           }
@@ -988,22 +1018,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [pendingGoogleUser]);
 
-  // Session Authentication State
+  // Session Authentication State (Strict session storage: closing the tab ends the session)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    try {
+      // Clear legacy persistent auth tokens from localStorage so reopening browser requires fresh login
+      localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+      localStorage.removeItem(STORAGE_KEYS.USER);
+      localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+    } catch (e) {}
+    return sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
   });
 
   const [activePage, setActivePage] = useState<string>(() => {
-    const isAuth = localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    const isAuth = sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
     if (!isAuth) return 'login';
-    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_PAGE);
+    const saved = sessionStorage.getItem(STORAGE_KEYS.ACTIVE_PAGE);
     return saved && saved !== 'login' ? saved : 'main_dashboard';
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, isAuthenticated ? 'true' : 'false');
+    sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, isAuthenticated ? 'true' : 'false');
     if (isAuthenticated && activePage !== 'login') {
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_PAGE, activePage);
+      sessionStorage.setItem(STORAGE_KEYS.ACTIVE_PAGE, activePage);
+    } else {
+      sessionStorage.removeItem(STORAGE_KEYS.ACTIVE_PAGE);
     }
   }, [isAuthenticated, activePage]);
   const [selectedBatteryFilter, setSelectedBatteryFilter] = useState<Battery | 'All'>('All');
@@ -1063,6 +1101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'R Bty': { status: 'Pending', lastUpdated: 'Today 06:30' },
       'HQ Bty': { status: 'Pending', lastUpdated: 'Today 06:30' },
       'EME': { status: 'Pending', lastUpdated: 'Today 06:30' },
+      'Civilian': { status: 'Confirmed', lastUpdated: 'Permanent' },
     };
     const saved = localStorage.getItem('10med_parade_bty_status_v1');
     if (saved) {
@@ -2271,8 +2310,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [personnelList]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(currentUser));
-  }, [currentUser]);
+    if (isAuthenticated) {
+      sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(currentUser));
+    }
+  }, [currentUser, isAuthenticated]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.DUTY, JSON.stringify(dutyRoster));
@@ -2363,9 +2404,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             lastSyncedAuthUidRef.current = user.uid;
             setCurrentUserState(acct);
             setRealUser(acct);
-            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(acct));
-            localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(acct));
-            localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+            sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(acct));
+            sessionStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(acct));
+            sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+            try {
+              localStorage.removeItem(STORAGE_KEYS.USER);
+              localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+              localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+            } catch (e) {}
 
             setUsersList((prev) => {
               const filtered = prev.filter((u) => u.email?.toLowerCase() !== emailLower && u.id !== user.uid);
@@ -2378,7 +2424,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setIsAuthenticated(false);
           setPendingGoogleUser(null);
           localStorage.removeItem('10med_pending_google_user');
+          sessionStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+          sessionStorage.removeItem(STORAGE_KEYS.USER);
+          sessionStorage.removeItem(STORAGE_KEYS.REAL_USER);
           localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+          localStorage.removeItem(STORAGE_KEYS.USER);
+          localStorage.removeItem(STORAGE_KEYS.REAL_USER);
 
           try {
             logoutFirebase();
@@ -2403,35 +2454,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribeAuth();
   }, []);
 
-  // Cloud Database Initialization & Supabase Whitelist Bootstrap
+  // Centralized Server & Database Auto-Sync for User Accounts (Cross-Browser Real-Time Sync)
   useEffect(() => {
     setIsFirebaseReady(true);
     setCloudPermissionDenied(false);
-    if (isSupabaseConfigured()) {
-      fetchAuthorizedUsersFromSupabase()
-        .then((res) => {
-          if (res.success && res.users && res.users.length > 0) {
-            const deleted = getDeletedUserIdentifiers();
-            setUsersList((prev) => {
-              const existingEmails = new Set(prev.map((u) => u.email?.toLowerCase()).filter(Boolean));
-              const existingUsernames = new Set(prev.map((u) => u.username?.toLowerCase()).filter(Boolean));
-              const existingIds = new Set(prev.map((u) => u.id));
 
-              const newFromSupabase = res.users.filter((u) => {
-                if (isUserDeleted(u, deleted)) return false;
-                const emailMatch = u.email && existingEmails.has(u.email.toLowerCase());
-                const usernameMatch = u.username && existingUsernames.has(u.username.toLowerCase());
-                const idMatch = u.id && existingIds.has(u.id);
-                return !emailMatch && !usernameMatch && !idMatch;
-              });
-              if (newFromSupabase.length === 0) return prev;
-              const merged = [...prev, ...newFromSupabase];
-              localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(merged));
-              return merged;
-            });
+    const performDatabaseUserSync = async () => {
+      try {
+        const serverUsers = await fetchServerUsers();
+        if (serverUsers && serverUsers.length > 0) {
+          const deleted = getDeletedUserIdentifiers();
+          const validServerUsers = serverUsers.filter((u) => !isUserDeleted(u, deleted));
+          
+          setUsersList(validServerUsers);
+          localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(validServerUsers));
+
+          // Also mirror to Supabase authorized_users for cloud consistency
+          if (isSupabaseConfigured()) {
+            syncAuthorizedUsersToSupabase(validServerUsers).catch((err) =>
+              console.warn('Supabase mirror sync note:', err)
+            );
           }
-        })
-        .catch((e) => console.warn('Supabase bootstrap note:', e));
+          return;
+        }
+      } catch (err) {
+        console.warn('Server user sync error:', err);
+      }
+
+      // Fallback: If server is unavailable, check Supabase
+      if (isSupabaseConfigured()) {
+        fetchAuthorizedUsersFromSupabase()
+          .then((res) => {
+            if (res.success && res.users && res.users.length > 0) {
+              const deleted = getDeletedUserIdentifiers();
+              setUsersList((prev) => {
+                const existingEmails = new Set(prev.map((u) => u.email?.toLowerCase()).filter(Boolean));
+                const existingUsernames = new Set(prev.map((u) => u.username?.toLowerCase()).filter(Boolean));
+                const existingIds = new Set(prev.map((u) => u.id));
+
+                const newFromSupabase = res.users.filter((u) => {
+                  if (isUserDeleted(u, deleted)) return false;
+                  const emailMatch = u.email && existingEmails.has(u.email.toLowerCase());
+                  const usernameMatch = u.username && existingUsernames.has(u.username.toLowerCase());
+                  const idMatch = u.id && existingIds.has(u.id);
+                  return !emailMatch && !usernameMatch && !idMatch;
+                });
+                if (newFromSupabase.length === 0) return prev;
+                const merged = [...prev, ...newFromSupabase];
+                localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(merged));
+                return merged;
+              });
+            }
+          })
+          .catch((e) => console.warn('Supabase bootstrap note:', e));
+      }
+    };
+
+    // Initial sync
+    performDatabaseUserSync();
+
+    // Auto-sync every 15 seconds so changes made in one browser appear in all browsers
+    const autoSyncInterval = setInterval(performDatabaseUserSync, 15000);
+
+    // Auto-sync when window receives focus
+    const onWindowFocus = () => {
+      performDatabaseUserSync();
+    };
+    window.addEventListener('focus', onWindowFocus);
+
+    return () => {
+      clearInterval(autoSyncInterval);
+      window.removeEventListener('focus', onWindowFocus);
+    };
+  }, []);
+
+  // Supabase Duty Detailing Bootstrap
+  useEffect(() => {
+    if (isSupabaseConfigured()) {
 
       // Auto-load any previously saved Duty Detailing from Supabase Cloud
       fetchAllDutyDetailingFromSupabase()
@@ -2568,9 +2667,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAuthenticated(true);
         setPendingGoogleUser(null);
         localStorage.removeItem('10med_pending_google_user');
-        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(activeAcct));
-        localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(activeAcct));
-        localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+        sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(activeAcct));
+        sessionStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(activeAcct));
+        sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+        try {
+          localStorage.removeItem(STORAGE_KEYS.USER);
+          localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+        } catch (e) {}
 
         setUsersList((prev) => {
           const filtered = prev.filter((u) => u.email?.toLowerCase() !== emailLower && u.id !== user.uid);
@@ -2927,9 +3031,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsAuthenticated(true);
       setPendingGoogleUser(null);
       localStorage.removeItem('10med_pending_google_user');
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(ownerAcct));
-      localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(ownerAcct));
-      localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+      sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(ownerAcct));
+      sessionStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(ownerAcct));
+      sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+      try {
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+      } catch (e) {}
       setActivePage('admin_panel');
       showNotification('ওনার হিসেবে প্রবেশাধিকার উন্মুক্ত করা হয়েছে!');
       return true;
@@ -2965,9 +3074,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setIsAuthenticated(true);
             setPendingGoogleUser(null);
             localStorage.removeItem('10med_pending_google_user');
-            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(approvedAcct));
-            localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(approvedAcct));
-            localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+            sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(approvedAcct));
+            sessionStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(approvedAcct));
+            sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+            try {
+              localStorage.removeItem(STORAGE_KEYS.USER);
+              localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+              localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+            } catch (e) {}
 
             if (approvedAcct.role === 'CO') setActivePage('co_dashboard');
             else if (approvedAcct.role === 'Offr') setActivePage('offr_dashboard');
@@ -3013,9 +3127,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsAuthenticated(true);
       setPendingGoogleUser(null);
       localStorage.removeItem('10med_pending_google_user');
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(approvedAcct));
-      localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(approvedAcct));
-      localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+      sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(approvedAcct));
+      sessionStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(approvedAcct));
+      sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+      try {
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+      } catch (e) {}
 
       if (approvedAcct.role === 'CO') setActivePage('co_dashboard');
       else if (approvedAcct.role === 'Offr') setActivePage('offr_dashboard');
@@ -3078,7 +3197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // Password verification: Admin default is admin123; Guest default is guest123
+    // Password verification: dynamic per user (as set by Admin). No hardcoded passwords.
     let validPassword = user.password;
     if (!validPassword) {
       if (
@@ -3098,13 +3217,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড প্রদান করুন।' };
     }
 
-    // Login successful
+    // Login successful (Strict session storage - closes with tab)
     setCurrentUserState(user);
     setRealUser(user);
     setIsAuthenticated(true);
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-    localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(user));
-    localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    sessionStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(user));
+    sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
+    try {
+      localStorage.removeItem(STORAGE_KEYS.USER);
+      localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+      localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+    } catch (e) {}
 
     // Route to designated dashboard based on role
     if (user.role === 'CO') {
@@ -3150,6 +3274,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRealUser(null);
     setPendingGoogleUser(null);
     localStorage.removeItem('10med_pending_google_user');
+    sessionStorage.removeItem(STORAGE_KEYS.REAL_USER);
+    sessionStorage.removeItem(STORAGE_KEYS.USER);
+    sessionStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+    sessionStorage.removeItem(STORAGE_KEYS.ACTIVE_PAGE);
     localStorage.removeItem(STORAGE_KEYS.REAL_USER);
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
@@ -3488,7 +3616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignedBattery: defaultBty,
       };
       setCurrentUserState(updatedUser);
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+      sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
 
       // Auto-route to corresponding role dashboard
       if (role === 'CO') {
@@ -3539,8 +3667,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newUser.username ? `${newUser.username.toLowerCase()}@10med.internal` : null,
     ]);
 
+    let updatedNextList: UserAccount[] = [];
     setUsersList((prev) => {
       const next = [...prev, newUser];
+      updatedNextList = next;
       localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(next));
       return next;
     });
@@ -3553,6 +3683,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }`,
       'SECURITY'
     );
+    // Sync to centralized server / database
+    saveUserToServer(newUser).catch((e) => console.warn('Server addUser error:', e));
+    if (updatedNextList.length > 0) {
+      syncUsersToServer(updatedNextList).catch((e) => console.warn('Server bulk sync error:', e));
+    }
+
     // Sync to Firestore
     syncDoc(setDoc(doc(db, 'users', newId), sanitizeForFirestore(newUser)), 'add user');
 
@@ -3570,18 +3706,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     let finalUpdated: UserAccount | null = null;
+    let updatedNextList: UserAccount[] = [];
     setUsersList((prev) => {
       const next = prev.map((u) => {
         if (u.id === id) {
           finalUpdated = { ...u, ...updated };
           if (currentUser.id === id || (currentUser.email && u.email && currentUser.email.toLowerCase() === u.email.toLowerCase())) {
             setCurrentUserState(finalUpdated);
-            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(finalUpdated));
+            sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(finalUpdated));
           }
           return finalUpdated;
         }
         return u;
       });
+      updatedNextList = next;
       localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(next));
       return next;
     });
@@ -3592,6 +3730,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (finalUpdated as UserAccount).username,
         (finalUpdated as UserAccount).email,
       ]);
+
+      // Sync to centralized server / database
+      saveUserToServer(finalUpdated).catch((e) => console.warn('Server updateUser error:', e));
+      if (updatedNextList.length > 0) {
+        syncUsersToServer(updatedNextList).catch((e) => console.warn('Server bulk sync error:', e));
+      }
     }
 
     showNotification(`User account updated successfully.`);
@@ -3650,6 +3794,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const remainingUsers = usersList.filter((u) => u.id !== id);
     setUsersList(remainingUsers);
     localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(remainingUsers));
+
+    // Delete from centralized server / database
+    deleteUserFromServer(target.id).catch((e) => console.warn('Server deleteUser error:', e));
+    syncUsersToServer(remainingUsers).catch((e) => console.warn('Server bulk sync error:', e));
 
     showNotification(`User @${target.username} (${target.name}) removed.`);
     addAuditLog('User Deleted (Admin)', `Deleted user account @${target.username} (${target.name})`, 'SECURITY');

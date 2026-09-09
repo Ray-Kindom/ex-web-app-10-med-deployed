@@ -154,9 +154,9 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
 
   // Quick edit buffer to allow fluid typing without lagging
   const [countsBuffer, setCountsBuffer] = useState<
-    Record<string, Record<Battery, ParadePointCount>>
+    Record<string, Partial<Record<Battery, ParadePointCount>>>
   >(() => {
-    const buffer: Record<string, Record<Battery, ParadePointCount>> = {};
+    const buffer: Record<string, Partial<Record<Battery, ParadePointCount>>> = {};
     dynamicParadePoints.forEach((pt) => {
       buffer[pt.id] = {
         'P Bty': { ...(pt.counts['P Bty'] || { offr: 0, jco: 0, or: 0 }) },
@@ -171,7 +171,7 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
 
   // Keep buffer in sync when modal opens or dynamic points/date/session update
   React.useEffect(() => {
-    const buffer: Record<string, Record<Battery, ParadePointCount>> = {};
+    const buffer: Record<string, Partial<Record<Battery, ParadePointCount>>> = {};
 
     // 1. First try loading saved record for this date and session
     ALL_BATTERIES.forEach((bty) => {

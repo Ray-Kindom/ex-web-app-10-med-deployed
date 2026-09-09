@@ -227,6 +227,7 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
                       {su.code || su.name}
                     </option>
                   ))}
+                  <option value="Civilian">Civilian (No Battery)</option>
                 </select>
               </div>
 

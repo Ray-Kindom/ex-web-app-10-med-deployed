@@ -66,7 +66,19 @@ export const isNCURank = (rank?: string, trade?: string): boolean => {
   return rank === 'NC(U)' || trade === 'NC(U)' || rank === 'NC (U)' || trade === 'NC (U)';
 };
 
-export const CIVILIAN_TRADES: string[] = ['Dupi', 'Barbar', 'Mali', 'Carpenter'];
+export const CIVILIAN_TRADES: string[] = [
+  'Dupi Contractor',
+  'Dupi',
+  'Barber Contractor',
+  'Barber',
+  'Barbar',
+  'Tailor Contractor',
+  'Tailor',
+  'Carpenter',
+  'Mali',
+  'Auto Driver',
+  'Civilian',
+];
 
 export const isCivilianRank = (rank?: string, trade?: string): boolean => {
   if (!rank && !trade) return false;
@@ -78,25 +90,28 @@ export const isCivilianRank = (rank?: string, trade?: string): boolean => {
     cleanRank === 'civilian' ||
     cleanRank === 'civillian' ||
     cleanRank === 'civ' ||
+    cleanRank.includes('civ') ||
     cleanTrade === 'civilian' ||
     cleanTrade === 'civillian' ||
     cleanTrade === 'civ' ||
     cleanRank === 'dupi' ||
     cleanRank === 'dhobi' ||
-    cleanTrade === 'dupi' ||
-    cleanTrade === 'dhobi' ||
+    cleanTrade.includes('dupi') ||
+    cleanTrade.includes('dhobi') ||
     cleanRank === 'barbar' ||
     cleanRank === 'barber' ||
-    cleanTrade === 'barbar' ||
-    cleanTrade === 'barber' ||
+    cleanTrade.includes('barbar') ||
+    cleanTrade.includes('barber') ||
     cleanRank === 'mali' ||
-    cleanTrade === 'mali' ||
+    cleanTrade.includes('mali') ||
     cleanRank === 'carpenter' ||
-    cleanTrade === 'carpenter'
+    cleanTrade.includes('carpenter') ||
+    cleanTrade.includes('tailor') ||
+    cleanTrade.includes('auto driver')
   );
 };
 
-export type Battery = 'P Bty' | 'Q Bty' | 'R Bty' | 'HQ Bty' | 'EME';
+export type Battery = 'P Bty' | 'Q Bty' | 'R Bty' | 'HQ Bty' | 'EME' | 'Civilian';
 
 export const ALL_BATTERIES: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'];
 
@@ -147,9 +162,14 @@ export type Trade =
   | 'E&BR'
   | 'AEC'
   | 'Dupi'
+  | 'Dupi Contractor'
+  | 'Barber'
+  | 'Barber Contractor'
   | 'Barbar'
+  | 'Tailor Contractor'
   | 'Mali'
   | 'Carpenter'
+  | 'Auto Driver'
   | 'NC(E)'
   | 'NC(U)'
   | 'Civilian'
@@ -169,6 +189,14 @@ export const ALL_TRADES: Trade[] = [
   'E&BR',
   'AEC',
   'SMT',
+  'Dupi Contractor',
+  'Dupi',
+  'Barber Contractor',
+  'Barber',
+  'Tailor Contractor',
+  'Carpenter',
+  'Mali',
+  'Auto Driver',
 ];
 
 export type OutOfUnitCategory =

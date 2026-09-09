@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Personnel, isNCERank } from '../types';
+import { Personnel, isNCERank, isCivilianRank } from '../types';
 import { sortBySeniority } from './seniorityUtils';
 
 export interface ExportFilterOptions {
@@ -98,7 +98,7 @@ export const exportNominalRollToPdf = (
     person.rk || '',
     person.trade && person.trade !== '-' && !isNCERank(person.rk, person.trade) && !['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(person.rk) ? person.trade : '-',
     person.name || '',
-    person.battery || '',
+    isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? 'Civilian' : (person.battery || ''),
     person.status || '',
     person.medicalCategory || 'AYE',
     person.bloodGroup || 'O+',
@@ -222,7 +222,7 @@ export const exportNominalRollToWord = (
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px;">${p.rk || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px; color: #0284c7;">${p.trade && p.trade !== '-' && !isNCERank(p.rk, p.trade) && !['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(p.rk) ? p.trade : '-'}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; font-size: 11px;">${p.name || ''}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.battery || ''}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${isCivilianRank(p.rk, p.trade) || p.battery === 'Civilian' ? 'Civilian' : (p.battery || '')}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px; font-weight: 500;">${p.status || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.medicalCategory || 'AYE'}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.bloodGroup || 'O+'}</td>
