@@ -170,13 +170,14 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     { value: 'AB-', label: 'AB-' },
   ];
 
-  // Battery Filter Options - Serial: P Bty, Q Bty, R Bty, HQ Bty
+  // Battery Filter Options - Serial: P Bty, Q Bty, R Bty, HQ Bty, EME
   const batteryFilterOptions = [
     { value: 'All', label: 'All Batteries' },
     { value: 'P Bty', label: 'P Bty' },
     { value: 'Q Bty', label: 'Q Bty' },
     { value: 'R Bty', label: 'R Bty' },
     { value: 'HQ Bty', label: 'HQ Bty' },
+    { value: 'EME', label: 'EME' },
   ];
 
   // Filter Logic

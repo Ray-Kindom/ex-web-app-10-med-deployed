@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { SystemCategory, SubCategoryItem, Battery } from '../../types';
+import { SystemCategory, SubCategoryItem, Battery, ALL_BATTERIES } from '../../types';
 import {
   Layers,
   Plus,
@@ -19,8 +19,6 @@ import {
   HelpCircle,
   Sparkles,
 } from 'lucide-react';
-
-const ALL_BATTERIES: Battery[] = ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
 
 export const CategoryManagementTab: React.FC = () => {
   const {

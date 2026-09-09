@@ -51,7 +51,7 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
   // Dynamic battery options from Admin configuration
   const availableBatteries = React.useMemo(() => {
     const activeUnits = (subUnitsList || []).filter((u) => u && u.isActive !== false);
-    return activeUnits.length > 0 ? activeUnits.map((u) => u.name as Battery) : ALL_BATTERIES;
+    return activeUnits.length > 0 ? activeUnits.map((u) => (u.code || u.name) as Battery) : ALL_BATTERIES;
   }, [subUnitsList]);
 
   const [snkNo, setSnkNo] = useState('');

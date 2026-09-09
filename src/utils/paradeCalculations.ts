@@ -1,4 +1,4 @@
-import { Personnel, Battery, ParadeDutyAssignment, DailyParadePoint, AuthEstablishmentItem } from '../types';
+import { Personnel, Battery, ALL_BATTERIES, ParadeDutyAssignment, DailyParadePoint, AuthEstablishmentItem } from '../types';
 
 export interface SimpleParadeSummary {
   battery: Battery | 'Consolidated';
@@ -54,20 +54,36 @@ export function getAuthorizedEstablishment(
   authList?: AuthEstablishmentItem[]
 ): number {
   if (authList && Array.isArray(authList)) {
+    // 1. Check if there is a subUnit matching batteryScope
+    const subUnitItem = authList.find((a) => a.subUnit === batteryScope);
+    if (subUnitItem) {
+      if (typeof subUnitItem.total === 'number' && subUnitItem.total > 0) return subUnitItem.total;
+      if (typeof subUnitItem.authorized === 'number' && subUnitItem.authorized > 0) return subUnitItem.authorized;
+    }
+    if (batteryScope === 'Consolidated') {
+      const unitTotal = authList.find((a) => a.subUnit === 'Total Unit' || a.subUnit === 'All' || a.id === 'auth-total');
+      if (unitTotal) {
+        if (typeof unitTotal.total === 'number' && unitTotal.total > 0) return unitTotal.total;
+        if (typeof unitTotal.authorized === 'number' && unitTotal.authorized > 0) return unitTotal.authorized;
+      }
+    }
+
     const totalItem = authList.find((a) => a.id === 'auth-total');
     if (totalItem) {
-      if (batteryScope === 'Consolidated') return totalItem.authorized || 638;
-      if (batteryScope === 'HQ Bty') return totalItem.hqBty || 154;
-      if (batteryScope === 'P Bty') return totalItem.pBty || 160;
-      if (batteryScope === 'Q Bty') return totalItem.qBty || 159;
-      if (batteryScope === 'R Bty') return totalItem.rBty || 159;
+      if (batteryScope === 'Consolidated') return totalItem.authorized || totalItem.total || 638;
+      if (batteryScope === 'P Bty') return totalItem.pBty ?? 158;
+      if (batteryScope === 'Q Bty') return totalItem.qBty ?? 158;
+      if (batteryScope === 'R Bty') return totalItem.rBty ?? 158;
+      if (batteryScope === 'HQ Bty') return totalItem.hqBty ?? 135;
+      if (batteryScope === 'EME') return totalItem.eme ?? totalItem.wksp ?? 29;
     }
   }
   if (batteryScope === 'Consolidated') return 638;
-  if (batteryScope === 'HQ Bty') return 154;
-  if (batteryScope === 'P Bty') return 160;
-  if (batteryScope === 'Q Bty') return 159;
-  if (batteryScope === 'R Bty') return 159;
+  if (batteryScope === 'P Bty') return 158;
+  if (batteryScope === 'Q Bty') return 158;
+  if (batteryScope === 'R Bty') return 158;
+  if (batteryScope === 'HQ Bty') return 135;
+  if (batteryScope === 'EME') return 29;
   return 638;
 }
 
@@ -265,7 +281,7 @@ export function calculateSimpleParadeState(
     );
     if (sickPoint && sickPoint.counts) {
       if (batteryScope === 'Consolidated') {
-        const batteries: Battery[] = ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
+        const batteries: Battery[] = ALL_BATTERIES;
         lineSick = batteries.reduce((acc, b) => {
           const c = sickPoint.counts[b];
           return acc + (c ? (c.offr || 0) + (c.jco || 0) + (c.or || 0) : 0);

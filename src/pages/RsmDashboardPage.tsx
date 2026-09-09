@@ -127,8 +127,8 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
           <div className="text-[11px] font-mono text-slate-400 mb-2 uppercase font-semibold">
             Battery Parade State Submissions & Confirmation Status:
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty'] as const).map((bty) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+            {(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'] as const).map((bty) => {
               const bStat = paradeBatteryStatus[bty] || { status: 'Pending', lastUpdated: '0630 HRS' };
               const isConfirmed = bStat.status === 'Confirmed';
               const btyPersonnel = personnelList.filter((p) => p.battery === bty);

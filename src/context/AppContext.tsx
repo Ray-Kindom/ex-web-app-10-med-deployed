@@ -4,6 +4,7 @@ import {
   UserAccount,
   Role,
   Battery,
+  ALL_BATTERIES,
   ParadeStatus,
   DutyAssignment,
   AuditLogItem,
@@ -606,9 +607,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasOldData = parsed.some(
+            (item: any) =>
+              item.id === 'auth-offr' ||
+              item.hqBty === 154 ||
+              item.pBty === 160 ||
+              item.total === 160 ||
+              item.total === 154 ||
+              item.authorized === 160 ||
+              item.authorized === 154
+          );
+          const hasEme = parsed.some((item: any) => item.subUnit === 'EME' || item.id === 'auth-eme');
+          if (!hasOldData && hasEme) return parsed;
+        }
       } catch (e) {}
     }
+    localStorage.setItem(STORAGE_KEYS.AUTH_ESTABLISHMENT, JSON.stringify(INITIAL_AUTH_ESTABLISHMENT));
     return INITIAL_AUTH_ESTABLISHMENT;
   });
 
@@ -845,6 +860,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           });
 
+          // Sync EME personnel (12 designated personnel moved from HQ Bty to EME)
+          const EME_PERSONNEL_MAP: Record<string, { rk: string; trade: string; name: string }> = {
+            'BJO-77474': { rk: 'SWO', trade: 'TSA', name: 'Md. Fayzar Rahman' },
+            '2411761': { rk: 'Sgt', trade: 'TBV', name: 'Gobinda Chandra Mondal' },
+            '2413815': { rk: 'Cpl', trade: 'TSA', name: 'Md. Monirul Islam' },
+            '2415218': { rk: 'Cpl', trade: 'TSA', name: 'Md. Mahsun-E-Khoda' },
+            '2415846': { rk: 'Lcpl', trade: 'RMT', name: 'Md. Saddam Hossain' },
+            '2416197': { rk: 'Lcpl', trade: 'TBV', name: 'Md. Tuhin Sardar' },
+            '2417678': { rk: 'Lcpl', trade: 'TSA', name: 'Md. Sujon Mia' },
+            '2418593': { rk: 'Snk', trade: 'RCT', name: 'Md. Sabuj Mia' },
+            '2418380': { rk: 'Snk', trade: 'TBV', name: 'Md. Afzal Hossain' },
+            '2421869': { rk: 'Snk', trade: 'Welder', name: 'Md. Mahmudul Hasan Nasim' },
+            '2421871': { rk: 'Snk', trade: 'TBV', name: 'Md. Jony Mia' },
+            '2422081': { rk: 'Snk', trade: 'SMT', name: 'Abdul Mokaddem Khandaker' },
+          };
+
+          updatedList.forEach((p, idx) => {
+            const emeData = EME_PERSONNEL_MAP[p.snkNo];
+            if (emeData) {
+              if (p.battery !== 'EME' || p.name !== emeData.name || p.trade !== emeData.trade || p.rk !== emeData.rk) {
+                hasChanges = true;
+                updatedList[idx] = {
+                  ...p,
+                  battery: 'EME',
+                  rk: emeData.rk as any,
+                  trade: emeData.trade,
+                  name: emeData.name,
+                };
+              }
+            }
+          });
+          if (!updatedList.some((p) => p.snkNo === '2422081')) {
+            const initialMokaddem = INITIAL_PERSONNEL.find((p) => p.snkNo === '2422081');
+            if (initialMokaddem) {
+              hasChanges = true;
+              updatedList.push(initialMokaddem);
+            }
+          }
+
           if (hasChanges) {
             localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(updatedList));
           }
@@ -1003,18 +1057,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [paradeBatteryStatus, setParadeBatteryStatusState] = useState<
     Record<Battery, { status: 'Pending' | 'Confirmed'; lastUpdated: string; confirmedBy?: string }>
   >(() => {
-    const saved = localStorage.getItem('10med_parade_bty_status_v1');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {
+    const initialStatus: Record<Battery, { status: 'Pending' | 'Confirmed'; lastUpdated: string; confirmedBy?: string }> = {
       'P Bty': { status: 'Pending', lastUpdated: 'Today 06:30' },
       'Q Bty': { status: 'Pending', lastUpdated: 'Today 06:30' },
       'R Bty': { status: 'Pending', lastUpdated: 'Today 06:30' },
       'HQ Bty': { status: 'Pending', lastUpdated: 'Today 06:30' },
+      'EME': { status: 'Pending', lastUpdated: 'Today 06:30' },
     };
+    const saved = localStorage.getItem('10med_parade_bty_status_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...initialStatus, ...parsed };
+      } catch (e) {}
+    }
+    return initialStatus;
   });
 
   const setBatteryParadeStatus = (battery: Battery, status: 'Pending' | 'Confirmed') => {
@@ -1258,7 +1315,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const batteries: Battery[] = ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
+    const batteries: Battery[] = ALL_BATTERIES;
     
     setParadeRecords((prev) => {
       const next = { ...prev };
@@ -2266,7 +2323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               rank: rankToUse,
               role: roleToUse,
               assignedBattery: batToUse,
-              assignedBatteries: existingApproved?.assignedBatteries || ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+              assignedBatteries: existingApproved?.assignedBatteries || ALL_BATTERIES,
               email: user.email,
               avatar: user.photoURL || existingApproved?.avatar || undefined,
               isApproved: true,
@@ -2291,7 +2348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               assignedBattery: approvedReq?.assignedBattery || 'HQ Bty',
               assignedBatteries:
                 approvedReq?.assignedRole === 'CO' || approvedReq?.assignedRole === 'Admin' || approvedReq?.assignedRole === 'Offr' || approvedReq?.assignedRole === 'RSM'
-                  ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+                  ? ALL_BATTERIES
                   : [approvedReq?.assignedBattery || 'HQ Bty'],
               email: user.email,
               avatar: user.photoURL || undefined,
@@ -2496,7 +2553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assignedBattery: userBattery,
           assignedBatteries:
             userRole === 'Admin' || userRole === 'CO' || userRole === 'Offr' || userRole === 'RSM'
-              ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+              ? ALL_BATTERIES
               : [userBattery],
           email: user.email,
           avatar: user.photoURL || existingUser?.avatar || undefined,
@@ -2628,7 +2685,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assignedBattery: assignedBat,
       assignedBatteries:
         role === 'Admin' || role === 'CO' || role === 'Offr' || role === 'RSM'
-          ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+          ? ALL_BATTERIES
           : [assignedBat],
       email: targetReq.email,
       avatar: targetReq.photoURL,
@@ -2694,7 +2751,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assignedBattery: assignedBat,
       assignedBatteries:
         role === 'Admin' || role === 'CO' || role === 'Offr' || role === 'RSM'
-          ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+          ? ALL_BATTERIES
           : [assignedBat],
       email: cleanEmail,
       isApproved: true,
@@ -2778,7 +2835,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assignedBattery: assignedBat,
           assignedBatteries:
             newRole === 'CO' || newRole === 'Admin' || newRole === 'Offr' || newRole === 'RSM'
-              ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+              ? ALL_BATTERIES
               : [assignedBat],
         };
         updatedAccountForSupabase = updated;
@@ -2799,7 +2856,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           assignedBattery: assignedBat,
           assignedBatteries:
             newRole === 'CO' || newRole === 'Admin' || newRole === 'Offr' || newRole === 'RSM'
-              ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+              ? ALL_BATTERIES
               : [assignedBat],
           email: cleanEmail,
           isApproved: true,
@@ -2857,7 +2914,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rank: chosenRank,
         role: chosenRole,
         assignedBattery: chosenBat,
-        assignedBatteries: existing?.assignedBatteries || ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+        assignedBatteries: existing?.assignedBatteries || ALL_BATTERIES,
         email: pendingGoogleUser.email,
         avatar: pendingGoogleUser.photoURL,
         isApproved: true,
@@ -2894,7 +2951,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               assignedBattery: assignedBat,
               assignedBatteries:
                 reqData.assignedRole === 'CO' || reqData.assignedRole === 'Admin' || reqData.assignedRole === 'Offr' || reqData.assignedRole === 'RSM'
-                  ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+                  ? ALL_BATTERIES
                   : [assignedBat],
               email: pendingGoogleUser.email,
               avatar: pendingGoogleUser.photoURL,
@@ -2944,7 +3001,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignedBattery: assignedBat,
         assignedBatteries:
           assignedRole === 'CO' || assignedRole === 'Admin' || assignedRole === 'Offr' || assignedRole === 'RSM'
-            ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+            ? ALL_BATTERIES
             : [assignedBat],
         email: pendingGoogleUser.email,
         avatar: pendingGoogleUser.photoURL,
@@ -3996,7 +4053,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDailyParadePoints((prev) =>
       prev.map((pt) => {
         if (pt.id === pointId) {
-          const current = pt.enabledBatteries || ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
+          const current = pt.enabledBatteries || ALL_BATTERIES;
           const updated = enabled
             ? Array.from(new Set([...current, battery]))
             : current.filter((b) => b !== battery);
@@ -4055,12 +4112,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: trimmed,
       order: dailyParadePoints.length + 1,
       isActive: true,
-      enabledBatteries: enabledBatteries || ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+      enabledBatteries: enabledBatteries || ALL_BATTERIES,
       counts: {
-        'HQ Bty': { ...defaultCount },
         'P Bty': { ...defaultCount },
         'Q Bty': { ...defaultCount },
         'R Bty': { ...defaultCount },
+        'HQ Bty': { ...defaultCount },
+        'EME': { ...defaultCount },
       },
     };
     setDailyParadePoints((prev) => [...prev, newPoint]);
@@ -4112,7 +4170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getBatterySummaries = (): BatteryParadeSummary[] => {
-    const batteries: Battery[] = ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
+    const batteries: Battery[] = ALL_BATTERIES;
     return batteries.map((bty) => {
       const btyMembers = personnelList.filter((p) => p.battery === bty);
       const totalPersonnel = btyMembers.length;

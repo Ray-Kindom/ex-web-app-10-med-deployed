@@ -52,9 +52,9 @@ export const AuthEstablishmentTab: React.FC = () => {
 
   const handleStartEdit = (item: AuthEstablishmentItem) => {
     setEditingId(item.id);
-    setEditOffr(item.offr);
-    setEditJco(item.jco);
-    setEditOr(item.or);
+    setEditOffr(item.offr ?? 0);
+    setEditJco(item.jco ?? 0);
+    setEditOr(item.or ?? (item.total || item.authorized || 0));
   };
 
   const handleSaveEdit = (id: string) => {
@@ -64,6 +64,7 @@ export const AuthEstablishmentTab: React.FC = () => {
       jco: editJco,
       or: editOr,
       total,
+      authorized: total,
     });
     setEditingId(null);
     showNotification('Authorized Establishment figures updated.');
@@ -148,9 +149,11 @@ export const AuthEstablishmentTab: React.FC = () => {
             <tbody className="divide-y divide-slate-800/60 font-sans">
               {authEstablishmentList.map((item) => {
                 const isEditing = editingId === item.id;
-                const held = getHeldCounts(item.subUnit);
-                const diff = held.total - item.total;
-                const isUnitTotal = item.subUnit === 'Total Unit';
+                const subUnitLabel = item.subUnit || item.category || 'Unit';
+                const held = getHeldCounts(subUnitLabel);
+                const itemTotal = typeof item.total === 'number' ? item.total : (item.authorized || 0);
+                const diff = held.total - (isEditing ? editOffr + editJco + editOr : itemTotal);
+                const isUnitTotal = subUnitLabel === 'Total Unit' || subUnitLabel === 'Total' || item.id === 'auth-total';
 
                 return (
                   <tr
@@ -163,7 +166,7 @@ export const AuthEstablishmentTab: React.FC = () => {
                   >
                     <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                      <span>{item.subUnit}</span>
+                      <span>{subUnitLabel}</span>
                     </td>
 
                     <td className="py-3 px-4 text-slate-400">{item.category}</td>
@@ -179,7 +182,7 @@ export const AuthEstablishmentTab: React.FC = () => {
                           className="w-16 px-2 py-1 rounded bg-slate-950 border border-slate-700 text-white text-center font-bold"
                         />
                       ) : (
-                        <span className="text-white font-bold">{item.offr}</span>
+                        <span className="text-white font-bold">{item.offr ?? '-'}</span>
                       )}
                     </td>
 
@@ -194,7 +197,7 @@ export const AuthEstablishmentTab: React.FC = () => {
                           className="w-16 px-2 py-1 rounded bg-slate-950 border border-slate-700 text-white text-center font-bold"
                         />
                       ) : (
-                        <span className="text-white font-bold">{item.jco}</span>
+                        <span className="text-white font-bold">{item.jco ?? '-'}</span>
                       )}
                     </td>
 
@@ -209,13 +212,13 @@ export const AuthEstablishmentTab: React.FC = () => {
                           className="w-16 px-2 py-1 rounded bg-slate-950 border border-slate-700 text-white text-center font-bold"
                         />
                       ) : (
-                        <span className="text-white font-bold">{item.or}</span>
+                        <span className="text-white font-bold">{item.or ?? '-'}</span>
                       )}
                     </td>
 
                     {/* TOTAL */}
                     <td className="py-3 px-4 text-center font-mono font-bold text-white text-sm bg-slate-950/40">
-                      {isEditing ? editOffr + editJco + editOr : item.total}
+                      {isEditing ? editOffr + editJco + editOr : itemTotal}
                     </td>
 
                     {/* HELD */}

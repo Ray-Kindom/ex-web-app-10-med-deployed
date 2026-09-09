@@ -42,8 +42,8 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
       ? 'HQ Bty'
       : 'P Bty');
 
-  // Battery serial: P Bty, Q Bty, R Bty, HQ Bty
-  const batteryOrder: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty'];
+  // Battery serial: P Bty, Q Bty, R Bty, HQ Bty, EME
+  const batteryOrder: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'];
 
   // Two primary modes: 'REGT' (Regt Nominal) or 'BTY' (Bty Nominal). For BSM, always strictly 'BTY'.
   const [viewMode, setViewMode] = useState<'REGT' | 'BTY'>(isBsm ? 'BTY' : 'REGT');

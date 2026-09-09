@@ -41,7 +41,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
     setActiveOutOfUnitCategory,
   } = useApp();
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM', 'EME JCO'].includes(currentUser.role);
   const assignedBty: Battery =
     currentUser.assignedBattery ||
     (currentUser.role === 'P BSM'
@@ -52,6 +52,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
       ? 'R Bty'
       : currentUser.role === 'HQ BSM'
       ? 'HQ Bty'
+      : currentUser.role === 'EME JCO'
+      ? 'EME'
       : 'P Bty');
 
   const [activeBattery, setActiveBattery] = useState<Battery>(
@@ -104,6 +106,13 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
       role: 'Regimental Command, Signals & Logistics',
       commander: personnelList.find((p) => p.snkNo === 'BA-8324')?.name || 'Maj Anas Ibn Manjur',
       bsm: 'SWO Nasir',
+    },
+    {
+      id: 'EME',
+      name: 'EME',
+      role: 'Electrical & Mechanical Engineers',
+      commander: personnelList.find((p) => p.snkNo === 'BJO-77474')?.name || 'SWO Md. Fayzar Rahman',
+      bsm: 'SWO Fayzar',
     },
   ];
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserAccount, Role, Battery, isOfficerRank, isBsmRole } from '../../types';
+import { UserAccount, Role, Battery, ALL_BATTERIES, isOfficerRank, isBsmRole } from '../../types';
 import { useApp } from '../../context/AppContext';
 import {
   X,
@@ -32,7 +32,7 @@ interface UserManagementModalProps {
   editUser?: UserAccount | null;
 }
 
-const AVAILABLE_BATTERIES: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty'];
+const AVAILABLE_BATTERIES: Battery[] = ALL_BATTERIES;
 
 const MILITARY_RANKS: { rank: string; category: string }[] = [
   { rank: 'Lt Col', category: 'Offr' },
@@ -54,19 +54,19 @@ const ROLES_CONFIG: { role: Role; label: string; defaultAccess: string; defaultB
     role: 'CO',
     label: 'Commanding Officer (CO)',
     defaultAccess: 'Executive Command & Strategic Overview',
-    defaultBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    defaultBatteries: [...ALL_BATTERIES],
   },
   {
     role: 'Offr',
     label: 'Officer (Offr)',
     defaultAccess: 'Regimental Officer Access & Battery Review',
-    defaultBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    defaultBatteries: [...ALL_BATTERIES],
   },
   {
     role: 'RSM',
     label: 'Regimental Sgt Major (RSM)',
     defaultAccess: 'Consolidated Muster & Enlistment Master',
-    defaultBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    defaultBatteries: [...ALL_BATTERIES],
   },
   {
     role: 'P BSM',
@@ -96,7 +96,7 @@ const ROLES_CONFIG: { role: Role; label: string; defaultAccess: string; defaultB
     role: 'Admin',
     label: 'System Admin',
     defaultAccess: 'Full System Administrator & Audit Master',
-    defaultBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    defaultBatteries: [...ALL_BATTERIES],
   },
 ];
 
@@ -166,7 +166,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       } else if (editUser.assignedBattery) {
         setAssignedBatteries([editUser.assignedBattery]);
       } else {
-        setAssignedBatteries(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty']);
+        setAssignedBatteries([...ALL_BATTERIES]);
       }
       setSelectedTradeInfo(isOfficerRank(editUser.rank) ? 'No Trade (Officer)' : '');
       setSearchFeedback(null);
@@ -181,7 +181,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       setEmail('');
       setSnkNo('');
       setAvatar(undefined);
-      setAssignedBatteries(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty']);
+      setAssignedBatteries([...ALL_BATTERIES]);
       setSelectedTradeInfo('No Trade (Officer)');
       setSearchFeedback(null);
     }

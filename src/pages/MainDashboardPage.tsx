@@ -98,10 +98,11 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
   }).length;
 
   const batteryList: { bty: Battery; name: string; shortCode: string; role: string }[] = [
-    { bty: 'HQ Bty', name: 'HQ Battery (Headquarters)', shortCode: 'HQ', role: 'Command & Signals' },
     { bty: 'P Bty', name: 'P Battery (P Bty)', shortCode: 'P', role: '1st Gun Support' },
     { bty: 'Q Bty', name: 'Q Battery (Q Bty)', shortCode: 'Q', role: '2nd Gun Support' },
     { bty: 'R Bty', name: 'R Battery (R Bty)', shortCode: 'R', role: '3rd Gun Support' },
+    { bty: 'HQ Bty', name: 'HQ Battery (Headquarters)', shortCode: 'HQ', role: 'Command & Signals' },
+    { bty: 'EME', name: 'EME', shortCode: 'EME', role: 'Electrical & Mechanical Engineers' },
   ];
 
   const handleSelectBatteryBox = (bty: Battery) => {
@@ -384,7 +385,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {batteryList.map((item) => {
                 const isSelected = selectedBattery === item.bty;
                 const count = btyTroopsCount(item.bty);

@@ -273,7 +273,11 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
                       <div>
                         <h4 className="font-bold text-sm text-white">{bty.battery}</h4>
                         <span className="text-[10px] text-slate-400 font-mono">
-                          {bty.battery === 'HQ Bty' ? 'Headquarters' : 'Gun Battery'}
+                          {bty.battery === 'HQ Bty'
+                            ? 'Headquarters'
+                            : bty.battery === 'EME'
+                            ? 'Electrical & Mechanical Engineers'
+                            : 'Gun Battery'}
                         </span>
                       </div>
                     </div>
@@ -466,8 +470,8 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty'] as const).map((bty) => (
+          <div className="flex items-center gap-2 flex-wrap">
+            {(['All', 'P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'] as const).map((bty) => (
               <button
                 key={bty}
                 onClick={() => setSelectedBattery(bty)}

@@ -96,9 +96,9 @@ export const isCivilianRank = (rank?: string, trade?: string): boolean => {
   );
 };
 
-export type Battery = 'P Bty' | 'Q Bty' | 'R Bty' | 'HQ Bty';
+export type Battery = 'P Bty' | 'Q Bty' | 'R Bty' | 'HQ Bty' | 'EME';
 
-export const ALL_BATTERIES: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty'];
+export const ALL_BATTERIES: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'];
 
 export type MilitaryRank =
   | 'Lt Col'
@@ -442,10 +442,12 @@ export interface DailyParadePoint {
   category?: string;
   enabledBatteries: Battery[]; // Which batteries have this row enabled
   counts: {
-    'HQ Bty': ParadePointCount;
     'P Bty': ParadePointCount;
     'Q Bty': ParadePointCount;
     'R Bty': ParadePointCount;
+    'HQ Bty': ParadePointCount;
+    'EME'?: ParadePointCount;
+    [key: string]: ParadePointCount | undefined;
   };
   rsmSuggested?: ParadePointCount;
   lockedByRsm?: Record<string, boolean>;
@@ -689,6 +691,7 @@ export interface AuthEstablishmentItem {
   qBty?: number;
   rBty?: number;
   wksp?: number;
+  eme?: number;
   notes?: string;
   subUnit?: string;
   offr?: number;

@@ -1,4 +1,4 @@
-import { DailyParadePoint, Battery } from '../types';
+import { DailyParadePoint, Battery, ALL_BATTERIES } from '../types';
 
 export const DEFAULT_PARADE_POINTS: string[] = [
   'GPT',
@@ -32,7 +32,7 @@ export const DEFAULT_PARADE_POINTS: string[] = [
   'ON PARADE',
 ];
 
-export const INITIAL_PARADE_POINTS: DailyParadePoint[] = [
+const RAW_INITIAL_PARADE_POINTS: any[] = [
   {
     id: 'pt-1',
     name: 'GPT',
@@ -420,3 +420,15 @@ export const INITIAL_PARADE_POINTS: DailyParadePoint[] = [
     rsmSuggested: { offr: 3, jco: 5, or: 70 },
   },
 ];
+
+export const INITIAL_PARADE_POINTS: DailyParadePoint[] = RAW_INITIAL_PARADE_POINTS.map((pt) => ({
+  ...pt,
+  enabledBatteries: ALL_BATTERIES,
+  counts: {
+    'P Bty': pt.counts?.['P Bty'] || { offr: 0, jco: 0, or: 0 },
+    'Q Bty': pt.counts?.['Q Bty'] || { offr: 0, jco: 0, or: 0 },
+    'R Bty': pt.counts?.['R Bty'] || { offr: 0, jco: 0, or: 0 },
+    'HQ Bty': pt.counts?.['HQ Bty'] || { offr: 0, jco: 0, or: 0 },
+    'EME': pt.counts?.['EME'] || { offr: 0, jco: 0, or: 0 },
+  },
+}));

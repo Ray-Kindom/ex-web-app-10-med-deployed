@@ -223,7 +223,7 @@ export const CalculationRulesTab: React.FC = () => {
                 Auth = 638
               </p>
               <p className="text-[10px] text-slate-500">
-                রেজিমেন্টের মোট অনুমোদিত জনবল (HQ: 154, P: 160, Q: 159, R: 159, Wksp: 6)।
+                রেজিমেন্টের মোট অনুমোদিত জনবল (HQ: 135, P: 158, Q: 158, R: 158, EME: 29)।
               </p>
             </div>
 

@@ -118,10 +118,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
               (cat.applicableSubUnits as Battery[]) ||
               ALL_BATTERIES,
             counts: existing?.counts || sub.counts || {
-              'HQ Bty': { offr: 0, jco: 0, or: 0 },
               'P Bty': { offr: 0, jco: 0, or: 0 },
               'Q Bty': { offr: 0, jco: 0, or: 0 },
               'R Bty': { offr: 0, jco: 0, or: 0 },
+              'HQ Bty': { offr: 0, jco: 0, or: 0 },
+              'EME': { offr: 0, jco: 0, or: 0 },
             },
             lockedByRsm: existing?.lockedByRsm,
             rsmSuggestedCounts: existing?.rsmSuggestedCounts,
@@ -148,12 +149,7 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
 
   // Add new point state
   const [newPointName, setNewPointName] = useState('');
-  const [newPointSelectedBtys, setNewPointSelectedBtys] = useState<Battery[]>([
-    'P Bty',
-    'Q Bty',
-    'R Bty',
-    'HQ Bty',
-  ]);
+  const [newPointSelectedBtys, setNewPointSelectedBtys] = useState<Battery[]>([...ALL_BATTERIES]);
   const [isAddingNewPoint, setIsAddingNewPoint] = useState(false);
 
   // Quick edit buffer to allow fluid typing without lagging
@@ -163,10 +159,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
     const buffer: Record<string, Record<Battery, ParadePointCount>> = {};
     dynamicParadePoints.forEach((pt) => {
       buffer[pt.id] = {
-        'HQ Bty': { ...pt.counts['HQ Bty'] },
-        'P Bty': { ...pt.counts['P Bty'] },
-        'Q Bty': { ...pt.counts['Q Bty'] },
-        'R Bty': { ...pt.counts['R Bty'] },
+        'P Bty': { ...(pt.counts['P Bty'] || { offr: 0, jco: 0, or: 0 }) },
+        'Q Bty': { ...(pt.counts['Q Bty'] || { offr: 0, jco: 0, or: 0 }) },
+        'R Bty': { ...(pt.counts['R Bty'] || { offr: 0, jco: 0, or: 0 }) },
+        'HQ Bty': { ...(pt.counts['HQ Bty'] || { offr: 0, jco: 0, or: 0 }) },
+        'EME': { ...(pt.counts['EME'] || { offr: 0, jco: 0, or: 0 }) },
       };
     });
     return buffer;
@@ -183,10 +180,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
         Object.entries(rec.counts).forEach(([ptId, cnt]) => {
           if (!buffer[ptId]) {
             buffer[ptId] = {
-              'HQ Bty': { offr: 0, jco: 0, or: 0 },
               'P Bty': { offr: 0, jco: 0, or: 0 },
               'Q Bty': { offr: 0, jco: 0, or: 0 },
               'R Bty': { offr: 0, jco: 0, or: 0 },
+              'HQ Bty': { offr: 0, jco: 0, or: 0 },
+              'EME': { offr: 0, jco: 0, or: 0 },
             };
           }
           const safeCnt = cnt as ParadePointCount;
@@ -203,10 +201,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
     dynamicParadePoints.forEach((pt) => {
       if (!buffer[pt.id]) {
         buffer[pt.id] = {
-          'HQ Bty': { ...pt.counts['HQ Bty'] },
-          'P Bty': { ...pt.counts['P Bty'] },
-          'Q Bty': { ...pt.counts['Q Bty'] },
-          'R Bty': { ...pt.counts['R Bty'] },
+          'P Bty': { ...(pt.counts['P Bty'] || { offr: 0, jco: 0, or: 0 }) },
+          'Q Bty': { ...(pt.counts['Q Bty'] || { offr: 0, jco: 0, or: 0 }) },
+          'R Bty': { ...(pt.counts['R Bty'] || { offr: 0, jco: 0, or: 0 }) },
+          'HQ Bty': { ...(pt.counts['HQ Bty'] || { offr: 0, jco: 0, or: 0 }) },
+          'EME': { ...(pt.counts['EME'] || { offr: 0, jco: 0, or: 0 }) },
         };
       } else {
         ALL_BATTERIES.forEach((bty) => {
@@ -353,10 +352,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
 
     setCountsBuffer((prev) => {
       const pointCounts = prev[pointId] || {
-        'HQ Bty': { offr: 0, jco: 0, or: 0 },
         'P Bty': { offr: 0, jco: 0, or: 0 },
         'Q Bty': { offr: 0, jco: 0, or: 0 },
         'R Bty': { offr: 0, jco: 0, or: 0 },
+        'HQ Bty': { offr: 0, jco: 0, or: 0 },
+        'EME': { offr: 0, jco: 0, or: 0 },
       };
 
       const updatedBtyCount = {
@@ -428,10 +428,6 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
       rows.push([
         'SL',
         'Parade State / Duty Point',
-        'HQ Offr',
-        'HQ JCO',
-        'HQ OR',
-        'HQ Total',
         'P Offr',
         'P JCO',
         'P OR',
@@ -444,6 +440,14 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
         'R JCO',
         'R OR',
         'R Total',
+        'HQ Offr',
+        'HQ JCO',
+        'HQ OR',
+        'HQ Total',
+        'EME Offr',
+        'EME JCO',
+        'EME OR',
+        'EME Total',
         'Regt Offr',
         'Regt JCO',
         'Regt OR',
@@ -451,28 +455,26 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
       ]);
 
       visiblePoints.forEach((pt, idx) => {
-        const hq = countsBuffer[pt.id]?.['HQ Bty'] || { offr: 0, jco: 0, or: 0 };
         const p = countsBuffer[pt.id]?.['P Bty'] || { offr: 0, jco: 0, or: 0 };
         const q = countsBuffer[pt.id]?.['Q Bty'] || { offr: 0, jco: 0, or: 0 };
         const r = countsBuffer[pt.id]?.['R Bty'] || { offr: 0, jco: 0, or: 0 };
+        const hq = countsBuffer[pt.id]?.['HQ Bty'] || { offr: 0, jco: 0, or: 0 };
+        const eme = countsBuffer[pt.id]?.['EME'] || { offr: 0, jco: 0, or: 0 };
 
-        const hqTot = (hq.offr || 0) + (hq.jco || 0) + (hq.or || 0);
         const pTot = (p.offr || 0) + (p.jco || 0) + (p.or || 0);
         const qTot = (q.offr || 0) + (q.jco || 0) + (q.or || 0);
         const rTot = (r.offr || 0) + (r.jco || 0) + (r.or || 0);
+        const hqTot = (hq.offr || 0) + (hq.jco || 0) + (hq.or || 0);
+        const emeTot = (eme.offr || 0) + (eme.jco || 0) + (eme.or || 0);
 
-        const offrTot = (hq.offr || 0) + (p.offr || 0) + (q.offr || 0) + (r.offr || 0);
-        const jcoTot = (hq.jco || 0) + (p.jco || 0) + (q.jco || 0) + (r.jco || 0);
-        const orTot = (hq.or || 0) + (p.or || 0) + (q.or || 0) + (r.or || 0);
+        const offrTot = (p.offr || 0) + (q.offr || 0) + (r.offr || 0) + (hq.offr || 0) + (eme.offr || 0);
+        const jcoTot = (p.jco || 0) + (q.jco || 0) + (r.jco || 0) + (hq.jco || 0) + (eme.jco || 0);
+        const orTot = (p.or || 0) + (q.or || 0) + (r.or || 0) + (hq.or || 0) + (eme.or || 0);
         const grandTot = offrTot + jcoTot + orTot;
 
         rows.push([
           idx + 1,
           pt.name,
-          hq.offr || 0,
-          hq.jco || 0,
-          hq.or || 0,
-          hqTot,
           p.offr || 0,
           p.jco || 0,
           p.or || 0,
@@ -485,6 +487,14 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
           r.jco || 0,
           r.or || 0,
           rTot,
+          hq.offr || 0,
+          hq.jco || 0,
+          hq.or || 0,
+          hqTot,
+          eme.offr || 0,
+          eme.jco || 0,
+          eme.or || 0,
+          emeTot,
           offrTot,
           jcoTot,
           orTot,
@@ -1070,10 +1080,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   <th className="py-3 px-4 min-w-[220px]">Duty Point / PT (প্যারেড পয়েন্ট)</th>
                   {activeTab === 'Consolidated' ? (
                     <>
-                      <th className="py-3 px-3 text-center bg-slate-950/40">HQ Bty</th>
                       <th className="py-3 px-3 text-center bg-slate-950/40">P Bty</th>
                       <th className="py-3 px-3 text-center bg-slate-950/40">Q Bty</th>
                       <th className="py-3 px-3 text-center bg-slate-950/40">R Bty</th>
+                      <th className="py-3 px-3 text-center bg-slate-950/40">HQ Bty</th>
+                      <th className="py-3 px-3 text-center bg-slate-950/40">EME</th>
                       <th className="py-3 px-3 text-center font-bold text-rose-400">Total Offr</th>
                       <th className="py-3 px-3 text-center font-bold text-rose-400">Total JCO</th>
                       <th className="py-3 px-3 text-center font-bold text-rose-400">Total OR</th>
@@ -1101,14 +1112,15 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                     upperName.includes('PHYSICAL TRAINING');
 
                   if (activeTab === 'Consolidated') {
-                    const hq = pt.counts['HQ Bty'] || { offr: 0, jco: 0, or: 0 };
                     const p = pt.counts['P Bty'] || { offr: 0, jco: 0, or: 0 };
                     const q = pt.counts['Q Bty'] || { offr: 0, jco: 0, or: 0 };
                     const r = pt.counts['R Bty'] || { offr: 0, jco: 0, or: 0 };
+                    const hq = pt.counts['HQ Bty'] || { offr: 0, jco: 0, or: 0 };
+                    const eme = pt.counts['EME'] || { offr: 0, jco: 0, or: 0 };
 
-                    const ptTotalOffr = hq.offr + p.offr + q.offr + r.offr;
-                    const ptTotalJco = hq.jco + p.jco + q.jco + r.jco;
-                    const ptTotalOr = hq.or + p.or + q.or + r.or;
+                    const ptTotalOffr = p.offr + q.offr + r.offr + hq.offr + eme.offr;
+                    const ptTotalJco = p.jco + q.jco + r.jco + hq.jco + eme.jco;
+                    const ptTotalOr = p.or + q.or + r.or + hq.or + eme.or;
                     const ptGrand = ptTotalOffr + ptTotalJco + ptTotalOr;
 
                     return (
@@ -1136,9 +1148,6 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                           </div>
                         </td>
                         <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
-                          {hq.offr + hq.jco + hq.or}
-                        </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
                           {p.offr + p.jco + p.or}
                         </td>
                         <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
@@ -1146,6 +1155,12 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                         </td>
                         <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
                           {r.offr + r.jco + r.or}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
+                          {hq.offr + hq.jco + hq.or}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
+                          {eme.offr + eme.jco + eme.or}
                         </td>
                         <td className="py-3 px-3 text-center font-mono font-bold text-slate-300 text-sm">
                           {ptTotalOffr}
@@ -1287,7 +1302,7 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                 {visiblePoints.length === 0 && (
                   <tr>
                     <td
-                      colSpan={activeTab === 'Consolidated' ? 10 : 6}
+                      colSpan={activeTab === 'Consolidated' ? 11 : 6}
                       className="py-12 text-center text-slate-400 font-mono"
                     >
                       <span>No parade points matched "{pointSearchQuery || ptCategoryFilter}".</span>
@@ -1314,8 +1329,8 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   </td>
                   {activeTab === 'Consolidated' ? (
                     <>
-                      <td colSpan={4} className="py-3.5 px-3 text-center text-slate-400 font-mono">
-                        4 Batteries Consolidated
+                      <td colSpan={5} className="py-3.5 px-3 text-center text-slate-400 font-mono">
+                        Consolidated
                       </td>
                       <td className="py-3.5 px-3 text-center font-mono text-white text-sm">
                         {totals.grandOffr}

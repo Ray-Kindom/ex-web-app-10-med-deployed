@@ -223,8 +223,8 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
                   className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono font-semibold text-xs focus:border-rose-500 focus:outline-none cursor-pointer"
                 >
                   {(subUnitsList || []).map((su) => (
-                    <option key={su.id} value={su.name}>
-                      {su.name} ({su.code})
+                    <option key={su.id} value={su.code || su.name}>
+                      {su.code || su.name}
                     </option>
                   ))}
                 </select>

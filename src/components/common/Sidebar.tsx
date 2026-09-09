@@ -177,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Bty Dashboard',
       description: 'Sub-unit Battery Controls',
       icon: Building2,
-      badge: '4 Btys',
+      badge: '5 Units',
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
     });
     items.push({
@@ -211,7 +211,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Bty Dashboard',
       description: 'Sub-unit Battery Controls',
       icon: Building2,
-      badge: '4 Btys',
+      badge: '5 Units',
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
     });
     items.push({
@@ -396,7 +396,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="text-[10px] text-slate-400 font-mono uppercase px-2 py-0.5 font-bold">
                       অন্যান্য ব্যাটারি দেখুন:
                     </div>
-                    {(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty'] as const).map((b) => (
+                    {(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'] as const).map((b) => (
                       <button
                         key={b}
                         onClick={() => {

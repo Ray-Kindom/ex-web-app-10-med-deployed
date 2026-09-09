@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp, OWNER_EMAILS } from '../../context/AppContext';
-import { Role, Battery } from '../../types';
+import { Role, Battery, ALL_BATTERIES } from '../../types';
 import {
   Cloud,
   ShieldCheck,
@@ -27,7 +27,7 @@ import {
   getSupabaseSchemaSql,
 } from '../../lib/supabase';
 
-const AVAILABLE_BATTERIES: Battery[] = ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
+const AVAILABLE_BATTERIES: Battery[] = ALL_BATTERIES;
 
 const MILITARY_RANKS = [
   'Lt Col',

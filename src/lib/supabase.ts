@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Personnel, UserAccount, DateWiseParadeRecord } from '../types';
+import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES } from '../types';
 
 // Read Vite client-side environment variables or provided Supabase project credentials
 const SUPABASE_URL = (
@@ -318,7 +318,7 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
         assignedBattery: row.assigned_battery,
         assignedBatteries:
           row.role === 'Admin' || row.role === 'CO' || row.role === 'Offr' || row.role === 'RSM'
-            ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+            ? ALL_BATTERIES
             : [row.assigned_battery],
         email: row.email,
         isApproved: row.is_approved !== false,

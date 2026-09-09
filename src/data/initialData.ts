@@ -5874,9 +5874,9 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "515",
     "snkNo": "BJO-77474",
     "rk": "SWO",
-    "trade": "-",
-    "name": "MD FAIZER RAHMAN",
-    "battery": "HQ Bty",
+    "trade": "TSA",
+    "name": "Md. Fayzar Rahman",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "B+",
     "medicalCategory": "AYE"
@@ -5885,9 +5885,9 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "516",
     "snkNo": "2411761",
     "rk": "Sgt",
-    "trade": "-",
-    "name": "GOBINDO CHANDRA",
-    "battery": "HQ Bty",
+    "trade": "TBV",
+    "name": "Gobinda Chandra Mondal",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "A+",
     "medicalCategory": "AYE"
@@ -5896,9 +5896,9 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "517",
     "snkNo": "2413815",
     "rk": "Cpl",
-    "trade": "-",
-    "name": "MD MONIRUL ISLAM",
-    "battery": "HQ Bty",
+    "trade": "TSA",
+    "name": "Md. Monirul Islam",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "B+",
     "medicalCategory": "AYE"
@@ -5907,9 +5907,9 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "518",
     "snkNo": "2415218",
     "rk": "Cpl",
-    "trade": "-",
-    "name": "MD MAHSUN E KHODA",
-    "battery": "HQ Bty",
+    "trade": "TSA",
+    "name": "Md. Mahsun-E-Khoda",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "O+",
     "medicalCategory": "AYE"
@@ -5918,9 +5918,9 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "519",
     "snkNo": "2415846",
     "rk": "Lcpl",
-    "trade": "-",
-    "name": "SADDAM HOSSAIN",
-    "battery": "HQ Bty",
+    "trade": "RMT",
+    "name": "Md. Saddam Hossain",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "AB+",
     "medicalCategory": "AYE"
@@ -5928,10 +5928,10 @@ export const INITIAL_PERSONNEL: Personnel[] = [
   {
     "id": "520",
     "snkNo": "2416197",
-    "rk": "Cpl",
-    "trade": "-",
-    "name": "MD TUHIN SARDER",
-    "battery": "HQ Bty",
+    "rk": "Lcpl",
+    "trade": "TBV",
+    "name": "Md. Tuhin Sardar",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "A+",
     "medicalCategory": "AYE"
@@ -5951,20 +5951,20 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "522",
     "snkNo": "2417678",
     "rk": "Lcpl",
-    "trade": "-",
-    "name": "MD SUJON MIYA",
-    "battery": "HQ Bty",
+    "trade": "TSA",
+    "name": "Md. Sujon Mia",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "O+",
     "medicalCategory": "AYE"
   },
   {
     "id": "523",
-    "snkNo": "2418693",
+    "snkNo": "2418593",
     "rk": "Snk",
-    "trade": "-",
-    "name": "MD SOBUJ MIAH",
-    "battery": "HQ Bty",
+    "trade": "RCT",
+    "name": "Md. Sabuj Mia",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "AB+",
     "medicalCategory": "AYE"
@@ -5973,9 +5973,9 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "524",
     "snkNo": "2418380",
     "rk": "Snk",
-    "trade": "-",
-    "name": "MD AFZAL HOSSEN",
-    "battery": "HQ Bty",
+    "trade": "TBV",
+    "name": "Md. Afzal Hossain",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "A+",
     "medicalCategory": "AYE"
@@ -5984,9 +5984,9 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "525",
     "snkNo": "2421869",
     "rk": "Snk",
-    "trade": "-",
-    "name": "MD MAHAMUDUL HASAN",
-    "battery": "HQ Bty",
+    "trade": "Welder",
+    "name": "Md. Mahmudul Hasan Nasim",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "B+",
     "medicalCategory": "AYE"
@@ -5995,11 +5995,22 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "id": "526",
     "snkNo": "2421871",
     "rk": "Snk",
-    "trade": "-",
-    "name": "MD MAZNU MIYA",
-    "battery": "HQ Bty",
+    "trade": "TBV",
+    "name": "Md. Jony Mia",
+    "battery": "EME",
     "status": "Present",
     "bloodGroup": "O+",
+    "medicalCategory": "AYE"
+  },
+  {
+    "id": "526-eme",
+    "snkNo": "2422081",
+    "rk": "Snk",
+    "trade": "SMT",
+    "name": "Abdul Mokaddem Khandaker",
+    "battery": "EME",
+    "status": "Present",
+    "bloodGroup": "B+",
     "medicalCategory": "AYE"
   },
   {
@@ -7157,7 +7168,7 @@ export const COMD_PARTY_NOMINATIONS_08_09_26: ComdPartyNomination[] = [
   { ser: 19, snkNo: '1236899', rk: 'Lcpl', trade: 'Gnr', name: 'Md Didarul', battery: 'HQ Bty', location: '১০ আর্টিঃ ব্রিগেড', statusDetails: 'কমান্ড পার্টি - ১০ আর্টিঃ ব্রিগেড' },
   { ser: 20, snkNo: '1229728', rk: 'NC(E)', trade: '-', name: 'Md Alal Hossain', battery: 'HQ Bty', location: 'ডিজিএসএস', statusDetails: 'কমান্ড পার্টি - ডিজিএসএস' },
   { ser: 21, snkNo: '1235280', rk: 'NC(E)', trade: '-', name: 'Md Sanowar Hossain', battery: 'HQ Bty', location: '৪৭ মর্টার', statusDetails: 'কমান্ড পার্টি - ৪৭ মর্টার' },
-  { ser: 22, snkNo: '2419088', rk: 'Snk', trade: 'SMT', name: 'Md Mokaddem', battery: 'HQ Bty', location: 'রাজেন্দ্রপুর', statusDetails: 'কমান্ড পার্টি - রাজেন্দ্রপুর' },
+  { ser: 22, snkNo: '2422081', rk: 'Snk', trade: 'SMT', name: 'Abdul Mokaddem Khandaker', battery: 'EME', location: 'রাজেন্দ্রপুর', statusDetails: 'কমান্ড পার্টি - রাজেন্দ্রপুর' },
 ];
 
 // Apply Comd Party nominations to INITIAL_PERSONNEL
@@ -7207,7 +7218,7 @@ export const INITIAL_USERS: UserAccount[] = [
     rank: 'Lt Col',
     role: 'CO',
     accessLevel: 'Executive Strategic View',
-    assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    assignedBatteries: ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'],
     lastLogin: 'Today, 08:15 hrs'
   },
   {
@@ -7219,7 +7230,7 @@ export const INITIAL_USERS: UserAccount[] = [
     rank: 'Capt',
     role: 'Offr',
     accessLevel: 'Regimental Officer Access (Adjutant)',
-    assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    assignedBatteries: ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'],
     lastLogin: 'Today, 07:45 hrs'
   },
   {
@@ -7231,7 +7242,7 @@ export const INITIAL_USERS: UserAccount[] = [
     rank: 'SWO',
     role: 'RSM',
     accessLevel: 'Consolidated Muster & Enlistment',
-    assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    assignedBatteries: ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'],
     lastLogin: 'Today, 06:30 hrs'
   },
   {
@@ -7295,7 +7306,7 @@ export const INITIAL_USERS: UserAccount[] = [
     rank: 'Admin',
     role: 'Admin',
     accessLevel: 'Full System Administrator',
-    assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    assignedBatteries: ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'],
     lastLogin: 'Today, 09:00 hrs'
   },
   {
@@ -7307,8 +7318,8 @@ export const INITIAL_USERS: UserAccount[] = [
     rank: 'Visitor',
     role: 'Guest',
     accessLevel: 'GUEST — VIEW ONLY',
-    assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
-    assignedBattery: 'HQ Bty',
+    assignedBatteries: ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'],
+    assignedBattery: 'P Bty',
     lastLogin: 'Active Demo Session'
   }
 ];
@@ -7322,8 +7333,8 @@ export const GUEST_USER: UserAccount = {
   rank: 'Visitor',
   role: 'Guest',
   accessLevel: 'GUEST — VIEW ONLY',
-  assignedBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
-  assignedBattery: 'HQ Bty',
+  assignedBatteries: ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'],
+  assignedBattery: 'P Bty',
   lastLogin: 'Active Demo Session',
 };
 

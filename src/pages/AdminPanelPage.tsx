@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { Role, Battery, UserAccount } from '../types';
+import { Role, Battery, UserAccount, ALL_BATTERIES } from '../types';
 import { UserManagementModal } from '../components/admin/UserManagementModal';
 import { UnitLogo } from '../components/common/UnitLogo';
 import { CategoryManagementTab } from '../components/admin/CategoryManagementTab';
@@ -547,8 +547,8 @@ export const AdminPanelPage: React.FC = () => {
                         ? u.assignedBatteries
                         : u.assignedBattery
                         ? [u.assignedBattery]
-                        : ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'];
-                      const isAllBtys = userBtys.length === 4;
+                        : ALL_BATTERIES;
+                      const isAllBtys = userBtys.length >= ALL_BATTERIES.length;
 
                       return (
                         <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
