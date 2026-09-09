@@ -46,6 +46,7 @@ import {
   OFFICIAL_OFFICERS,
 } from '../data/initialData';
 import { ASLT_COURSE_SNK_NOS } from '../data/asltCourseData';
+import { CRICKET_TEAM_SNK_NOS } from '../data/cricketTeamData';
 import { INITIAL_PARADE_POINTS } from '../data/paradePointsData';
 import {
   INITIAL_SYSTEM_CATEGORIES,
@@ -271,6 +272,8 @@ interface AppContextType {
   deleteCustomTeam: (id: string) => void;
   addMemberToTeam: (teamId: string, personnelId: string) => void;
   removeMemberFromTeam: (teamId: string, personnelId: string) => void;
+  resetAsltCourseTeam: () => void;
+  resetCricketTeam: () => void;
 
   // Out Of Unit Management
   assignOutOfUnit: (
@@ -365,7 +368,7 @@ const STORAGE_KEYS = {
   CALCULATION_CONFIG: '10med_calc_config_v1',
   SYSTEM_SETTINGS: '10med_system_settings_v1',
   DELETED_USERS: '10med_deleted_user_identifiers_v1',
-  CUSTOM_TEAMS: '10med_custom_teams_v1',
+  CUSTOM_TEAMS: '10med_custom_teams_v3',
 };
 
 // Helper to manage deleted user tombstones across syncs and reloads
@@ -1416,34 +1419,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [customTeams, setCustomTeams] = useState<CustomTeam[]>(() => {
     // 32 members for "Aslt Course"
     const asltCourseIds = ASLT_COURSE_SNK_NOS.map(
-      (snk) => INITIAL_PERSONNEL.find((p) => p.snkNo === snk)?.id
+      (snk) => INITIAL_PERSONNEL.find((p) => p.snkNo?.toLowerCase() === snk.toLowerCase())?.id
     ).filter(Boolean) as string[];
 
-    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_TEAMS);
+    // 16 members for "Cricket"
+    const cricketTeamIds = CRICKET_TEAM_SNK_NOS.map(
+      (snk) => INITIAL_PERSONNEL.find((p) => p.snkNo?.toLowerCase() === snk.toLowerCase())?.id
+    ).filter(Boolean) as string[];
+
+    const saved =
+      localStorage.getItem(STORAGE_KEYS.CUSTOM_TEAMS) ||
+      localStorage.getItem('10med_custom_teams_v2') ||
+      localStorage.getItem('10med_custom_teams_v1');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const asltIndex = parsed.findIndex(
-            (t: any) => t.name.toLowerCase().trim() === 'aslt course'
+          const otherTeams = parsed.filter(
+            (t: any) =>
+              t.id !== 'team_aslt_course' &&
+              !t.name?.toLowerCase().includes('aslt') &&
+              t.id !== 'team_cricket' &&
+              !t.name?.toLowerCase().includes('cricket')
           );
-          if (asltIndex !== -1) {
-            parsed[asltIndex] = {
-              ...parsed[asltIndex],
-              name: 'Aslt Course',
-              memberIds: asltCourseIds,
-            };
-          } else {
-            parsed.unshift({
-              id: 'team_aslt_course',
-              name: 'Aslt Course',
-              description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
-              memberIds: asltCourseIds,
-              createdAt: new Date().toISOString(),
-            });
-          }
-          localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(parsed));
-          return parsed;
+          const existingAslt = parsed.find(
+            (t: any) => t.id === 'team_aslt_course' || t.name?.toLowerCase().includes('aslt')
+          );
+          const existingCricket = parsed.find(
+            (t: any) => t.id === 'team_cricket' || t.name?.toLowerCase().includes('cricket')
+          );
+          const asltTeam: CustomTeam = {
+            id: 'team_aslt_course',
+            name: 'Aslt Course',
+            description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
+            memberIds: asltCourseIds,
+            createdAt: existingAslt?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          const cricketTeam: CustomTeam = {
+            id: 'team_cricket',
+            name: 'Cricket',
+            description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
+            memberIds: cricketTeamIds,
+            createdAt: existingCricket?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          const next = [asltTeam, cricketTeam, ...otherTeams];
+          localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+          return next;
         }
       } catch (e) {}
     }
@@ -1461,6 +1484,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: 'Aslt Course',
         description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
         memberIds: asltCourseIds,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'team_cricket',
+        name: 'Cricket',
+        description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
+        memberIds: cricketTeamIds,
         createdAt: new Date().toISOString(),
       },
       {
@@ -1565,6 +1595,131 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncDoc(setDoc(doc(db, 'custom_teams', teamId), sanitizeForFirestore(target), { merge: true }), 'remove team member');
     }
   };
+
+  const resetAsltCourseTeam = () => {
+    const asltIds = ASLT_COURSE_SNK_NOS.map((snk) => {
+      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
+      return p?.id;
+    }).filter(Boolean) as string[];
+
+    setCustomTeams((prev) => {
+      const nonAslt = prev.filter(
+        (t) => t.id !== 'team_aslt_course' && !t.name.toLowerCase().includes('aslt')
+      );
+      const existing = prev.find(
+        (t) => t.id === 'team_aslt_course' || t.name.toLowerCase().includes('aslt')
+      );
+      const asltTeam: CustomTeam = {
+        id: 'team_aslt_course',
+        name: 'Aslt Course',
+        description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
+        memberIds: asltIds,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const updated = [asltTeam, ...nonAslt];
+      try {
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    showNotification('Aslt Course টিম ৩২ জন সদস্য সহ সফলভাবে রিসেট ও আপডেট করা হয়েছে।');
+  };
+
+  const resetCricketTeam = () => {
+    const cricketIds = CRICKET_TEAM_SNK_NOS.map((snk) => {
+      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
+      return p?.id;
+    }).filter(Boolean) as string[];
+
+    setCustomTeams((prev) => {
+      const nonCricket = prev.filter(
+        (t) => t.id !== 'team_cricket' && !t.name.toLowerCase().includes('cricket')
+      );
+      const existing = prev.find(
+        (t) => t.id === 'team_cricket' || t.name.toLowerCase().includes('cricket')
+      );
+      const cricketTeam: CustomTeam = {
+        id: 'team_cricket',
+        name: 'Cricket',
+        description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
+        memberIds: cricketIds,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const updated = [cricketTeam, ...nonCricket];
+      try {
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    showNotification('Cricket টিম ১৬ জন সদস্য সহ সফলভাবে রিসেট ও আপডেট করা হয়েছে।');
+  };
+
+  // Synchronize Assault Course (32) and Cricket (16) teams to have strictly their designated members
+  useEffect(() => {
+    if (!personnelList || personnelList.length === 0) return;
+
+    const asltIds = ASLT_COURSE_SNK_NOS.map((snk) => {
+      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
+      return p?.id;
+    }).filter(Boolean) as string[];
+
+    const cricketIds = CRICKET_TEAM_SNK_NOS.map((snk) => {
+      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
+      return p?.id;
+    }).filter(Boolean) as string[];
+
+    if (asltIds.length === 0 && cricketIds.length === 0) return;
+
+    setCustomTeams((prev) => {
+      const existingAslt = prev.find((t) => t.id === 'team_aslt_course' || t.name.toLowerCase().trim() === 'aslt course' || t.name.toLowerCase().includes('aslt'));
+      const asltMemberIds = existingAslt?.memberIds || [];
+      const isAsltIdentical =
+        asltMemberIds.length === asltIds.length &&
+        asltMemberIds.every((id, idx) => id === asltIds[idx]);
+
+      const existingCricket = prev.find((t) => t.id === 'team_cricket' || t.name.toLowerCase().trim() === 'cricket' || t.name.toLowerCase().includes('cricket'));
+      const cricketMemberIds = existingCricket?.memberIds || [];
+      const isCricketIdentical =
+        cricketMemberIds.length === cricketIds.length &&
+        cricketMemberIds.every((id, idx) => id === cricketIds[idx]);
+
+      if (isAsltIdentical && isCricketIdentical && existingAslt && existingCricket) {
+        return prev;
+      }
+
+      const freshAsltTeam: CustomTeam = {
+        id: 'team_aslt_course',
+        name: 'Aslt Course',
+        description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
+        memberIds: asltIds,
+        createdAt: existingAslt?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const freshCricketTeam: CustomTeam = {
+        id: 'team_cricket',
+        name: 'Cricket',
+        description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
+        memberIds: cricketIds,
+        createdAt: existingCricket?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nonManaged = prev.filter((t) => {
+        const isAslt = t.id === 'team_aslt_course' || t.name.toLowerCase().trim() === 'aslt course' || t.name.toLowerCase().includes('aslt');
+        const isCricket = t.id === 'team_cricket' || t.name.toLowerCase().trim() === 'cricket' || t.name.toLowerCase().includes('cricket');
+        return !isAslt && !isCricket;
+      });
+
+      const next = [freshAsltTeam, freshCricketTeam, ...nonManaged];
+      try {
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  }, [personnelList]);
 
   // --- PARADE DUTY ASSIGNMENTS (Team, Unit Sy, working, Fixed Duty, Others) ---
   const [paradeDutyAssignments, setParadeDutyAssignments] = useState<
@@ -5012,6 +5167,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteCustomTeam,
         addMemberToTeam,
         removeMemberFromTeam,
+        resetAsltCourseTeam,
+        resetCricketTeam,
 
         assignOutOfUnit,
         cancelOutOfUnit,

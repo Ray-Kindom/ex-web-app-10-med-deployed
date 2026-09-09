@@ -16,6 +16,7 @@ import {
   UserCheck,
   Building2,
   Calendar,
+  RefreshCw,
 } from 'lucide-react';
 
 interface TeamsPageProps {
@@ -30,6 +31,8 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     deleteCustomTeam,
     addMemberToTeam,
     removeMemberFromTeam,
+    resetAsltCourseTeam,
+    resetCricketTeam,
     personnelList,
     ranksList,
     setActivePage,
@@ -70,10 +73,15 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Map of personnel by ID for fast lookup
+  // Map of personnel by ID and snkNo for fast lookup
   const personnelMap = useMemo(() => {
     const map = new Map<string, Personnel>();
-    (personnelList || []).forEach((p) => map.set(p.id, p));
+    (personnelList || []).forEach((p) => {
+      map.set(p.id, p);
+      if (p.snkNo) {
+        map.set(p.snkNo, p);
+      }
+    });
     return map;
   }, [personnelList]);
 
@@ -527,8 +535,20 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                         {team.name}
                       </h2>
                       <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                        {team.memberIds.length} জন সৈনিক
+                        {team.memberIds.length} জন সদস্য
                       </span>
+
+                      {(team.id === 'team_aslt_course' || team.name.toLowerCase().includes('aslt')) && (
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          অফিসিয়াল ৩২ জন সদস্য
+                        </span>
+                      )}
+
+                      {(team.id === 'team_cricket' || team.name.toLowerCase().includes('cricket')) && (
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          অফিসিয়াল ১৬ জন সদস্য
+                        </span>
+                      )}
 
                       {/* Battery Breakdown chips */}
                       <div className="flex items-center gap-1 text-[11px] font-mono text-slate-400">
@@ -550,6 +570,32 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
 
                   {/* Actions for this team */}
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {/* Reset Aslt Course to official 32 */}
+                    {(team.id === 'team_aslt_course' || team.name.toLowerCase().includes('aslt')) && (
+                      <button
+                        type="button"
+                        onClick={() => resetAsltCourseTeam()}
+                        className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                        title="Aslt Course টিম ৩২ জন সদস্যে রিসেট ও আপডেট করুন"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>রিসেট ৩২ জন</span>
+                      </button>
+                    )}
+
+                    {/* Reset Cricket to official 16 */}
+                    {(team.id === 'team_cricket' || team.name.toLowerCase().includes('cricket')) && (
+                      <button
+                        type="button"
+                        onClick={() => resetCricketTeam()}
+                        className="px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                        title="Cricket টিম ১৬ জন সদস্যে রিসেট ও আপডেট করুন"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>রিসেট ১৬ জন</span>
+                      </button>
+                    )}
+
                     {/* Send to Duty Detailing */}
                     <button
                       type="button"

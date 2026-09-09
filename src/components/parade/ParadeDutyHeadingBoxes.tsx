@@ -176,7 +176,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     if (activeCategory === 'Team') {
       const names = (customTeams || []).map((t) => t.name);
       if (names.length > 0) return names;
-      return ['Aslt Course', 'Athletics Team', 'SL Course', 'Firing Team'];
+      return ['Aslt Course', 'Cricket', 'Athletics Team', 'SL Course', 'Firing Team'];
     }
     return activeBoxDef?.defaultRoles || [];
   }, [activeCategory, customTeams, activeBoxDef]);
@@ -222,7 +222,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     }
     const finalDuty = normalizeDutyName(teamObj.name);
     const membersToAssign = teamObj.memberIds
-      .map((id) => personnelList.find((p) => p.id === id))
+      .map((id) => personnelList.find((p) => p.id === id || p.snkNo === id))
       .filter(Boolean) as typeof personnelList;
 
     if (membersToAssign.length === 0) {

@@ -18,6 +18,7 @@ export const DEFAULT_PARADE_POINTS: string[] = [
   'Area Maintenance',
   'Inspection/Ledis Club',
   'Aslt Course',
+  'Cricket',
   'Athletics',
   'BK NCO + INT',
   'Construction',
@@ -258,6 +259,19 @@ const RAW_INITIAL_PARADE_POINTS: any[] = [
       'P Bty': { offr: 0, jco: 0, or: 2 },
       'Q Bty': { offr: 0, jco: 0, or: 2 },
       'R Bty': { offr: 0, jco: 0, or: 2 },
+    },
+  },
+  {
+    id: 'pt-cricket',
+    name: 'Cricket',
+    order: 18,
+    isActive: true,
+    enabledBatteries: ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty'],
+    counts: {
+      'HQ Bty': { offr: 1, jco: 0, or: 2 },
+      'P Bty': { offr: 1, jco: 1, or: 3 },
+      'Q Bty': { offr: 0, jco: 0, or: 5 },
+      'R Bty': { offr: 0, jco: 0, or: 3 },
     },
   },
   {
