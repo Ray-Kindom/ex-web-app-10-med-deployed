@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Personnel, Battery, ParadeStatus } from '../../types';
 import { AddPersonnelModal } from '../personnel/AddPersonnelModal';
-import { EditPersonnelModal } from '../personnel/EditPersonnelModal';
 import { PersonnelDossierModal } from '../personnel/PersonnelDossierModal';
 import { PersonnelTable } from '../personnel/PersonnelTable';
 import { sortBySeniority } from '../../utils/seniorityUtils';
@@ -29,7 +28,6 @@ export const PersonnelDatabaseTab: React.FC = () => {
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingPerson, setEditingPerson] = useState<Personnel | null>(null);
   const [dossierPerson, setDossierPerson] = useState<Personnel | null>(null);
   const [deleteConfirmPerson, setDeleteConfirmPerson] = useState<Personnel | null>(null);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
@@ -317,7 +315,6 @@ export const PersonnelDatabaseTab: React.FC = () => {
         personnel={personnelList}
         onViewDossier={(person) => setDossierPerson(person)}
         onOpenAddModal={() => setIsAddModalOpen(true)}
-        onEditPerson={(person) => setEditingPerson(person)}
         onDeletePerson={(person) => setDeleteConfirmPerson(person)}
         allowStatusEdits={!isGuest}
         title="Nominal Roll Database"
@@ -420,13 +417,6 @@ export const PersonnelDatabaseTab: React.FC = () => {
       <AddPersonnelModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-      />
-
-      {/* Edit Personnel Modal */}
-      <EditPersonnelModal
-        isOpen={!!editingPerson}
-        onClose={() => setEditingPerson(null)}
-        personnel={editingPerson}
       />
 
       {/* View Dossier Modal */}

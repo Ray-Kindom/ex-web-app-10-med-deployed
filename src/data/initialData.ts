@@ -7268,6 +7268,28 @@ export const INITIAL_PERSONNEL: Personnel[] = [
     "bloodGroup": "O+",
     "medicalCategory": "AYE"
   },
+  {
+    "id": "610",
+    "snkNo": "1225938",
+    "rk": "Sgt",
+    "trade": "Gnr",
+    "name": "Md Shahin Alam",
+    "battery": "R Bty",
+    "status": "Present",
+    "bloodGroup": "B+",
+    "medicalCategory": "AYE"
+  },
+  {
+    "id": "614",
+    "snkNo": "1243382",
+    "rk": "Snk",
+    "trade": "Gnr",
+    "name": "Md Arman Hossain",
+    "battery": "R Bty",
+    "status": "Present",
+    "bloodGroup": "O+",
+    "medicalCategory": "AYE"
+  },
   ...CIVILIAN_PERSONNEL
 ];
 

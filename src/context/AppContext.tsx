@@ -31,6 +31,7 @@ import {
   GoogleAccessRequest,
   SystemSettings,
   DEFAULT_SYSTEM_SETTINGS,
+  CustomTeam,
 } from '../types';
 import {
   INITIAL_PERSONNEL,
@@ -44,6 +45,7 @@ import {
   OFFICIAL_OFFICER_SNK_NOS,
   OFFICIAL_OFFICERS,
 } from '../data/initialData';
+import { ASLT_COURSE_SNK_NOS } from '../data/asltCourseData';
 import { INITIAL_PARADE_POINTS } from '../data/paradePointsData';
 import {
   INITIAL_SYSTEM_CATEGORIES,
@@ -249,9 +251,10 @@ interface AppContextType {
   confirmBatteryParadeRecord: (date: string, typeId: string, battery: Battery) => void;
   finalizeParadeType: (date: string, typeId: string) => void;
 
-  // Parade Duty Assignments (Heading boxes: Unit Sy, working, Fixed Duty, Others)
+  // Parade Duty Assignments (Heading boxes: Team, Unit Sy, working, Fixed Duty, Others)
   paradeDutyAssignments: Record<string, ParadeDutyAssignment[]>;
   addParadeDutyAssignment: (assignment: Omit<ParadeDutyAssignment, 'id' | 'assignedAt' | 'assignedBy'>) => void;
+  addParadeDutyAssignmentsBatch: (assignments: Omit<ParadeDutyAssignment, 'id' | 'assignedAt' | 'assignedBy'>[]) => void;
   removeParadeDutyAssignment: (id: string, date: string, sessionType: string) => void;
   clearParadeDutyAssignments: (date: string, sessionType: string, category?: ParadeDutyCategory) => void;
   getParadeDutyAssignments: (date: string, sessionType: string, category?: ParadeDutyCategory) => ParadeDutyAssignment[];
@@ -260,6 +263,14 @@ interface AppContextType {
   saveDutySession: (date: string, sessionType: string) => void;
   editDutySession: (date: string, sessionType: string) => void;
   sendDutySessionToAdjt: (date: string, sessionType: string, notes?: string) => void;
+
+  // Custom Teams Management (Between Duty Detailing and Out of Unit)
+  customTeams: CustomTeam[];
+  addCustomTeam: (team: Omit<CustomTeam, 'id' | 'createdAt'>) => CustomTeam;
+  updateCustomTeam: (id: string, updated: Partial<CustomTeam>) => void;
+  deleteCustomTeam: (id: string) => void;
+  addMemberToTeam: (teamId: string, personnelId: string) => void;
+  removeMemberFromTeam: (teamId: string, personnelId: string) => void;
 
   // Out Of Unit Management
   assignOutOfUnit: (
@@ -354,6 +365,7 @@ const STORAGE_KEYS = {
   CALCULATION_CONFIG: '10med_calc_config_v1',
   SYSTEM_SETTINGS: '10med_system_settings_v1',
   DELETED_USERS: '10med_deleted_user_identifiers_v1',
+  CUSTOM_TEAMS: '10med_custom_teams_v1',
 };
 
 // Helper to manage deleted user tombstones across syncs and reloads
@@ -897,6 +909,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
 
+          // Sync Assault Course personnel (ensure all 32 members exist in updatedList)
+          ASLT_COURSE_SNK_NOS.forEach((snk) => {
+            if (!updatedList.some((p) => p.snkNo === snk)) {
+              const match = INITIAL_PERSONNEL.find((ip) => ip.snkNo === snk);
+              if (match) {
+                hasChanges = true;
+                updatedList.push(match);
+              }
+            }
+          });
+
           // Sync Civilian Staff (18 personnel) - Strictly Under Civilian (Not in any military battery)
           CIVILIAN_PERSONNEL.forEach((civ) => {
             const index = updatedList.findIndex(
@@ -1389,7 +1412,161 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  // --- PARADE DUTY ASSIGNMENTS (Unit Sy, working, Fixed Duty, Others) ---
+  // --- CUSTOM TEAMS (Between Duty Detailing and Out of Unit) ---
+  const [customTeams, setCustomTeams] = useState<CustomTeam[]>(() => {
+    // 32 members for "Aslt Course"
+    const asltCourseIds = ASLT_COURSE_SNK_NOS.map(
+      (snk) => INITIAL_PERSONNEL.find((p) => p.snkNo === snk)?.id
+    ).filter(Boolean) as string[];
+
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_TEAMS);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const asltIndex = parsed.findIndex(
+            (t: any) => t.name.toLowerCase().trim() === 'aslt course'
+          );
+          if (asltIndex !== -1) {
+            parsed[asltIndex] = {
+              ...parsed[asltIndex],
+              name: 'Aslt Course',
+              memberIds: asltCourseIds,
+            };
+          } else {
+            parsed.unshift({
+              id: 'team_aslt_course',
+              name: 'Aslt Course',
+              description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
+              memberIds: asltCourseIds,
+              createdAt: new Date().toISOString(),
+            });
+          }
+          localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(parsed));
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    // Seed default teams with real soldiers from INITIAL_PERSONNEL
+    const allEligible = INITIAL_PERSONNEL.filter(
+      (p) => !p.rk.includes('Lt Col') && !p.rk.includes('Maj') && !p.rk.includes('Capt') && !p.rk.includes('Lt')
+    );
+    const athleticsIds = allEligible.slice(0, 12).map((p) => p.id);
+    const slCourseIds = allEligible.slice(12, 22).map((p) => p.id);
+    const firingIds = allEligible.slice(22, 32).map((p) => p.id);
+
+    const defaultTeams: CustomTeam[] = [
+      {
+        id: 'team_aslt_course',
+        name: 'Aslt Course',
+        description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
+        memberIds: asltCourseIds,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'team_athletics',
+        name: 'Athletics Team',
+        description: 'রেজিমেন্টাল অ্যাথলেটিক্স ও স্পোর্টস দল',
+        memberIds: athleticsIds,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'team_sl_course',
+        name: 'SL Course',
+        description: 'সেকেন্ডারি লিডারশিপ কোর্স ক্যাডার দল',
+        memberIds: slCourseIds,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'team_firing',
+        name: 'Firing Team',
+        description: 'বার্ষিক ফায়ারিং ও অস্ত্র প্রতিযোগিতা স্কোয়াড',
+        memberIds: firingIds,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(defaultTeams));
+    } catch (e) {}
+
+    return defaultTeams;
+  });
+
+  const addCustomTeam = (team: Omit<CustomTeam, 'id' | 'createdAt'>): CustomTeam => {
+    const id = 'team_' + Date.now();
+    const newTeam: CustomTeam = {
+      ...team,
+      id,
+      createdAt: new Date().toISOString(),
+      createdBy: `${currentUser.rank} ${currentUser.name}`,
+    };
+    const next = [...customTeams, newTeam];
+    setCustomTeams(next);
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+    syncDoc(setDoc(doc(db, 'custom_teams', id), sanitizeForFirestore(newTeam)), 'add custom team');
+    showNotification(`Team "${newTeam.name}" সফলভাবে তৈরি হয়েছে।`);
+    addAuditLog('Team Created', `Created team "${newTeam.name}" with ${newTeam.memberIds.length} members`, 'SYSTEM');
+    return newTeam;
+  };
+
+  const updateCustomTeam = (id: string, updated: Partial<CustomTeam>) => {
+    const next = customTeams.map((t) => (t.id === id ? { ...t, ...updated, updatedAt: new Date().toISOString() } : t));
+    setCustomTeams(next);
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+    syncDoc(setDoc(doc(db, 'custom_teams', id), sanitizeForFirestore(updated), { merge: true }), 'update custom team');
+    showNotification('টিমের তথ্য আপডেট করা হয়েছে।');
+  };
+
+  const deleteCustomTeam = (id: string) => {
+    const teamToDelete = customTeams.find((t) => t.id === id);
+    const next = customTeams.filter((t) => t.id !== id);
+    setCustomTeams(next);
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+    syncDoc(deleteDoc(doc(db, 'custom_teams', id)), 'delete custom team');
+    showNotification(`Team "${teamToDelete?.name || ''}" মুছে ফেলা হয়েছে।`);
+  };
+
+  const addMemberToTeam = (teamId: string, personnelId: string) => {
+    const next = customTeams.map((t) => {
+      if (t.id === teamId) {
+        if (t.memberIds.includes(personnelId)) return t;
+        return {
+          ...t,
+          memberIds: [...t.memberIds, personnelId],
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return t;
+    });
+    setCustomTeams(next);
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+    const target = next.find((t) => t.id === teamId);
+    if (target) {
+      syncDoc(setDoc(doc(db, 'custom_teams', teamId), sanitizeForFirestore(target), { merge: true }), 'add team member');
+    }
+  };
+
+  const removeMemberFromTeam = (teamId: string, personnelId: string) => {
+    const next = customTeams.map((t) => {
+      if (t.id === teamId) {
+        return {
+          ...t,
+          memberIds: t.memberIds.filter((mId) => mId !== personnelId),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return t;
+    });
+    setCustomTeams(next);
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+    const target = next.find((t) => t.id === teamId);
+    if (target) {
+      syncDoc(setDoc(doc(db, 'custom_teams', teamId), sanitizeForFirestore(target), { merge: true }), 'remove team member');
+    }
+  };
+
+  // --- PARADE DUTY ASSIGNMENTS (Team, Unit Sy, working, Fixed Duty, Others) ---
   const [paradeDutyAssignments, setParadeDutyAssignments] = useState<
     Record<string, ParadeDutyAssignment[]>
   >(() => {
@@ -1460,6 +1637,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         { merge: true }
       ),
       'add parade duty assignment'
+    );
+  };
+
+  const addParadeDutyAssignmentsBatch = (
+    assignments: Omit<ParadeDutyAssignment, 'id' | 'assignedAt' | 'assignedBy'>[]
+  ) => {
+    if (!assignments.length) return;
+    const date = assignments[0].date;
+    const sessionType = assignments[0].sessionType;
+    const key = `${date}_${sessionType}`;
+    const userDisplay = `${currentUser.rank} ${currentUser.name}`;
+
+    const newRecords: ParadeDutyAssignment[] = assignments.map((a, idx) => ({
+      ...a,
+      dutyName: normalizeDutyName(a.dutyName || 'General'),
+      id: `${a.personnelId}_${a.category}_${Date.now()}_${idx}`,
+      assignedAt: new Date().toISOString(),
+      assignedBy: userDisplay,
+    }));
+
+    let updatedAll: ParadeDutyAssignment[] = [];
+    setParadeDutyAssignments((prev) => {
+      const existing = prev[key] || [];
+      const newKeys = new Set(newRecords.map((r) => `${r.personnelId}_${r.category}`));
+      const remaining = existing.filter((a) => !newKeys.has(`${a.personnelId}_${a.category}`));
+      const nextList = [...remaining, ...newRecords];
+      updatedAll = nextList;
+      const next = { ...prev, [key]: nextList };
+      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
+      return next;
+    });
+
+    // Auto-sync with Supabase Cloud
+    const currentStatus = dutySessionStatuses[key]?.status || 'Draft';
+    saveDutyDetailingToSupabase(date, sessionType, updatedAll, currentStatus, userDisplay).catch(() => {});
+
+    syncDoc(
+      setDoc(
+        doc(db, 'parade_duty_assignments', key),
+        sanitizeForFirestore({
+          date,
+          sessionType,
+          assignments: updatedAll,
+        }),
+        { merge: true }
+      ),
+      'batch add parade duty assignments'
     );
   };
 
@@ -4067,6 +4291,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     else if (category === 'Att') paradeStatus = 'Attached Out';
     else paradeStatus = 'Temp Duty';
 
+    let durationDays: number | undefined = undefined;
+    if (details.startDate && details.endDate) {
+      const d1 = new Date(details.startDate).getTime();
+      const d2 = new Date(details.endDate).getTime();
+      if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+        durationDays = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+      }
+    }
+
     const patch: Partial<Personnel> = {
       status: paradeStatus,
       outOfUnitCategory: category,
@@ -4075,8 +4308,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       outOfUnitEndDate: details.endDate,
       outOfUnitAuthority: details.authority,
       outOfUnitRemarks: details.remarks,
-      statusDetails: `${category} - ${details.location || details.remarks || 'Out of Unit'}`,
+      durationDays,
+      location: details.location,
+      startDate: details.startDate,
+      endDate: details.endDate,
+      authority: details.authority,
+      remarks: details.remarks,
+      statusDetails: `${category}${details.location ? ` - ${details.location}` : ''}${
+        durationDays ? ` (${durationDays} Days)` : ''
+      }`,
     };
+
+    if (category === 'P/Lve' || category === 'C/Lve') {
+      patch.leaveType = category;
+      patch.leaveFrom = details.startDate;
+      patch.leaveTo = details.endDate;
+      patch.leaveAddress = details.location;
+    } else if (category === 'CMH') {
+      patch.hospitalName = details.location;
+      patch.admissionDate = details.startDate;
+    } else if (category === 'Course') {
+      patch.courseName = details.location;
+      patch.courseFrom = details.startDate;
+      patch.courseTo = details.endDate;
+    } else if (category === 'Comd') {
+      patch.comdAssignment = details.location;
+      patch.comdFrom = details.startDate;
+      patch.comdTo = details.endDate;
+      patch.comdAuthority = details.authority;
+    }
 
     setPersonnelList((prev) =>
       prev.map((p) => {
@@ -4107,7 +4367,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     const patch: Record<string, any> = {
-      status: 'Present',
+      status: 'In Unit',
       outOfUnitCategory: null,
       outOfUnitLocation: null,
       outOfUnitStartDate: null,
@@ -4115,6 +4375,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       outOfUnitAuthority: null,
       outOfUnitRemarks: null,
       statusDetails: null,
+      durationDays: null,
+      location: null,
+      startDate: null,
+      endDate: null,
+      authority: null,
+      remarks: null,
+      leaveType: null,
+      leaveFrom: null,
+      leaveTo: null,
+      leaveAddress: null,
+      courseName: null,
+      courseFrom: null,
+      courseTo: null,
+      hospitalName: null,
+      admissionDate: null,
+      comdAssignment: null,
+      comdFrom: null,
+      comdTo: null,
+      comdAuthority: null,
     };
 
     setPersonnelList((prev) =>
@@ -4122,7 +4401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (p.id === personnelId) {
           return {
             ...p,
-            status: 'Present',
+            status: 'In Unit',
             outOfUnitCategory: undefined,
             outOfUnitLocation: undefined,
             outOfUnitStartDate: undefined,
@@ -4130,6 +4409,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             outOfUnitAuthority: undefined,
             outOfUnitRemarks: undefined,
             statusDetails: undefined,
+            durationDays: undefined,
+            location: undefined,
+            startDate: undefined,
+            endDate: undefined,
+            authority: undefined,
+            remarks: undefined,
+            leaveType: undefined,
+            leaveFrom: undefined,
+            leaveTo: undefined,
+            leaveAddress: undefined,
+            courseName: undefined,
+            courseFrom: undefined,
+            courseTo: undefined,
+            hospitalName: undefined,
+            admissionDate: undefined,
+            comdAssignment: undefined,
+            comdFrom: undefined,
+            comdTo: undefined,
+            comdAuthority: undefined,
           };
         }
         return p;
@@ -4694,10 +4992,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         confirmBatteryParadeRecord,
         finalizeParadeType,
 
-        // Parade Duty Assignments (Unit Sy, working, Fixed Duty, Others)
+        // Parade Duty Assignments (Team, Unit Sy, working, Fixed Duty, Others)
         paradeDutyAssignments,
         getParadeDutyAssignments,
         addParadeDutyAssignment,
+        addParadeDutyAssignmentsBatch,
         removeParadeDutyAssignment,
         clearParadeDutyAssignments,
         dutySessionStatuses,
@@ -4705,6 +5004,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveDutySession,
         editDutySession,
         sendDutySessionToAdjt,
+
+        // Custom Teams Management (Between Duty Detailing and Out of Unit)
+        customTeams,
+        addCustomTeam,
+        updateCustomTeam,
+        deleteCustomTeam,
+        addMemberToTeam,
+        removeMemberFromTeam,
 
         assignOutOfUnit,
         cancelOutOfUnit,

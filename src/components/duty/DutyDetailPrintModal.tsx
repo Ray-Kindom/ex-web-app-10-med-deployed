@@ -17,29 +17,34 @@ const CATEGORY_META: Record<
   ParadeDutyCategory,
   { num: string; title: string; shortTitle: string }
 > = {
-  'Unit Sy': {
+  Team: {
     num: '1.',
+    title: 'TEAMS & CADRES / SPECIAL SQUADS',
+    shortTitle: 'Teams / Squads',
+  },
+  'Unit Sy': {
+    num: '2.',
     title: 'UNIT SECURITY (UNIT SY)',
     shortTitle: 'Unit Security',
   },
   working: {
-    num: '2.',
+    num: '3.',
     title: 'WORKING PARTIES (FATIGUE & RATIONS)',
     shortTitle: 'Working Parties',
   },
   'Fixed Duty': {
-    num: '3.',
+    num: '4.',
     title: 'FIXED SUB-UNIT & REGIMENTAL DUTIES',
     shortTitle: 'Fixed Duty',
   },
   Others: {
-    num: '4.',
+    num: '5.',
     title: 'OTHERS & SPECIAL OPERATIONAL TASKS',
     shortTitle: 'Others & Special',
   },
 };
 
-const ORDERED_CATEGORIES: ParadeDutyCategory[] = ['Unit Sy', 'working', 'Fixed Duty', 'Others'];
+const ORDERED_CATEGORIES: ParadeDutyCategory[] = ['Team', 'Unit Sy', 'working', 'Fixed Duty', 'Others'];
 
 export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
   isOpen,

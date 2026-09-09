@@ -27,6 +27,10 @@ import {
   Shield,
   Clock,
   User,
+  Edit2,
+  Lock,
+  Save,
+  Check,
 } from 'lucide-react';
 
 interface OutOfUnitManagerModalProps {
@@ -52,6 +56,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     activeOutOfUnitCategory,
     setActiveOutOfUnitCategory,
     ranksList,
+    isGuest,
   } = useApp();
 
   const [currentCategory, setCurrentCategory] = useState<OutOfUnitCategory>(
@@ -62,6 +67,122 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingSoldier, setIsAddingSoldier] = useState(false);
+
+  // Inline editing state: row edits directly in the table with no popup window
+  const [inlineEditingPersonId, setInlineEditingPersonId] = useState<string | null>(null);
+  const [inlineCategory, setInlineCategory] = useState<OutOfUnitCategory>('Comd');
+  const [inlineLocation, setInlineLocation] = useState('');
+  const [inlineStartDate, setInlineStartDate] = useState('');
+  const [inlineEndDate, setInlineEndDate] = useState('');
+  const [inlineDurationDays, setInlineDurationDays] = useState<number | ''>('');
+  const [inlineAuthority, setInlineAuthority] = useState('');
+  const [inlineRemarks, setInlineRemarks] = useState('');
+
+  const startInlineEdit = (person: Personnel) => {
+    setInlineEditingPersonId(person.id);
+    const cat = (person.outOfUnitCategory ||
+      (person.status === 'CMH/Sick'
+        ? 'CMH'
+        : person.status === 'Course/Trg'
+        ? 'Course'
+        : person.leaveType === 'P/Lve'
+        ? 'P/Lve'
+        : person.leaveType === 'C/Lve'
+        ? 'C/Lve'
+        : 'Comd')) as OutOfUnitCategory;
+    setInlineCategory(cat);
+    setInlineLocation(
+      person.outOfUnitLocation ||
+        person.location ||
+        person.leaveAddress ||
+        person.courseName ||
+        person.hospitalName ||
+        person.comdAssignment ||
+        ''
+    );
+    const start =
+      person.outOfUnitStartDate ||
+      person.startDate ||
+      person.leaveFrom ||
+      person.courseFrom ||
+      person.admissionDate ||
+      person.comdFrom ||
+      new Date().toISOString().split('T')[0];
+    setInlineStartDate(start);
+    const end =
+      person.outOfUnitEndDate ||
+      person.endDate ||
+      person.leaveTo ||
+      person.courseTo ||
+      person.comdTo ||
+      '';
+    setInlineEndDate(end);
+    setInlineAuthority(
+      person.outOfUnitAuthority ||
+        person.authority ||
+        person.comdAuthority ||
+        ''
+    );
+    setInlineRemarks(
+      person.outOfUnitRemarks ||
+        person.remarks ||
+        person.rmk ||
+        person.diagnosis ||
+        ''
+    );
+
+    if (person.durationDays) {
+      setInlineDurationDays(person.durationDays);
+    } else if (start && end) {
+      const d1 = new Date(start).getTime();
+      const d2 = new Date(end).getTime();
+      if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+        setInlineDurationDays(Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1));
+      } else {
+        setInlineDurationDays('');
+      }
+    } else {
+      setInlineDurationDays('');
+    }
+  };
+
+  const cancelInlineEdit = () => {
+    setInlineEditingPersonId(null);
+  };
+
+  const saveInlineEdit = (person: Personnel) => {
+    if (isGuest) {
+      alert('গেস্ট মোডে তথ্য পরিবর্তন করা যাবে না (View-Only)।');
+      return;
+    }
+
+    const isLeave = inlineCategory === 'P/Lve' || inlineCategory === 'C/Lve';
+    if (isLeave) {
+      if (!inlineStartDate) {
+        alert('ছুটির ক্ষেত্রে শুরুর তারিখ (Start Date) বাধ্যতামূলক।');
+        return;
+      }
+      if (!inlineEndDate) {
+        alert('ছুটির ক্ষেত্রে যোগদানের তারিখ (Joining Date) বাধ্যতামূলক।');
+        return;
+      }
+    } else {
+      if (!inlineStartDate) {
+        alert('শুরুর তারিখ (Start Date) প্রদান করুন।');
+        return;
+      }
+    }
+
+    assignOutOfUnit(person.id, inlineCategory, {
+      location: inlineLocation.trim() || undefined,
+      startDate: inlineStartDate || undefined,
+      endDate: inlineEndDate || undefined,
+      authority: inlineAuthority.trim() || undefined,
+      remarks: inlineRemarks.trim() || undefined,
+    });
+
+    setInlineEditingPersonId(null);
+  };
 
   // Synchronize category immediately when defaultCategory or activeOutOfUnitCategory changes
   const [prevDefaultCategory, setPrevDefaultCategory] = useState(defaultCategory);
@@ -271,6 +392,23 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     if (isBsm && bsmBattery && targetPerson && targetPerson.battery !== bsmBattery) {
       alert(`⚠️ এই সদস্য ${targetPerson.battery}-এর। আপনি ${currentUser.role} হিসেবে শুধুমাত্র ${bsmBattery}-এর তথ্য এন্ট্রি/পরিবর্তন করতে পারবেন।`);
       return;
+    }
+
+    const isLeave = currentCategory === 'P/Lve' || currentCategory === 'C/Lve';
+    if (isLeave) {
+      if (!startDate || !endDate) {
+        alert('ছুটির ক্ষেত্রে শুরুর তারিখ (Start Date) এবং যোগদানের তারিখ (Joining Date) বাধ্যতামূলক।');
+        return;
+      }
+    } else {
+      if (!locationOrName.trim()) {
+        alert('Please specify the location or camp.');
+        return;
+      }
+      if (!startDate) {
+        alert('Please select start date.');
+        return;
+      }
     }
 
     assignOutOfUnit(selectedPersonnelId, currentCategory, {
@@ -506,23 +644,27 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                     <div>
                       <label className="block text-slate-300 font-semibold mb-1">
                         {currentCategory === 'CMH'
-                          ? 'Hospital / Ward / Illness'
+                          ? 'Hospital / Ward / Illness *'
                           : currentCategory === 'Course'
-                          ? 'Course / Cadre Name & Location'
+                          ? 'Course / Cadre Name & Location *'
                           : currentCategory === 'Msn'
-                          ? 'Mission Deployment Country / Force'
+                          ? 'Mission Deployment Country / Force *'
                           : currentCategory === 'P/Lve' || currentCategory === 'C/Lve'
-                          ? 'Leave Destination / Address'
+                          ? 'Leave Address / ছুটির ঠিকানা (Optional / ঐচ্ছিক)'
                           : currentCategory === 'ERE'
-                          ? 'ERE Organization (e.g. DGFI, BGB, AHQ)'
-                          : 'Deployment / Duty Station / Location'} *
+                          ? 'ERE Organization (e.g. DGFI, BGB, AHQ) *'
+                          : 'Deployment / Duty Station / Location *'}
                       </label>
                       <input
                         type="text"
-                        required
+                        required={currentCategory !== 'P/Lve' && currentCategory !== 'C/Lve'}
                         value={locationOrName}
                         onChange={(e) => setLocationOrName(e.target.value)}
-                        placeholder="e.g. UNMISS South Sudan / AC&S Halishahar / CMH Savar"
+                        placeholder={
+                          currentCategory === 'P/Lve' || currentCategory === 'C/Lve'
+                            ? 'e.g. নিজ গ্রাম, ডাকঘর, জেলা (বাধ্যতামূলক নয়)'
+                            : 'e.g. UNMISS South Sudan / AC&S Halishahar / CMH Savar'
+                        }
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rose-500"
                       />
                     </div>
@@ -544,7 +686,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-300 font-semibold mb-1">
-                        Departure / Start Date *
+                        Departure / Start Date (শুরুর তারিখ) *
                       </label>
                       <input
                         type="date"
@@ -557,10 +699,13 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
 
                     <div>
                       <label className="block text-slate-300 font-semibold mb-1">
-                        Expected Return / End Date
+                        {currentCategory === 'P/Lve' || currentCategory === 'C/Lve'
+                          ? 'Joining Date / যোগদানের তারিখ *'
+                          : 'Expected Return / End Date'}
                       </label>
                       <input
                         type="date"
+                        required={currentCategory === 'P/Lve' || currentCategory === 'C/Lve'}
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-rose-500"
@@ -667,6 +812,159 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                         ? `Admitted: ${person.admissionDate}`
                         : 'Active Out-of-Unit';
 
+                    if (inlineEditingPersonId === person.id) {
+                      const isLeave = inlineCategory === 'P/Lve' || inlineCategory === 'C/Lve';
+                      return (
+                        <tr
+                          key={person.id}
+                          className="bg-amber-950/40 border-y border-amber-500/60 shadow-inner"
+                        >
+                          {/* 1. # */}
+                          <td className="py-2 px-3 text-center text-slate-500 font-mono text-xs">
+                            {idx + 1}
+                          </td>
+
+                          {/* 2. Army No */}
+                          <td className="py-2 px-3 font-mono font-bold text-white whitespace-nowrap">
+                            {person.snkNo}
+                          </td>
+
+                          {/* 3. Rank & Name */}
+                          <td className="py-2 px-3">
+                            <div className="font-bold text-slate-200">
+                              <span className="text-rose-400 font-mono mr-1.5">{person.rk}</span>
+                              <span>{person.name}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              {person.trade}
+                            </span>
+                          </td>
+
+                          {/* 4. Battery */}
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                              {person.battery}
+                            </span>
+                          </td>
+
+                          {/* 5. Category */}
+                          <td className="py-1 px-2 whitespace-nowrap">
+                            <select
+                              value={inlineCategory}
+                              onChange={(e) => setInlineCategory(e.target.value as OutOfUnitCategory)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEdit(person);
+                                if (e.key === 'Escape') cancelInlineEdit();
+                              }}
+                              className="w-full bg-slate-900 border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono font-bold text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                            >
+                              <option value="P/Lve">P/Lve</option>
+                              <option value="C/Lve">C/Lve</option>
+                              <option value="Course">Course</option>
+                              <option value="CMH">CMH</option>
+                              <option value="FDMN">FDMN</option>
+                              <option value="Comd">Comd</option>
+                              <option value="Att">Att</option>
+                              <option value="Msn">Msn</option>
+                              <option value="ERE">ERE</option>
+                            </select>
+                          </td>
+
+                          {/* 6. Location / Unit */}
+                          <td className="py-1 px-2">
+                            <input
+                              type="text"
+                              value={inlineLocation}
+                              onChange={(e) => setInlineLocation(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEdit(person);
+                                if (e.key === 'Escape') cancelInlineEdit();
+                              }}
+                              placeholder={isLeave ? 'Address (ঐচ্ছিক)' : 'Location'}
+                              className="w-full bg-slate-900 border border-amber-500 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                            />
+                          </td>
+
+                          {/* 7. Dates / Duration */}
+                          <td className="py-1 px-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="date"
+                                value={inlineStartDate}
+                                onChange={(e) => setInlineStartDate(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(person);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className="bg-slate-900 border border-amber-500 rounded px-1 py-0.5 text-[11px] font-mono text-white focus:outline-none"
+                              />
+                              <span className="text-slate-500 text-[10px]">→</span>
+                              <input
+                                type="date"
+                                value={inlineEndDate}
+                                onChange={(e) => setInlineEndDate(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(person);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className="bg-slate-900 border border-amber-500 rounded px-1 py-0.5 text-[11px] font-mono text-white focus:outline-none"
+                              />
+                            </div>
+                          </td>
+
+                          {/* 8. Authority / Remarks */}
+                          <td className="py-1 px-2">
+                            <div className="flex flex-col gap-1">
+                              <input
+                                type="text"
+                                placeholder="Authority"
+                                value={inlineAuthority}
+                                onChange={(e) => setInlineAuthority(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(person);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className="w-full bg-slate-900 border border-amber-500 rounded px-1.5 py-0.5 text-[11px] text-white focus:outline-none"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Remarks"
+                                value={inlineRemarks}
+                                onChange={(e) => setInlineRemarks(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(person);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-300 focus:outline-none"
+                              />
+                            </div>
+                          </td>
+
+                          {/* 9. Actions */}
+                          <td className="py-1 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => saveInlineEdit(person)}
+                                title="Save (সংরক্ষণ করুন / Enter)"
+                                className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow cursor-pointer transition-colors"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelInlineEdit}
+                                title="Cancel (বাতিল / Esc)"
+                                className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     return (
                       <tr
                         key={person.id}
@@ -725,6 +1023,15 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                                 <span>Dossier</span>
                               </button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => startInlineEdit(person)}
+                              title="Update Location, Duration, Remarks (RSM Edit)"
+                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-amber-950/60 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/50 text-[11px] font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3 text-amber-400" />
+                              <span>Edit</span>
+                            </button>
                             <button
                               onClick={() => cancelOutOfUnit(person.id)}
                               title="Cancel Out-of-Unit & Return Soldier to Unit Parade"

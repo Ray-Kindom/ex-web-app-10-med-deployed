@@ -4,6 +4,7 @@ import { ParadeDutyCategory, Battery } from '../../types';
 import { normalizeDutyName } from '../../utils/paradeCalculations';
 import { sortBySeniority } from '../../utils/seniorityUtils';
 import {
+  Users,
   Shield,
   Wrench,
   Clock,
@@ -13,6 +14,9 @@ import {
   Trash2,
   X,
   ChevronDown,
+  RotateCcw,
+  ExternalLink,
+  UserCheck,
 } from 'lucide-react';
 
 interface ParadeDutyHeadingBoxesProps {
@@ -32,8 +36,15 @@ interface DutyBoxDefinition {
 
 const DUTY_BOXES: DutyBoxDefinition[] = [
   {
-    category: 'Unit Sy',
+    category: 'Team',
     num: '1.',
+    title: 'Team',
+    icon: Users,
+    defaultRoles: [],
+  },
+  {
+    category: 'Unit Sy',
+    num: '2.',
     title: 'Unit Sy',
     icon: Shield,
     defaultRoles: [
@@ -48,7 +59,7 @@ const DUTY_BOXES: DutyBoxDefinition[] = [
   },
   {
     category: 'working',
-    num: '2.',
+    num: '3.',
     title: 'working',
     icon: Wrench,
     defaultRoles: [
@@ -64,7 +75,7 @@ const DUTY_BOXES: DutyBoxDefinition[] = [
   },
   {
     category: 'Fixed Duty',
-    num: '3.',
+    num: '4.',
     title: 'Fixed Duty',
     icon: Clock,
     defaultRoles: [
@@ -80,7 +91,7 @@ const DUTY_BOXES: DutyBoxDefinition[] = [
   },
   {
     category: 'Others',
-    num: '4.',
+    num: '5.',
     title: 'Others',
     icon: Layers,
     defaultRoles: [
@@ -104,14 +115,17 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     personnelList,
     getParadeDutyAssignments,
     addParadeDutyAssignment,
+    addParadeDutyAssignmentsBatch,
     removeParadeDutyAssignment,
     clearParadeDutyAssignments,
     showNotification,
     ranksList,
+    customTeams,
+    setActivePage,
   } = useApp();
 
-  // Active Category (defaults to Unit Sy for immediate entry readiness)
-  const [activeCategory, setActiveCategory] = useState<ParadeDutyCategory | null>('Unit Sy');
+  // Active Category (defaults to Team as first category for immediate entry readiness)
+  const [activeCategory, setActiveCategory] = useState<ParadeDutyCategory | null>('Team');
 
   // Selected Duty Role from dropdown
   const [selectedDutyName, setSelectedDutyName] = useState<string>('');
@@ -138,6 +152,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
   // Counts for each category
   const categoryCounts = useMemo(() => {
     const counts: Record<ParadeDutyCategory, number> = {
+      Team: 0,
       'Unit Sy': 0,
       working: 0,
       'Fixed Duty': 0,
@@ -156,10 +171,22 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     return DUTY_BOXES.find((b) => b.category === activeCategory);
   }, [activeCategory]);
 
-  // When active category changes, set default dropdown duty option
+  // Dynamic available roles for dropdown
+  const availableRoles = useMemo(() => {
+    if (activeCategory === 'Team') {
+      const names = (customTeams || []).map((t) => t.name);
+      if (names.length > 0) return names;
+      return ['Aslt Course', 'Athletics Team', 'SL Course', 'Firing Team'];
+    }
+    return activeBoxDef?.defaultRoles || [];
+  }, [activeCategory, customTeams, activeBoxDef]);
+
+  // When active category changes or available roles change, set selected duty option
   useEffect(() => {
-    if (activeCategory && activeBoxDef) {
-      setSelectedDutyName(activeBoxDef.defaultRoles[0] || '');
+    if (activeCategory && availableRoles.length > 0) {
+      if (!selectedDutyName || !availableRoles.includes(selectedDutyName)) {
+        setSelectedDutyName(availableRoles[0]);
+      }
       setIsCustomDuty(false);
       setCustomDutyInput('');
       setSearchQuery('');
@@ -168,7 +195,74 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
         searchInputRef.current?.focus();
       }, 80);
     }
-  }, [activeCategory, activeBoxDef]);
+  }, [activeCategory, availableRoles]);
+
+  // Team object matching current selected role
+  const currentTeamObj = useMemo(() => {
+    if (activeCategory !== 'Team') return null;
+    return (customTeams || []).find(
+      (t) => t.name.toLowerCase().trim() === selectedDutyName.toLowerCase().trim()
+    );
+  }, [activeCategory, customTeams, selectedDutyName]);
+
+  // Members of current team currently detailed for this dutyName
+  const teamMembersDetailed = useMemo(() => {
+    if (!currentTeamObj) return [];
+    const norm = normalizeDutyName(selectedDutyName);
+    return displayAssignments.filter(
+      (a) => a.category === 'Team' && normalizeDutyName(a.dutyName) === norm
+    );
+  }, [currentTeamObj, displayAssignments, selectedDutyName]);
+
+  // Batch load team into today's duty detailing
+  const handleLoadFullTeam = (teamObj: NonNullable<typeof currentTeamObj>) => {
+    if (isReadOnly) {
+      showNotification('View-Only mode: Cannot add duty personnel.');
+      return;
+    }
+    const finalDuty = normalizeDutyName(teamObj.name);
+    const membersToAssign = teamObj.memberIds
+      .map((id) => personnelList.find((p) => p.id === id))
+      .filter(Boolean) as typeof personnelList;
+
+    if (membersToAssign.length === 0) {
+      showNotification(`"${teamObj.name}" টিমে কোনো সদস্য নেই। Team পেজ থেকে সদস্য যোগ করুন।`);
+      return;
+    }
+
+    const assignmentsToAdd = membersToAssign.map((soldier) => ({
+      personnelId: soldier.id,
+      snkNo: soldier.snkNo || (soldier as any).armyNo || '',
+      name: soldier.name,
+      rank: (soldier.rk || (soldier as any).rank || '') as string,
+      battery: soldier.battery,
+      category: 'Team' as ParadeDutyCategory,
+      dutyName: finalDuty,
+      date,
+      sessionType,
+    }));
+
+    addParadeDutyAssignmentsBatch(assignmentsToAdd);
+    showNotification(`"${teamObj.name}"-এর ${membersToAssign.length} জন সদস্য ডিউটিতে সফলভাবে যোগ করা হয়েছে।`);
+  };
+
+  // Auto-load team members when team is selected if not yet detailed
+  const autoLoadedTeamsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (activeCategory === 'Team' && currentTeamObj && currentTeamObj.memberIds.length > 0) {
+      const loadKey = `${date}_${sessionType}_${currentTeamObj.id}`;
+      if (!autoLoadedTeamsRef.current.has(loadKey)) {
+        const norm = normalizeDutyName(currentTeamObj.name);
+        const alreadyInDuty = allAssignments.filter(
+          (a) => a.category === 'Team' && normalizeDutyName(a.dutyName) === norm
+        );
+        if (alreadyInDuty.length === 0 && !isReadOnly) {
+          autoLoadedTeamsRef.current.add(loadKey);
+          handleLoadFullTeam(currentTeamObj);
+        }
+      }
+    }
+  }, [activeCategory, currentTeamObj, date, sessionType, isReadOnly]);
 
   // Click outside listener for search autocomplete
   useEffect(() => {
@@ -289,7 +383,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
   return (
     <div className="w-full space-y-2.5">
       {/* 1. CATEGORY BOXES AT THE TOP (SMALL & SIMPLE WITH DIGIT COUNT) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {DUTY_BOXES.map((box) => {
           const Icon = box.icon;
           const isSelected = activeCategory === box.category;
@@ -375,7 +469,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
               {/* Dropdown */}
               <div className="md:col-span-5 space-y-1">
                 <label className="text-xs font-mono text-slate-400 flex items-center justify-between">
-                  <span>Duty Role:</span>
+                  <span>{activeCategory === 'Team' ? 'Select Team / Squad:' : 'Duty Role:'}</span>
                   {isCustomDuty && (
                     <button
                       type="button"
@@ -395,20 +489,27 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                         if (e.target.value === '__CUSTOM__') {
                           setIsCustomDuty(true);
                           setCustomDutyInput('');
+                        } else if (e.target.value === '__GO_TO_TEAMS__') {
+                          setActivePage('teams');
                         } else {
                           setSelectedDutyName(e.target.value);
                         }
                       }}
                       className="w-full bg-slate-950 border border-slate-700 hover:border-slate-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-rose-500 appearance-none cursor-pointer pr-7"
                     >
-                      {(activeBoxDef?.defaultRoles || []).map((role) => (
+                      {(availableRoles || []).map((role) => (
                         <option key={role} value={role} className="bg-slate-900 text-white">
                           {role}
                         </option>
                       ))}
                       <option value="__CUSTOM__" className="bg-slate-900 text-cyan-400 font-bold">
-                        + Custom Duty...
+                        + Custom {activeCategory === 'Team' ? 'Team Name' : 'Duty'}...
                       </option>
+                      {activeCategory === 'Team' && (
+                        <option value="__GO_TO_TEAMS__" className="bg-slate-900 text-amber-300 font-bold">
+                          ⚙ Manage Teams / নতুন টিম বানান...
+                        </option>
+                      )}
                     </select>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
@@ -417,7 +518,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                     type="text"
                     value={customDutyInput}
                     onChange={(e) => setCustomDutyInput(e.target.value)}
-                    placeholder="Enter custom duty name..."
+                    placeholder={activeCategory === 'Team' ? 'টিমের নাম লিখুন...' : 'Enter custom duty name...'}
                     className="w-full bg-slate-950 border border-cyan-500/60 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-400"
                     autoFocus
                   />
@@ -519,6 +620,46 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
           ) : (
             <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300 font-mono">
               View-Only Mode
+            </div>
+          )}
+
+          {/* Quick Team Status & Action Bar */}
+          {activeCategory === 'Team' && currentTeamObj && (
+            <div className="p-2.5 px-3 rounded-lg bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Users className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span className="text-slate-300">
+                  টিম: <strong className="text-white font-bold">{currentTeamObj.name}</strong> ({currentTeamObj.memberIds.length} জন মূল সদস্য)
+                </span>
+                <span className="text-slate-600 hidden sm:inline">•</span>
+                <span className="text-emerald-400 font-bold">
+                  আজকের ডিউটিতে: {teamMembersDetailed.length} জন
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => handleLoadFullTeam(currentTeamObj)}
+                    className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="মূল টিমের সব সদস্যকে আজকের ডিউটিতে লোড বা রিলোড করুন"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>টিম রিলোড করুন ({currentTeamObj.memberIds.length} জন)</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setActivePage('teams')}
+                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                  title="টিম তৈরি বা সদস্য পরিবর্তন করতে Team পেজে যান"
+                >
+                  <span>Team পেজ</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           )}
 

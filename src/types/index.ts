@@ -522,7 +522,17 @@ export interface ParadeTypeDefinition {
   deletedByRole?: 'Admin' | 'RSM' | string;
 }
 
-export type ParadeDutyCategory = 'Unit Sy' | 'working' | 'Fixed Duty' | 'Others';
+export type ParadeDutyCategory = 'Team' | 'Unit Sy' | 'working' | 'Fixed Duty' | 'Others';
+
+export interface CustomTeam {
+  id: string;
+  name: string;
+  description?: string;
+  memberIds: string[];
+  createdAt: string;
+  updatedAt?: string;
+  createdBy?: string;
+}
 
 export interface ParadeDutyAssignment {
   id: string;
@@ -778,6 +788,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: true,
       out_of_unit: true,
       admin_panel: true,
@@ -788,6 +799,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: true,
       out_of_unit: true,
       admin_panel: false,
@@ -798,6 +810,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: true,
       out_of_unit: true,
       admin_panel: false,
@@ -809,6 +822,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: true,
       out_of_unit: true,
       admin_panel: false,
@@ -819,6 +833,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: false,
       out_of_unit: false,
       admin_panel: false,
@@ -829,6 +844,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: false,
       out_of_unit: false,
       admin_panel: false,
@@ -839,6 +855,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: false,
       out_of_unit: false,
       admin_panel: false,
@@ -849,6 +866,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: false,
       out_of_unit: false,
       admin_panel: false,
@@ -859,6 +877,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: false,
       out_of_unit: false,
       admin_panel: false,

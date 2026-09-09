@@ -36,6 +36,10 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Save,
+  Check,
+  X,
+  Lock,
 } from 'lucide-react';
 
 interface PersonnelTableProps {
@@ -59,11 +63,137 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
   allowStatusEdits = true,
   title,
 }) => {
-  const { updateParadeStatus, currentUser, showNotification, searchQuery, setSearchQuery, isGuest, ranksList, tradesList } = useApp();
+  const {
+    updateParadeStatus,
+    updatePersonnel,
+    currentUser,
+    showNotification,
+    searchQuery,
+    setSearchQuery,
+    isGuest,
+    ranksList,
+    tradesList,
+    subUnitsList,
+  } = useApp();
 
   const safePersonnel = useMemo(() => (Array.isArray(personnel) ? personnel.filter(Boolean) : []), [personnel]);
   const safeRanks = useMemo(() => (Array.isArray(ranksList) ? ranksList.filter(Boolean) : []), [ranksList]);
   const safeTrades = useMemo(() => (Array.isArray(tradesList) ? tradesList.filter(Boolean) : []), [tradesList]);
+
+  // Inline editing state for Master Personnel Database (No separate window or popup)
+  const [inlineEditingPersonId, setInlineEditingPersonId] = useState<string | null>(null);
+  const [editSnkNo, setEditSnkNo] = useState('');
+  const [editRank, setEditRank] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editBattery, setEditBattery] = useState<Battery>('HQ');
+  const [editTrade, setEditTrade] = useState('');
+  const [editBloodGroup, setEditBloodGroup] = useState('O+');
+  const [editMedicalCat, setEditMedicalCat] = useState('AYE');
+  const [editMobileNo, setEditMobileNo] = useState('');
+  const [editRemarks, setEditRemarks] = useState('');
+
+  const canEditAny =
+    !isGuest &&
+    (currentUser.role === 'RSM' ||
+      currentUser.role === 'Admin' ||
+      currentUser.role === '2IC' ||
+      currentUser.role === 'Adjutant');
+
+  const canEditPerson = (person: Personnel) => {
+    if (isGuest) return false;
+    if (canEditAny) return true;
+    if (
+      (currentUser.role === 'Battery In-charge' || currentUser.assignedBattery) &&
+      person.battery === currentUser.assignedBattery
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const startInlineEdit = (person: Personnel) => {
+    if (!canEditPerson(person)) {
+      showNotification(
+        `⚠️ আপনি ${currentUser.role} হিসেবে শুধুমাত্র ${currentUser.assignedBattery || 'আপনার ব্যাটারি'}-এর সৈনিকের তথ্য পরিবর্তন করতে পারবেন।`
+      );
+      return;
+    }
+
+    setInlineEditingPersonId(person.id);
+    setEditSnkNo(person.snkNo || '');
+    setEditRank(person.rk || '');
+    setEditName(person.name || '');
+    setEditBattery(person.battery || 'HQ');
+    setEditTrade(person.trade || '');
+    setEditBloodGroup(person.bloodGroup || 'O+');
+    setEditMedicalCat(person.medicalCategory || 'AYE');
+    setEditMobileNo(person.mobileNo || '');
+    setEditRemarks(person.remarks || person.rmk || '');
+  };
+
+  const cancelInlineEdit = () => {
+    setInlineEditingPersonId(null);
+  };
+
+  const saveInlineEdit = (personId: string) => {
+    if (isGuest) {
+      alert('গেস্ট মোডে তথ্য পরিবর্তন করা যাবে না (View-Only)।');
+      return;
+    }
+    if (!editSnkNo.trim()) {
+      alert('সৈনিক নম্বর (Army / Soldier No) প্রদান করুন।');
+      return;
+    }
+    if (!editName.trim()) {
+      alert('নাম প্রদান করুন।');
+      return;
+    }
+
+    updatePersonnel(personId, {
+      snkNo: editSnkNo.trim(),
+      rk: editRank.trim(),
+      name: editName.trim(),
+      battery: editBattery,
+      trade: editTrade.trim(),
+      bloodGroup: editBloodGroup,
+      medicalCategory: editMedicalCat,
+      mobileNo: editMobileNo.trim() || undefined,
+      remarks: editRemarks.trim() || undefined,
+      rmk: editRemarks.trim() || undefined,
+    });
+
+    showNotification('পার্সোনেল তথ্য সফলভাবে পরিবর্তন ও সংরক্ষণ করা হয়েছে।');
+    setInlineEditingPersonId(null);
+  };
+
+  const rankOptions = useMemo(() => {
+    if (safeRanks.length > 0) return safeRanks.map((r) => r.name);
+    return [
+      'Col',
+      'Lt Col',
+      'Maj',
+      'Capt',
+      'Lt',
+      '2Lt',
+      'MWO',
+      'SWO',
+      'WO',
+      'Sgt',
+      'Cpl',
+      'L/Cpl',
+      'Snk',
+      'NC(E)',
+      'NC(U)',
+      'Civilian',
+    ];
+  }, [safeRanks]);
+
+  const batteryOptions = useMemo(() => {
+    if (subUnitsList && subUnitsList.length > 0) {
+      return subUnitsList.map((s) => s.name as Battery);
+    }
+    return ['HQ', 'P', 'Q', 'R', 'Civilian'] as Battery[];
+  }, [subUnitsList]);
 
   // Filter States - synced with header search query
   const [localSearchTerm, setLocalSearchTerm] = useState('');
@@ -657,6 +787,170 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               </tr>
             ) : (
               filteredPersonnel.map((person, index) => {
+                if (inlineEditingPersonId === person.id) {
+                  return (
+                    <tr
+                      key={person.id}
+                      className="bg-amber-950/40 border-y border-amber-500/60 shadow-inner"
+                    >
+                      {/* 1. SL */}
+                      <td className="py-2 px-3 text-center font-mono text-slate-400 text-[11px]">
+                        {index + 1}
+                      </td>
+
+                      {/* 2. Army / Snk No */}
+                      <td className="py-1 px-1.5 text-center">
+                        <input
+                          type="text"
+                          value={editSnkNo}
+                          onChange={(e) => setEditSnkNo(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEdit(person.id);
+                            if (e.key === 'Escape') cancelInlineEdit();
+                          }}
+                          autoFocus
+                          className="w-full bg-slate-900 border border-amber-500 rounded px-1.5 py-1 text-center font-mono font-bold text-amber-300 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        />
+                      </td>
+
+                      {/* 3. Rank */}
+                      <td className="py-1 px-1.5 text-center">
+                        <select
+                          value={editRank}
+                          onChange={(e) => setEditRank(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEdit(person.id);
+                            if (e.key === 'Escape') cancelInlineEdit();
+                          }}
+                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                        >
+                          {rankOptions.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* 4. Trade */}
+                      <td className="py-1 px-1.5 text-center">
+                        <input
+                          list="trade-options-inline"
+                          type="text"
+                          value={editTrade}
+                          onChange={(e) => setEditTrade(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEdit(person.id);
+                            if (e.key === 'Escape') cancelInlineEdit();
+                          }}
+                          className="w-full bg-slate-900 border border-amber-500 rounded px-1.5 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        />
+                        <datalist id="trade-options-inline">
+                          {safeTrades.map((t) => (
+                            <option key={t.id || t.name} value={t.name} />
+                          ))}
+                        </datalist>
+                      </td>
+
+                      {/* 5. Name */}
+                      <td className="py-1 px-2">
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEdit(person.id);
+                            if (e.key === 'Escape') cancelInlineEdit();
+                          }}
+                          className="w-full bg-slate-900 border border-amber-500 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        />
+                      </td>
+
+                      {/* 6. Battery */}
+                      <td className="py-1 px-1.5 text-center">
+                        <select
+                          value={editBattery}
+                          onChange={(e) => setEditBattery(e.target.value as Battery)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEdit(person.id);
+                            if (e.key === 'Escape') cancelInlineEdit();
+                          }}
+                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                        >
+                          {batteryOptions.map((b) => (
+                            <option key={b} value={b}>
+                              {b}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* 7. Parade State */}
+                      <td className="py-1 px-3 text-center">
+                        <StatusBadge status={person.status} />
+                      </td>
+
+                      {/* 8. Blood */}
+                      <td className="py-1 px-1 text-center">
+                        <select
+                          value={editBloodGroup}
+                          onChange={(e) => setEditBloodGroup(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEdit(person.id);
+                            if (e.key === 'Escape') cancelInlineEdit();
+                          }}
+                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono font-bold text-rose-400 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                        >
+                          {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bg) => (
+                            <option key={bg} value={bg}>
+                              {bg}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* 9. Med Cat */}
+                      <td className="py-1 px-1 text-center">
+                        <select
+                          value={editMedicalCat}
+                          onChange={(e) => setEditMedicalCat(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEdit(person.id);
+                            if (e.key === 'Escape') cancelInlineEdit();
+                          }}
+                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                        >
+                          <option value="AYE">AYE</option>
+                          <option value="BEE">BEE</option>
+                          <option value="CEE">CEE</option>
+                        </select>
+                      </td>
+
+                      {/* 10. Actions */}
+                      <td className="py-1 px-2 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => saveInlineEdit(person.id)}
+                            title="Save (সংরক্ষণ করুন / Enter)"
+                            className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow transition-all cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelInlineEdit}
+                            title="Cancel (বাতিল / Esc)"
+                            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 const isEditing = activeEditingId === person.id;
 
                 return (
@@ -832,11 +1126,12 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                           <Eye className="w-3.5 h-3.5 text-rose-400" />
                           <span>Dossier</span>
                         </button>
-                        {onEditPerson && (
+                        {(onEditPerson || canEditPerson(person)) && (
                           <button
-                            onClick={() => onEditPerson(person)}
+                            type="button"
+                            onClick={() => startInlineEdit(person)}
                             className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-amber-950/60 text-slate-300 hover:text-amber-300 text-xs font-semibold border border-slate-700 hover:border-amber-500/50 transition-colors cursor-pointer"
-                            title="Edit Personnel"
+                            title="Edit Personnel (সরাসরি টেবিলে এডিট)"
                           >
                             <Edit2 className="w-3.5 h-3.5 text-amber-400" />
                             <span>Edit</span>

@@ -21,6 +21,7 @@ import { CoDashboardPage } from './pages/CoDashboardPage';
 import { OffrDashboardPage } from './pages/OffrDashboardPage';
 import { AdminPanelPage } from './pages/AdminPanelPage';
 import { DutyDetailPage } from './pages/DutyDetailPage';
+import { TeamsPage } from './pages/TeamsPage';
 import { OutOfUnitPage } from './pages/OutOfUnitPage';
 
 const AppContent: React.FC = () => {
@@ -170,6 +171,12 @@ const AppContent: React.FC = () => {
           <DutyDetailPage
             onViewDossier={handleViewDossier}
             onOpenPrintModal={() => setIsPrintModalOpen(true)}
+          />
+        );
+      case 'teams':
+        return (
+          <TeamsPage
+            onViewDossier={handleViewDossier}
           />
         );
       case 'out_of_unit':

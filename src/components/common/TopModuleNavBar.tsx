@@ -20,6 +20,7 @@ export const TopModuleNavBar: React.FC = () => {
     isRealAdmin,
     hasModulePermission,
     personnelList,
+    customTeams,
   } = useApp();
 
   const role = currentUser.role;
@@ -109,6 +110,13 @@ export const TopModuleNavBar: React.FC = () => {
       label: 'Duty Detailing',
       icon: ShieldAlert,
       permissionKey: 'duty_detail',
+    },
+    {
+      id: 'teams',
+      label: 'Team',
+      icon: Users,
+      badge: customTeams && customTeams.length > 0 ? `${customTeams.length}` : undefined,
+      permissionKey: 'teams',
     },
     {
       id: 'out_of_unit',

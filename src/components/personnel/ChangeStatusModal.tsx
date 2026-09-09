@@ -134,6 +134,17 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
     e.preventDefault();
     if (isGuest) return;
 
+    if (status === 'Leave') {
+      if (!startDate) {
+        alert('ছুটির ক্ষেত্রে শুরুর তারিখ (Start Date) বাধ্যতামূলক।');
+        return;
+      }
+      if (!endDate) {
+        alert('ছুটির ক্ষেত্রে যোগদানের তারিখ (Joining Date) বাধ্যতামূলক।');
+        return;
+      }
+    }
+
     updateParadeStatus(personnel.id, status, {
       location: requiresDetails ? location : undefined,
       startDate: requiresDetails ? startDate : undefined,
@@ -268,7 +279,9 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
               {/* Location Input */}
               <div>
                 <label className="text-xs font-medium text-slate-400 block mb-1">
-                  লোকেশন / ক্যাম্প / ইনস্টিটিউট (Location / Camp)
+                  {status === 'Leave'
+                    ? 'ছুটির ঠিকানা (Leave Address - ঐচ্ছিক / Not Mandatory)'
+                    : 'লোকেশন / ক্যাম্প / ইনস্টিটিউট (Location / Camp)'}
                 </label>
                 <div className="relative">
                   <input
@@ -286,7 +299,7 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
                         ? 'e.g. DGFI / BGB / AHQ'
                         : status === 'Comd'
                         ? 'e.g. HQ 24 Inf Div'
-                        : 'e.g. নিজ বাড়ি (ছুটির ঠিকানা)'
+                        : 'e.g. নিজ গ্রাম, ডাকঘর, জেলা (ঐচ্ছিক)'
                     }
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
                   />
@@ -298,10 +311,11 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
                 <div>
                   <label className="text-xs font-medium text-slate-400 block mb-1 flex items-center gap-1">
                     <Calendar className="w-3 h-3 text-slate-400" />
-                    শুরুর তারিখ (Start Date)
+                    {status === 'Leave' ? 'শুরুর তারিখ (Start Date) *' : 'শুরুর তারিখ (Start Date)'}
                   </label>
                   <input
                     type="date"
+                    required={status === 'Leave'}
                     value={startDate}
                     onChange={(e) => handleStartDateChange(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500"
@@ -311,10 +325,11 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
                 <div>
                   <label className="text-xs font-medium text-slate-400 block mb-1 flex items-center gap-1">
                     <Calendar className="w-3 h-3 text-slate-400" />
-                    শেষের তারিখ (End Date)
+                    {status === 'Leave' ? 'যোগদানের তারিখ (Joining Date) *' : 'শেষের তারিখ (End Date)'}
                   </label>
                   <input
                     type="date"
+                    required={status === 'Leave'}
                     value={endDate}
                     onChange={(e) => handleEndDateChange(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500"
