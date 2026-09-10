@@ -44,6 +44,10 @@ import {
   COMD_PARTY_NOMINATIONS_08_09_26,
   OFFICIAL_OFFICER_SNK_NOS,
   OFFICIAL_OFFICERS,
+  OFFICIAL_P_LVE_LIST,
+  OFFICIAL_C_LVE_LIST,
+  NEWLY_REGISTERED_LEAVE_SOLDIERS,
+  calculateRemainingDays,
 } from '../data/initialData';
 import { ASLT_COURSE_SNK_NOS } from '../data/asltCourseData';
 import { CRICKET_TEAM_SNK_NOS } from '../data/cricketTeamData';
@@ -257,7 +261,9 @@ interface AppContextType {
   addParadeDutyAssignment: (assignment: Omit<ParadeDutyAssignment, 'id' | 'assignedAt' | 'assignedBy'>) => void;
   addParadeDutyAssignmentsBatch: (assignments: Omit<ParadeDutyAssignment, 'id' | 'assignedAt' | 'assignedBy'>[]) => void;
   removeParadeDutyAssignment: (id: string, date: string, sessionType: string) => void;
-  clearParadeDutyAssignments: (date: string, sessionType: string, category?: ParadeDutyCategory) => void;
+  clearParadeDutyAssignments: (date: string, sessionType: string, category?: ParadeDutyCategory, dutyName?: string) => ParadeDutyAssignment[];
+  deleteParadeDutyGroup: (date: string, sessionType: string, category: ParadeDutyCategory, dutyName: string) => ParadeDutyAssignment[];
+  restoreParadeDutyAssignments: (assignments: ParadeDutyAssignment[]) => void;
   getParadeDutyAssignments: (date: string, sessionType: string, category?: ParadeDutyCategory) => ParadeDutyAssignment[];
   dutySessionStatuses: Record<string, DutySessionStatus>;
   getDutySessionStatus: (date: string, sessionType: string) => DutySessionStatus;
@@ -267,9 +273,13 @@ interface AppContextType {
 
   // Custom Teams Management (Between Duty Detailing and Out of Unit)
   customTeams: CustomTeam[];
+  recentlyDeletedTeams: CustomTeam[];
   addCustomTeam: (team: Omit<CustomTeam, 'id' | 'createdAt'>) => CustomTeam;
   updateCustomTeam: (id: string, updated: Partial<CustomTeam>) => void;
-  deleteCustomTeam: (id: string) => void;
+  deleteCustomTeam: (id: string) => CustomTeam | null;
+  undoDeleteTeam: (teamId?: string) => CustomTeam | null;
+  restoreCustomTeam: (team: CustomTeam) => void;
+  clearDeletedTeamsHistory: () => void;
   addMemberToTeam: (teamId: string, personnelId: string) => void;
   removeMemberFromTeam: (teamId: string, personnelId: string) => void;
   resetAsltCourseTeam: () => void;
@@ -369,6 +379,7 @@ const STORAGE_KEYS = {
   SYSTEM_SETTINGS: '10med_system_settings_v1',
   DELETED_USERS: '10med_deleted_user_identifiers_v1',
   CUSTOM_TEAMS: '10med_custom_teams_v3',
+  DELETED_TEAMS: '10med_recently_deleted_teams_v1',
 };
 
 // Helper to manage deleted user tombstones across syncs and reloads
@@ -955,6 +966,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           });
 
+          // Sync newly registered leave soldiers (1225491 & 1224696)
+          NEWLY_REGISTERED_LEAVE_SOLDIERS.forEach((soldier) => {
+            if (!updatedList.some((p) => p.snkNo === soldier.snkNo)) {
+              hasChanges = true;
+              updatedList.push(soldier);
+            }
+          });
+
+          // Sync official P/Lve nominations (67 personnel)
+          OFFICIAL_P_LVE_LIST.forEach((l) => {
+            const index = updatedList.findIndex(
+              (p) => p.snkNo === l.snkNo || (l.altSnkNo && p.snkNo === l.altSnkNo)
+            );
+            const remDays = calculateRemainingDays(l.joiningDate);
+            if (index !== -1) {
+              const current = updatedList[index];
+              if (
+                current.status !== 'P/Lve' ||
+                current.outOfUnitCategory !== 'P/Lve' ||
+                current.outOfUnitStartDate !== l.startDate ||
+                current.outOfUnitEndDate !== l.joiningDate ||
+                current.durationDays !== l.totalDays
+              ) {
+                hasChanges = true;
+                updatedList[index] = {
+                  ...current,
+                  status: 'P/Lve' as ParadeStatus,
+                  outOfUnitCategory: 'P/Lve' as const,
+                  leaveType: 'P/Lve' as const,
+                  startDate: l.startDate,
+                  endDate: l.joiningDate,
+                  outOfUnitStartDate: l.startDate,
+                  outOfUnitEndDate: l.joiningDate,
+                  leaveFrom: l.startDate,
+                  leaveTo: l.joiningDate,
+                  durationDays: l.totalDays,
+                  remainingDays: remDays,
+                  statusDetails: `P/Lve (${l.totalDays} Days, ${remDays} Days left)`,
+                  outOfUnitRemarks: `বাৎসরিক ছুটি (মোট ${l.totalDays} দিন, অবশিষ্ট ${remDays} দিন, যোগদানের তারিখ: ${l.joiningDate})`,
+                };
+              }
+            }
+          });
+
+          // Sync official C/Lve nominations (20 personnel)
+          OFFICIAL_C_LVE_LIST.forEach((l) => {
+            const index = updatedList.findIndex(
+              (p) => p.snkNo === l.snkNo || (l.altSnkNo && p.snkNo === l.altSnkNo)
+            );
+            const remDays = calculateRemainingDays(l.joiningDate);
+            if (index !== -1) {
+              const current = updatedList[index];
+              if (
+                current.status !== 'C/Lve' ||
+                current.outOfUnitCategory !== 'C/Lve' ||
+                current.outOfUnitStartDate !== l.startDate ||
+                current.outOfUnitEndDate !== l.joiningDate ||
+                current.durationDays !== l.totalDays
+              ) {
+                hasChanges = true;
+                updatedList[index] = {
+                  ...current,
+                  status: 'C/Lve' as ParadeStatus,
+                  outOfUnitCategory: 'C/Lve' as const,
+                  leaveType: 'C/Lve' as const,
+                  startDate: l.startDate,
+                  endDate: l.joiningDate,
+                  outOfUnitStartDate: l.startDate,
+                  outOfUnitEndDate: l.joiningDate,
+                  leaveFrom: l.startDate,
+                  leaveTo: l.joiningDate,
+                  durationDays: l.totalDays,
+                  remainingDays: remDays,
+                  statusDetails: `C/Lve (${l.totalDays} Days, ${remDays} Days left)`,
+                  outOfUnitRemarks: `নৈমিত্তিক ছুটি (মোট ${l.totalDays} দিন, অবশিষ্ট ${remDays} দিন, যোগদানের তারিখ: ${l.joiningDate})`,
+                };
+              }
+            }
+          });
+
           if (hasChanges) {
             localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(updatedList));
           }
@@ -1523,6 +1614,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return defaultTeams;
   });
 
+  const [recentlyDeletedTeams, setRecentlyDeletedTeams] = useState<CustomTeam[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+
   const addCustomTeam = (team: Omit<CustomTeam, 'id' | 'createdAt'>): CustomTeam => {
     const id = 'team_' + Date.now();
     const newTeam: CustomTeam = {
@@ -1548,13 +1650,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showNotification('টিমের তথ্য আপডেট করা হয়েছে।');
   };
 
-  const deleteCustomTeam = (id: string) => {
+  const deleteCustomTeam = (id: string): CustomTeam | null => {
     const teamToDelete = customTeams.find((t) => t.id === id);
+    if (!teamToDelete) return null;
+
     const next = customTeams.filter((t) => t.id !== id);
     setCustomTeams(next);
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+    try {
+      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+    } catch (e) {}
     syncDoc(deleteDoc(doc(db, 'custom_teams', id)), 'delete custom team');
-    showNotification(`Team "${teamToDelete?.name || ''}" মুছে ফেলা হয়েছে।`);
+
+    // Add to recently deleted stack for Undo
+    setRecentlyDeletedTeams((prev) => {
+      const updated = [teamToDelete, ...prev.filter((t) => t.id !== id)].slice(0, 15);
+      try {
+        localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    showNotification(`টিম "${teamToDelete.name}" মুছে ফেলা হয়েছে।`);
+    addAuditLog('Team Deleted', `Deleted team "${teamToDelete.name}" (${teamToDelete.memberIds.length} members)`, 'SYSTEM');
+    return teamToDelete;
+  };
+
+  const restoreCustomTeam = (team: CustomTeam) => {
+    setCustomTeams((prev) => {
+      const exists = prev.some((t) => t.id === team.id);
+      const next = exists ? prev.map((t) => (t.id === team.id ? team : t)) : [team, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    setRecentlyDeletedTeams((prev) => {
+      const filtered = prev.filter((t) => t.id !== team.id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify(filtered));
+      } catch (e) {}
+      return filtered;
+    });
+
+    syncDoc(setDoc(doc(db, 'custom_teams', team.id), sanitizeForFirestore(team)), 'restore custom team');
+    showNotification(`টিম "${team.name}" সফলভাবে পুনরুদ্ধার (Undo) করা হয়েছে।`);
+    addAuditLog('Team Restored', `Restored team "${team.name}" (${team.memberIds.length} members)`, 'SYSTEM');
+  };
+
+  const undoDeleteTeam = (teamId?: string): CustomTeam | null => {
+    if (recentlyDeletedTeams.length === 0) return null;
+    const target = teamId
+      ? recentlyDeletedTeams.find((t) => t.id === teamId)
+      : recentlyDeletedTeams[0];
+    if (!target) return null;
+
+    restoreCustomTeam(target);
+    return target;
+  };
+
+  const clearDeletedTeamsHistory = () => {
+    setRecentlyDeletedTeams([]);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.DELETED_TEAMS);
+    } catch (e) {}
   };
 
   const addMemberToTeam = (teamId: string, personnelId: string) => {
@@ -1876,21 +2035,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearParadeDutyAssignments = (
     date: string,
     sessionType: string,
-    category?: ParadeDutyCategory
-  ) => {
+    category?: ParadeDutyCategory,
+    dutyName?: string
+  ): ParadeDutyAssignment[] => {
     const key = `${date}_${sessionType}`;
     const userDisplay = `${currentUser.rank} ${currentUser.name}`;
+    let removedItems: ParadeDutyAssignment[] = [];
     let updatedAssignments: ParadeDutyAssignment[] = [];
     setParadeDutyAssignments((prev) => {
       const existing = prev[key] || [];
-      const nextList = category ? existing.filter((a) => a.category !== category) : [];
+      let nextList: ParadeDutyAssignment[] = [];
+      if (category && dutyName) {
+        const norm = normalizeDutyName(dutyName);
+        removedItems = existing.filter(
+          (a) => a.category === category && normalizeDutyName(a.dutyName) === norm
+        );
+        nextList = existing.filter(
+          (a) => !(a.category === category && normalizeDutyName(a.dutyName) === norm)
+        );
+      } else if (category) {
+        removedItems = existing.filter((a) => a.category === category);
+        nextList = existing.filter((a) => a.category !== category);
+      } else {
+        removedItems = [...existing];
+        nextList = [];
+      }
       updatedAssignments = nextList;
       const next = { ...prev, [key]: nextList };
-      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
+      try {
+        localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
+      } catch (e) {}
       return next;
     });
 
-    // Auto-sync cleared category with Supabase Cloud
+    // Auto-sync cleared category/group with Supabase Cloud
     const currentStatus = dutySessionStatuses[key]?.status || 'Draft';
     saveDutyDetailingToSupabase(date, sessionType, updatedAssignments, currentStatus, userDisplay).catch(() => {});
 
@@ -1906,6 +2084,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ),
       'clear parade duty assignments'
     );
+
+    return removedItems;
+  };
+
+  const deleteParadeDutyGroup = (
+    date: string,
+    sessionType: string,
+    category: ParadeDutyCategory,
+    dutyName: string
+  ): ParadeDutyAssignment[] => {
+    return clearParadeDutyAssignments(date, sessionType, category, dutyName);
+  };
+
+  const restoreParadeDutyAssignments = (
+    assignments: ParadeDutyAssignment[]
+  ) => {
+    if (!assignments || assignments.length === 0) return;
+    addParadeDutyAssignmentsBatch(assignments);
   };
 
   // --- DUTY DETAILING WORKFLOW STATUS (Draft, Saved, Sent to Adjt) ---
@@ -5154,6 +5350,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addParadeDutyAssignmentsBatch,
         removeParadeDutyAssignment,
         clearParadeDutyAssignments,
+        deleteParadeDutyGroup,
+        restoreParadeDutyAssignments,
         dutySessionStatuses,
         getDutySessionStatus,
         saveDutySession,
@@ -5162,9 +5360,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Custom Teams Management (Between Duty Detailing and Out of Unit)
         customTeams,
+        recentlyDeletedTeams,
         addCustomTeam,
         updateCustomTeam,
         deleteCustomTeam,
+        undoDeleteTeam,
+        restoreCustomTeam,
+        clearDeletedTeamsHistory,
         addMemberToTeam,
         removeMemberFromTeam,
         resetAsltCourseTeam,

@@ -66,8 +66,10 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   // Modal for showing drilldown list when stat box is clicked
   const [selectedStatFilter, setSelectedStatFilter] = useState<{
     title: string;
-    status: ParadeStatus | 'All';
+    status: ParadeStatus | 'All' | 'AttMsn' | 'OthersOut' | 'Leave' | string;
   } | null>(null);
+
+  const [leaveSubFilter, setLeaveSubFilter] = useState<'All' | 'P/Lve' | 'C/Lve'>('All');
 
   useEffect(() => {
     if (isBsm) {
@@ -121,7 +123,18 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   const presentCount = btyPersonnel.filter((p) => p.status === 'Present').length;
   const dutyCount = btyPersonnel.filter((p) => p.status === 'On Duty').length;
   const sickCount = btyPersonnel.filter((p) => p.status === 'CMH/Sick').length;
-  const leaveCount = btyPersonnel.filter((p) => p.status === 'Leave').length;
+  const isPLvePersonnel = (p: Personnel) =>
+    p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || p.leaveType === 'P/Lve';
+
+  const isCLvePersonnel = (p: Personnel) =>
+    p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve' || p.leaveType === 'C/Lve';
+
+  const isLeavePersonnel = (p: Personnel) =>
+    isPLvePersonnel(p) || isCLvePersonnel(p) || p.status === 'Leave';
+
+  const btyPLveCount = btyPersonnel.filter(isPLvePersonnel).length;
+  const btyCLveCount = btyPersonnel.filter(isCLvePersonnel).length;
+  const leaveCount = btyPersonnel.filter(isLeavePersonnel).length;
   const courseCount = btyPersonnel.filter((p) => p.status === 'Course/Trg').length;
   const isComdPersonnel = (p: Personnel) => {
     if (p.outOfUnitCategory === 'Comd') return true;
@@ -166,6 +179,14 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
       ? btyPersonnel.filter(isComdPersonnel)
       : selectedStatFilter.status === 'AttMsn'
       ? btyPersonnel.filter((p) => p.outOfUnitCategory === 'Att' || p.outOfUnitCategory === 'Msn')
+      : selectedStatFilter.status === 'Leave'
+      ? btyPersonnel
+          .filter(isLeavePersonnel)
+          .filter((p) => {
+            if (leaveSubFilter === 'P/Lve') return isPLvePersonnel(p);
+            if (leaveSubFilter === 'C/Lve') return isCLvePersonnel(p);
+            return true;
+          })
       : selectedStatFilter.status === 'OthersOut'
       ? btyPersonnel.filter((p) => {
           if (p.outOfUnitCategory === 'ERE') return true;
@@ -251,9 +272,17 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
         <StatCard
           title="On Leave"
           value={leaveCount}
+          subtitle={`P/Lve: ${btyPLveCount} | C/Lve: ${btyCLveCount}`}
+          badge={leaveCount > 0 ? `${btyPLveCount} P + ${btyCLveCount} C` : 'Nil Leave'}
           icon={PlaneTakeoff}
           colorScheme="purple"
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} Troops on Leave`, status: 'Leave' })}
+          onClick={() => {
+            setLeaveSubFilter('All');
+            setSelectedStatFilter({
+              title: `${activeBattery} Troops on Leave`,
+              status: 'Leave',
+            });
+          }}
         />
         <StatCard
           title="Course"
@@ -299,18 +328,54 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
       {selectedStatFilter && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4 max-h-[80vh] flex flex-col animate-in fade-in">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
               <div>
                 <h3 className="text-base font-bold text-white font-sans">
                   {selectedStatFilter.title}
                 </h3>
-                <p className="text-xs text-slate-400 font-mono">
-                  Total: {modalPersonnel.length} Personnel
-                </p>
+                <div className="flex items-center gap-3 mt-1">
+                  <p className="text-xs text-slate-400 font-mono">
+                    Total: {modalPersonnel.length} Personnel
+                  </p>
+                  {selectedStatFilter.status === 'Leave' && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setLeaveSubFilter('All')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                          leaveSubFilter === 'All'
+                            ? 'bg-purple-600 text-white shadow-sm font-bold'
+                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        All ({leaveCount})
+                      </button>
+                      <button
+                        onClick={() => setLeaveSubFilter('P/Lve')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                          leaveSubFilter === 'P/Lve'
+                            ? 'bg-purple-600 text-white shadow-sm font-bold'
+                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        P/Lve ({btyPLveCount})
+                      </button>
+                      <button
+                        onClick={() => setLeaveSubFilter('C/Lve')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                          leaveSubFilter === 'C/Lve'
+                            ? 'bg-cyan-600 text-white shadow-sm font-bold'
+                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        C/Lve ({btyCLveCount})
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => setSelectedStatFilter(null)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white self-start sm:self-center cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -331,19 +396,43 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                     }}
                     className="py-2.5 px-2 flex items-center justify-between hover:bg-slate-850 rounded-lg cursor-pointer transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold text-amber-300">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold text-amber-300 shrink-0">
                         {p.rk}
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-white">
-                          {p.name}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{p.name}</span>
+                          {(p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || p.leaveType === 'P/Lve') && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 shrink-0">
+                              P/Lve
+                            </span>
+                          )}
+                          {(p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve' || p.leaveType === 'C/Lve') && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shrink-0">
+                              C/Lve
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2">
+                        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
                           <span>{p.snkNo}</span>
                           <span>•</span>
                           <span>{p.trade}</span>
-                          {p.statusDetails && (
+                          {p.durationDays ? (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-300">মোট {p.durationDays} দিন</span>
+                            </>
+                          ) : null}
+                          {p.remainingDays !== undefined ? (
+                            <>
+                              <span>•</span>
+                              <span className={p.remainingDays > 0 ? 'text-amber-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+                                অবশিষ্ট {p.remainingDays} দিন
+                              </span>
+                            </>
+                          ) : null}
+                          {p.statusDetails && !p.durationDays && (
                             <>
                               <span>•</span>
                               <span className="text-rose-400">{p.statusDetails}</span>
@@ -353,9 +442,22 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                       </div>
                     </div>
 
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                      {p.status}
-                    </span>
+                    <div className="text-right shrink-0 ml-2">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold ${
+                        p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve'
+                          ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                          : p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve'
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}>
+                        {p.status}
+                      </span>
+                      {(p.endDate || p.outOfUnitEndDate || p.leaveTo) && (
+                        <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                          যোগদান: {p.endDate || p.outOfUnitEndDate || p.leaveTo}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

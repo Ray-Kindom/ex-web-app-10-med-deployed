@@ -1,4 +1,19 @@
 import { Personnel, UserAccount, BatteryParadeSummary, DutyAssignment, AuditLogItem, Battery } from '../types';
+import {
+  OFFICIAL_P_LVE_LIST,
+  OFFICIAL_C_LVE_LIST,
+  NEWLY_REGISTERED_LEAVE_SOLDIERS,
+  calculateRemainingDays,
+  OfficialLeaveEntry,
+} from './officialLeaveData';
+
+export {
+  OFFICIAL_P_LVE_LIST,
+  OFFICIAL_C_LVE_LIST,
+  NEWLY_REGISTERED_LEAVE_SOLDIERS,
+  calculateRemainingDays,
+  type OfficialLeaveEntry,
+};
 
 // 12 Official Officers of 10 Medium Regiment Artillery
 export const OFFICIAL_OFFICER_SNK_NOS = [
@@ -7447,6 +7462,59 @@ COMD_PARTY_NOMINATIONS_08_09_26.forEach((c) => {
       statusDetails: c.statusDetails,
       outOfUnitStartDate: '2026-09-08',
     });
+  }
+});
+
+// Register missing soldiers from official leave rosters
+NEWLY_REGISTERED_LEAVE_SOLDIERS.forEach((soldier) => {
+  if (!INITIAL_PERSONNEL.some((p) => p.snkNo === soldier.snkNo)) {
+    INITIAL_PERSONNEL.push(soldier);
+  }
+});
+
+// Apply official P/Lve nominations to INITIAL_PERSONNEL
+OFFICIAL_P_LVE_LIST.forEach((l) => {
+  const p = INITIAL_PERSONNEL.find(
+    (person) => person.snkNo === l.snkNo || (l.altSnkNo && person.snkNo === l.altSnkNo)
+  );
+  const remDays = calculateRemainingDays(l.joiningDate);
+  if (p) {
+    p.status = 'P/Lve';
+    p.outOfUnitCategory = 'P/Lve';
+    p.leaveType = 'P/Lve';
+    p.startDate = l.startDate;
+    p.endDate = l.joiningDate;
+    p.outOfUnitStartDate = l.startDate;
+    p.outOfUnitEndDate = l.joiningDate;
+    p.leaveFrom = l.startDate;
+    p.leaveTo = l.joiningDate;
+    p.durationDays = l.totalDays;
+    p.remainingDays = remDays;
+    p.statusDetails = `P/Lve (${l.totalDays} Days, ${remDays} Days left)`;
+    p.outOfUnitRemarks = `বাৎসরিক ছুটি (মোট ${l.totalDays} দিন, অবশিষ্ট ${remDays} দিন, যোগদানের তারিখ: ${l.joiningDate})`;
+  }
+});
+
+// Apply official C/Lve nominations to INITIAL_PERSONNEL
+OFFICIAL_C_LVE_LIST.forEach((l) => {
+  const p = INITIAL_PERSONNEL.find(
+    (person) => person.snkNo === l.snkNo || (l.altSnkNo && person.snkNo === l.altSnkNo)
+  );
+  const remDays = calculateRemainingDays(l.joiningDate);
+  if (p) {
+    p.status = 'C/Lve';
+    p.outOfUnitCategory = 'C/Lve';
+    p.leaveType = 'C/Lve';
+    p.startDate = l.startDate;
+    p.endDate = l.joiningDate;
+    p.outOfUnitStartDate = l.startDate;
+    p.outOfUnitEndDate = l.joiningDate;
+    p.leaveFrom = l.startDate;
+    p.leaveTo = l.joiningDate;
+    p.durationDays = l.totalDays;
+    p.remainingDays = remDays;
+    p.statusDetails = `C/Lve (${l.totalDays} Days, ${remDays} Days left)`;
+    p.outOfUnitRemarks = `নৈমিত্তিক ছুটি (মোট ${l.totalDays} দিন, অবশিষ্ট ${remDays} দিন, যোগদানের তারিখ: ${l.joiningDate})`;
   }
 });
 

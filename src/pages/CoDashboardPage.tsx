@@ -32,7 +32,16 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
 
   const sickList = personnelList.filter((p) => p.status === 'CMH/Sick');
   const courseList = personnelList.filter((p) => p.status === 'Course/Trg' || p.status === 'Temp Duty');
-  const leaveList = personnelList.filter((p) => p.status === 'Leave');
+  const leaveList = personnelList.filter(
+    (p) =>
+      p.status === 'Leave' ||
+      p.status === 'P/Lve' ||
+      p.status === 'C/Lve' ||
+      p.outOfUnitCategory === 'P/Lve' ||
+      p.outOfUnitCategory === 'C/Lve' ||
+      p.leaveType === 'P/Lve' ||
+      p.leaveType === 'C/Lve'
+  );
 
   return (
     <div className="space-y-6">

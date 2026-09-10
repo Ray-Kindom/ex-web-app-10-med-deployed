@@ -17,6 +17,9 @@ import {
   Building2,
   Calendar,
   RefreshCw,
+  RotateCcw,
+  Undo2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface TeamsPageProps {
@@ -26,9 +29,12 @@ interface TeamsPageProps {
 export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
   const {
     customTeams,
+    recentlyDeletedTeams,
     addCustomTeam,
     updateCustomTeam,
     deleteCustomTeam,
+    undoDeleteTeam,
+    restoreCustomTeam,
     addMemberToTeam,
     removeMemberFromTeam,
     resetAsltCourseTeam,
@@ -47,6 +53,21 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
   const [teamNameInput, setTeamNameInput] = useState('');
   const [teamDescInput, setTeamDescInput] = useState('');
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+
+  // In-app Delete confirmation & Undo state
+  const [teamPendingDelete, setTeamPendingDelete] = useState<CustomTeam | null>(null);
+  const [activeUndoToast, setActiveUndoToast] = useState<{ team: CustomTeam; expiresAt: number } | null>(null);
+  const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
+
+  // Auto-dismiss floating undo toast after expiration
+  useEffect(() => {
+    if (!activeUndoToast) return;
+    const remaining = Math.max(0, activeUndoToast.expiresAt - Date.now());
+    const timer = setTimeout(() => {
+      setActiveUndoToast(null);
+    }, remaining || 15000);
+    return () => clearTimeout(timer);
+  }, [activeUndoToast]);
 
   // Search in member picker
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -142,15 +163,36 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     setEditingTeamId(null);
   };
 
-  // Delete team with confirmation
-  const handleDeleteTeam = (team: CustomTeam) => {
+  // Delete team with custom in-app confirmation (no native blocked window.confirm)
+  const handleRequestDeleteTeam = (team: CustomTeam) => {
     if (isGuest) {
       showNotification('View-Only mode: Cannot delete team.');
       return;
     }
-    if (window.confirm(`আপনি কি নিশ্চিত যে "${team.name}" টিমটি মুছে ফেলতে চান?`)) {
-      deleteCustomTeam(team.id);
+    setTeamPendingDelete(team);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!teamPendingDelete) return;
+    const target = teamPendingDelete;
+    const deleted = deleteCustomTeam(target.id);
+    setTeamPendingDelete(null);
+    if (deleted) {
+      setActiveUndoToast({ team: deleted, expiresAt: Date.now() + 15000 });
     }
+  };
+
+  const handleCancelDelete = () => {
+    setTeamPendingDelete(null);
+  };
+
+  const handleUndo = (teamToRestore?: CustomTeam) => {
+    if (teamToRestore) {
+      restoreCustomTeam(teamToRestore);
+    } else {
+      undoDeleteTeam();
+    }
+    setActiveUndoToast(null);
   };
 
   // Filtered available personnel in the picker modal
@@ -232,6 +274,19 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
               </button>
             )}
           </div>
+
+          {/* Undo / Deleted Teams button if any recently deleted */}
+          {recentlyDeletedTeams && recentlyDeletedTeams.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsTrashModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-mono font-bold transition-colors flex items-center gap-2 shrink-0 cursor-pointer shadow-sm"
+              title="সম্প্রতি মুছে ফেলা টিমগুলো দেখুন এবং এক ক্লিকে পুনরুদ্ধার করুন"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span>মোছা টিম পুনরুদ্ধার ({recentlyDeletedTeams.length})</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -622,7 +677,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                     {!isGuest && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteTeam(team)}
+                        onClick={() => handleRequestDeleteTeam(team)}
                         className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs transition-colors cursor-pointer"
                         title="টিম মুছে ফেলুন"
                       >
@@ -790,6 +845,166 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
             <Plus className="w-4 h-4" />
             <span>প্রথম টিম তৈরি করুন</span>
           </button>
+        </div>
+      )}
+
+      {/* 3. CONFIRM DELETE MODAL (In-app, iframe safe) */}
+      {teamPendingDelete && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-5 space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">টিম মুছে ফেলার নিশ্চিতকরণ</h3>
+                <p className="text-xs text-slate-400">Confirm Team Deletion</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs text-slate-300">
+              <p>
+                আপনি কি নিশ্চিত যে <span className="font-bold text-white font-mono">"{teamPendingDelete.name}"</span> টিমটি মুছে ফেলতে চান?
+              </p>
+              <div className="flex items-center gap-2 text-slate-400 text-[11px] font-mono">
+                <span>সদস্য সংখ্যা: {teamPendingDelete.memberIds.length} জন</span>
+                <span>•</span>
+                <span>ID: {teamPendingDelete.id}</span>
+              </div>
+              <p className="text-amber-300/90 text-[11px] bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 leading-relaxed">
+                💡 <strong>চিন্তার কিছু নেই:</strong> ভুলবশত কোনো টিম মুছে ফেললেও আপনি সাথে সাথে নিচে থাকা <strong>"Undo (ফিরিয়ে আনুন)"</strong> বাটন বা উপরের <strong>"মোছা টিম পুনরুদ্ধার"</strong> অপশন থেকে যে কোনো সময় তা এক ক্লিকে ফিরিয়ে আনতে পারবেন।
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={handleCancelDelete}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                বাতিল (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-900/40"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>মুছে ফেলুন (Delete)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. FLOATING UNDO BANNER (Persistent with countdown) */}
+      {activeUndoToast && (
+        <div className="fixed bottom-5 right-4 sm:right-8 z-50 bg-slate-900/95 border-2 border-amber-500/60 shadow-2xl shadow-amber-950/50 p-3.5 rounded-2xl flex items-center gap-3.5 text-white max-w-md animate-slideUp backdrop-blur-md">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+            <RotateCcw className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-white truncate">
+              "{activeUndoToast.team.name}" মুছে ফেলা হয়েছে
+            </p>
+            <p className="text-[11px] text-slate-400">
+              ভুলবশত হয়ে থাকলে এখনই Undo করুন
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleUndo(activeUndoToast.team)}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 text-xs font-bold font-mono transition-all flex items-center gap-1.5 cursor-pointer shadow-md shrink-0"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            <span>Undo</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveUndoToast(null)}
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            title="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 5. RECENTLY DELETED TEAMS RECOVERY MODAL */}
+      {isTrashModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="px-5 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">মোছা টিম রিকভারি / Deleted Teams History</h3>
+                  <p className="text-xs text-slate-400">মুছে ফেলা যেকোনো টিম এক ক্লিকে পুনরুদ্ধার করুন</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTrashModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-3 flex-1">
+              {recentlyDeletedTeams.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 text-xs">
+                  কোনো মোছা টিম নেই (No deleted teams in history)।
+                </div>
+              ) : (
+                recentlyDeletedTeams.map((team) => (
+                  <div
+                    key={team.id}
+                    className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-white font-mono truncate">{team.name}</h4>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">{team.description || 'বিবরণ নেই'}</p>
+                      <div className="flex items-center gap-2 mt-1.5 text-[11px] font-mono text-slate-500">
+                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                          {team.memberIds.length} জন সদস্য
+                        </span>
+                        {team.createdAt && (
+                          <span>তৈরি: {new Date(team.createdAt).toLocaleDateString('bn-BD')}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleUndo(team);
+                        if (recentlyDeletedTeams.length <= 1) {
+                          setIsTrashModalOpen(false);
+                        }
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold font-mono transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 shadow-md"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>পুনরুদ্ধার (Restore)</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
+              <span className="text-slate-400 font-mono">মোট {recentlyDeletedTeams.length}টি টিম ইতিহাসে আছে</span>
+              <button
+                type="button"
+                onClick={() => setIsTrashModalOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                বন্ধ করুন (Close)
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -968,6 +968,19 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                   ? `Admitted: ${person.admissionDate}`
                   : 'Active Out';
 
+                const targetEndDate = person.outOfUnitEndDate || person.leaveTo || person.courseTo;
+                let calculatedRemainingDays: number | null = null;
+                if (targetEndDate) {
+                  const parts = targetEndDate.split('-');
+                  if (parts.length === 3) {
+                    const end = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                    const now = new Date();
+                    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    calculatedRemainingDays = Math.round((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                  }
+                }
+                const displayRemainingDays = person.remainingDays !== undefined ? person.remainingDays : calculatedRemainingDays;
+
                 if (inlineEditingPersonId === person.id) {
                   const isLeave = inlineCategory === 'P/Lve' || inlineCategory === 'C/Lve';
                   return (
@@ -1154,8 +1167,35 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                         <span className="truncate">{locationText}</span>
                       </div>
                     </td>
-                    <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">
-                      {dateText}
+                    <td className="py-2.5 px-3 font-mono text-[11px] whitespace-nowrap">
+                      <div className="text-slate-300 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>{dateText}</span>
+                      </div>
+                      {(person.durationDays || displayRemainingDays !== null) && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {person.durationDays ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                              মোট {person.durationDays} দিন
+                            </span>
+                          ) : null}
+                          {displayRemainingDays !== null && (
+                            displayRemainingDays > 0 ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                অবশিষ্ট {displayRemainingDays} দিন
+                              </span>
+                            ) : displayRemainingDays === 0 ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                আজ যোগদান
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                অতিরিক্ত {Math.abs(displayRemainingDays)} দিন
+                              </span>
+                            )
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-slate-400 max-w-xs truncate text-[11px]">
                       {person.outOfUnitAuthority || person.outOfUnitRemarks || person.diagnosis || person.comdAuthority || '-'}

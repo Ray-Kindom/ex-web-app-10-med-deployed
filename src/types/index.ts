@@ -412,6 +412,7 @@ export interface Personnel {
   startDate?: string;
   endDate?: string;
   durationDays?: number;
+  remainingDays?: number;
   location?: string;
   authority?: string;
   rmk?: string;

@@ -61,7 +61,7 @@ export const exportNominalRollToPdf = (
   const present = safeList.filter((p) => p.status === 'Present').length;
   const onDuty = safeList.filter((p) => p.status === 'On Duty').length;
   const cmh = safeList.filter((p) => p.status === 'CMH/Sick').length;
-  const leave = safeList.filter((p) => p.status === 'Leave').length;
+  const leave = safeList.filter((p) => p.status === 'Leave' || p.status === 'P/Lve' || p.status === 'C/Lve' || p.outOfUnitCategory === 'P/Lve' || p.outOfUnitCategory === 'C/Lve').length;
   const course = safeList.filter((p) => p.status === 'Course/Trg').length;
   const others = total - (present + onDuty + cmh + leave + course);
 
@@ -209,7 +209,7 @@ export const exportNominalRollToWord = (
   const present = safeList.filter((p) => p.status === 'Present').length;
   const onDuty = safeList.filter((p) => p.status === 'On Duty').length;
   const cmh = safeList.filter((p) => p.status === 'CMH/Sick').length;
-  const leave = safeList.filter((p) => p.status === 'Leave').length;
+  const leave = safeList.filter((p) => p.status === 'Leave' || p.status === 'P/Lve' || p.status === 'C/Lve' || p.outOfUnitCategory === 'P/Lve' || p.outOfUnitCategory === 'C/Lve').length;
   const course = safeList.filter((p) => p.status === 'Course/Trg').length;
   const others = total - (present + onDuty + cmh + leave + course);
 
