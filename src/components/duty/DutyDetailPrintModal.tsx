@@ -3,7 +3,10 @@ import { useApp } from '../../context/AppContext';
 import { UnitLogo } from '../common/UnitLogo';
 import { ParadeDutyCategory, Battery } from '../../types';
 import { normalizeDutyName } from '../../utils/paradeCalculations';
-import { Printer, X, ShieldAlert, CheckCircle2, Columns, List, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Printer, X, ShieldAlert, CheckCircle2, Columns, List, ZoomIn, ZoomOut, RotateCcw, Download, FileSpreadsheet } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 interface DutyDetailPrintModalProps {
   isOpen: boolean;
@@ -216,6 +219,120 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
     }
   })();
 
+  const handleDownloadPdf = () => {
+    try {
+      const doc = new jsPDF('portrait', 'pt', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text('10 MEDIUM REGIMENT ARTILLERY', pageWidth / 2, 36, { align: 'center' });
+
+      doc.setFontSize(10);
+      doc.setTextColor(185, 28, 28);
+      doc.text(`DAILY PARADE DUTY DETAIL & NOMINAL ROLL (${sessionType.toUpperCase()})`, pageWidth / 2, 50, { align: 'center' });
+
+      doc.setDrawColor(203, 213, 225);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(30, 58, pageWidth - 60, 26, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`DATE: ${formattedDate.toUpperCase()}   |   SUB-UNIT: ${filterBattery.toUpperCase()}   |   TOTAL: ${allAssignments.length}`, 40, 74);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`HQ: ${batteryCounts['HQ Bty']} | P: ${batteryCounts['P Bty']} | Q: ${batteryCounts['Q Bty']} | R: ${batteryCounts['R Bty']}`, pageWidth - 40, 74, { align: 'right' });
+
+      const tableData = allAssignments.map((a, idx) => [
+        (idx + 1).toString(),
+        a.armyNo,
+        a.rank,
+        a.name,
+        a.battery.replace(' Bty', ''),
+        a.dutyName,
+        a.category,
+      ]);
+
+      autoTable(doc, {
+        startY: 92,
+        head: [['SL', 'ARMY NO', 'RANK', 'NAME', 'BTY', 'DUTY ASSIGNMENT', 'CATEGORY']],
+        body: tableData,
+        theme: 'grid',
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2.5,
+          font: 'helvetica',
+          textColor: [15, 23, 42],
+          lineColor: [203, 213, 225],
+          lineWidth: 0.5,
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center',
+        },
+        columnStyles: {
+          0: { cellWidth: 26, halign: 'center' },
+          1: { cellWidth: 60, halign: 'center', fontStyle: 'bold' },
+          2: { cellWidth: 45, halign: 'center', fontStyle: 'bold' },
+          3: { cellWidth: 140, fontStyle: 'bold' },
+          4: { cellWidth: 40, halign: 'center' },
+          5: { cellWidth: 'auto', fontStyle: 'bold' },
+          6: { cellWidth: 70, halign: 'center' },
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        margin: { left: 30, right: 30, bottom: 60, top: 40 },
+        didDrawPage: (data) => {
+          const str = `Page ${data.pageNumber} • 10 Medium Regiment Artillery • Duty Detail State`;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(str, pageWidth / 2, pageHeight - 15, { align: 'center' });
+        },
+      });
+
+      doc.save(`10_Med_Regt_Duty_Detail_${printDateStr}.pdf`);
+    } catch (err) {
+      console.error('Duty PDF error:', err);
+    }
+  };
+
+  const handleDownloadExcel = () => {
+    try {
+      const rows = [
+        ['10 MEDIUM REGIMENT ARTILLERY - DAILY DUTY DETAIL NOMINAL ROLL'],
+        [`DATE: ${formattedDate}`, `SESSION: ${sessionType}`, `SUB-UNIT: ${filterBattery}`, `TOTAL: ${allAssignments.length}`],
+        [],
+        ['SL', 'Army No', 'Rank', 'Name', 'Battery', 'Duty Assignment', 'Category'],
+        ...allAssignments.map((a, idx) => [
+          idx + 1,
+          a.armyNo,
+          a.rank,
+          a.name,
+          a.battery,
+          a.dutyName,
+          a.category,
+        ]),
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Duty Detail');
+      XLSX.writeFile(wb, `10_Med_Regt_Duty_Detail_${printDateStr}.xlsx`);
+    } catch (err) {
+      console.error('Duty Excel error:', err);
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -364,15 +481,37 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
               </button>
             </div>
 
-            {/* Print Action */}
+            {/* Download & Print Actions */}
+            <button
+              type="button"
+              id="btn-download-duty-pdf"
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs shadow-md transition-all cursor-pointer ml-1"
+              title="Download PDF directly"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download PDF</span>
+            </button>
+
+            <button
+              type="button"
+              id="btn-download-duty-excel"
+              onClick={handleDownloadExcel}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-mono text-xs transition-colors cursor-pointer"
+              title="Download Excel spreadsheet"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Excel</span>
+            </button>
+
             <button
               type="button"
               id="btn-confirm-print-duty-pdf"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-mono font-bold text-xs shadow-md transition-all cursor-pointer ml-1"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-mono text-xs transition-all cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print A4 PDF</span>
+              <span>Print</span>
             </button>
 
             <button
