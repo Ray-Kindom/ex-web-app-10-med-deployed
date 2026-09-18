@@ -56,11 +56,13 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
       ? 'EME'
       : 'P Bty');
 
-  const [activeBattery, setActiveBattery] = useState<Battery>(
+  type ActiveBatteryOption = Battery | 'All Bty';
+
+  const [activeBattery, setActiveBattery] = useState<ActiveBatteryOption>(
     isBsm
       ? assignedBty
       : currentUser.assignedBattery ||
-        (selectedBatteryFilter !== 'All' ? selectedBatteryFilter : 'P Bty')
+        (selectedBatteryFilter === 'All' ? 'All Bty' : selectedBatteryFilter || 'All Bty')
   );
 
   // Modal for showing drilldown list when stat box is clicked
@@ -74,55 +76,49 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   useEffect(() => {
     if (isBsm) {
       setActiveBattery(assignedBty);
-    } else if (selectedBatteryFilter !== 'All') {
+    } else if (selectedBatteryFilter === 'All') {
+      setActiveBattery('All Bty');
+    } else if (selectedBatteryFilter) {
       setActiveBattery(selectedBatteryFilter);
     }
   }, [isBsm, assignedBty, selectedBatteryFilter]);
 
-  // Battery serial: P, Q, R, HQ
-  const batteries: { id: Battery; name: string; role: string; commander: string; bsm: string }[] = [
+  // Battery options: All Bty (Total), P, Q, R, HQ, EME
+  const batteries: { id: ActiveBatteryOption; name: string }[] = [
+    {
+      id: 'All Bty',
+      name: 'All Batteries (Regimental Total)',
+    },
     {
       id: 'P Bty',
       name: 'P Battery (P Bty - 1st Gun Bty)',
-      role: 'Medium Artillery Field Fire Support',
-      commander: personnelList.find((p) => p.snkNo === 'BA-9840')?.name || 'Maj Md Burhanur Rahman, G',
-      bsm: 'SWO Jafor',
     },
     {
       id: 'Q Bty',
       name: 'Q Battery (Q Bty - 2nd Gun Bty)',
-      role: 'Medium Artillery Field Fire Support',
-      commander: personnelList.find((p) => p.snkNo === 'BA-11503')?.name || 'Capt Diaf Kamal Chowdhury',
-      bsm: 'WO Hamid',
     },
     {
       id: 'R Bty',
       name: 'R Battery (R Bty - 3rd Gun Bty)',
-      role: 'Medium Artillery Field Fire Support',
-      commander: personnelList.find((p) => p.snkNo === 'BA-10776')?.name || 'Capt Sheikh Mahdi Hasan Dhru',
-      bsm: 'WO Aminul',
     },
     {
       id: 'HQ Bty',
       name: 'HQ Battery (Headquarters)',
-      role: 'Regimental Command, Signals & Logistics',
-      commander: personnelList.find((p) => p.snkNo === 'BA-8324')?.name || 'Maj Anas Ibn Manjur',
-      bsm: 'SWO Nasir',
     },
     {
       id: 'EME',
-      name: 'EME',
-      role: 'Electrical & Mechanical Engineers',
-      commander: personnelList.find((p) => p.snkNo === 'BJO-77474')?.name || 'SWO Md. Fayzar Rahman',
-      bsm: 'SWO Fayzar',
+      name: 'EME (Electrical & Mechanical Engineers)',
     },
   ];
 
-  const btyPersonnel = personnelList.filter((p) => p.battery === activeBattery);
+  const btyPersonnel =
+    activeBattery === 'All Bty'
+      ? personnelList
+      : personnelList.filter((p) => p.battery === activeBattery);
   const postedCount = btyPersonnel.length;
   const presentCount = btyPersonnel.filter((p) => p.status === 'Present').length;
   const dutyCount = btyPersonnel.filter((p) => p.status === 'On Duty').length;
-  const sickCount = btyPersonnel.filter((p) => p.status === 'CMH/Sick').length;
+  const sickCount = btyPersonnel.filter((p) => p.status === 'CMH/Sick' || p.status === 'CMH' || p.outOfUnitCategory === 'CMH').length;
   const isPLvePersonnel = (p: Personnel) =>
     p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || p.leaveType === 'P/Lve';
 
@@ -135,7 +131,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   const btyPLveCount = btyPersonnel.filter(isPLvePersonnel).length;
   const btyCLveCount = btyPersonnel.filter(isCLvePersonnel).length;
   const leaveCount = btyPersonnel.filter(isLeavePersonnel).length;
-  const courseCount = btyPersonnel.filter((p) => p.status === 'Course/Trg').length;
+  const courseCount = btyPersonnel.filter((p) => p.status === 'Course/Trg' || p.status === 'Course' || p.outOfUnitCategory === 'Course').length;
   const isComdPersonnel = (p: Personnel) => {
     if (p.outOfUnitCategory === 'Comd') return true;
     if (p.outOfUnitCategory === 'FDMN') return false;
@@ -220,7 +216,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                     key={b.id}
                     onClick={() => {
                       setActiveBattery(b.id);
-                      setSelectedBatteryFilter(b.id);
+                      setSelectedBatteryFilter(b.id === 'All Bty' ? 'All' : b.id);
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       isSelected
@@ -320,7 +316,9 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
       </div>
 
       {/* Updt Out Of Unit Action Control Box (Only accessible to RSM and BSM) */}
-      {canManageOutOfUnit && <ParadeActionControls battery={activeBattery} />}
+      {canManageOutOfUnit && (
+        <ParadeActionControls battery={activeBattery === 'All Bty' ? undefined : activeBattery} />
+      )}
 
 
 
@@ -416,6 +414,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                         </div>
                         <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
                           <span>{p.snkNo}</span>
+                          <span>•</span>
+                          <span className="text-amber-300/90 font-medium">{p.battery}</span>
                           <span>•</span>
                           <span>{p.trade}</span>
                           {p.durationDays ? (

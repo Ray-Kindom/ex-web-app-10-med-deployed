@@ -280,6 +280,42 @@ export const syncPersonnelToSupabase = async (
         armyNo = `${armyNo}-${p.id}`;
       }
       seenArmyNos.add(armyNo);
+
+      const extraFields: Record<string, any> = {
+        outOfUnitCategory: p.outOfUnitCategory,
+        outOfUnitLocation: p.outOfUnitLocation,
+        outOfUnitStartDate: p.outOfUnitStartDate,
+        outOfUnitEndDate: p.outOfUnitEndDate,
+        outOfUnitAuthority: p.outOfUnitAuthority,
+        outOfUnitRemarks: p.outOfUnitRemarks,
+        location: p.location,
+        authority: p.authority,
+        remarks: p.remarks || p.rmk,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        durationDays: p.durationDays,
+        remainingDays: p.remainingDays,
+        leaveType: p.leaveType,
+        leaveFrom: p.leaveFrom,
+        leaveTo: p.leaveTo,
+        leaveAddress: p.leaveAddress,
+        courseName: p.courseName,
+        courseLocation: p.courseLocation,
+        courseFrom: p.courseFrom,
+        courseTo: p.courseTo,
+        courseDuration: p.courseDuration,
+        sickType: p.sickType,
+        hospitalName: p.hospitalName,
+        details: p.statusDetails,
+      };
+
+      const hasExtra = Object.entries(extraFields).some(
+        ([k, v]) => k !== 'details' && v !== undefined && v !== null && v !== ''
+      );
+      const statusDetailsStr = hasExtra
+        ? JSON.stringify(extraFields)
+        : (p.statusDetails || '');
+
       return {
         id: p.id,
         army_no: armyNo,
@@ -287,8 +323,8 @@ export const syncPersonnelToSupabase = async (
         name: p.name,
         battery: p.battery,
         trade: p.trade || 'Gnr',
-        parade_status: p.status || 'Present',
-        status_details: p.statusDetails || '',
+        parade_status: p.status || 'In Unit',
+        status_details: statusDetailsStr,
         medical_category: p.medicalCategory || 'AYE',
         contact_no: p.phone || p.mobileNo || '',
         blood_group: p.bloodGroup || '',
@@ -668,6 +704,75 @@ export const fetchPersonnelFromSupabase = async (): Promise<{
         } catch (e) {}
       }
 
+      const rawStatus = (row.parade_status || 'In Unit').trim();
+      const rawDetails = extra.details || (typeof row.status_details === 'string' && !row.status_details.trim().startsWith('{') ? row.status_details : '');
+      const detailsLower = (rawDetails || '').toLowerCase();
+      const statusLower = rawStatus.toLowerCase();
+
+      // Resolve outOfUnitCategory, leaveType, and normalized status
+      let derivedOutOfUnitCategory: any = extra.outOfUnitCategory || undefined;
+      let derivedLeaveType = extra.leaveType || undefined;
+      let resolvedStatus = rawStatus;
+      let location = extra.location || extra.outOfUnitLocation || undefined;
+      let courseName = extra.courseName || undefined;
+      let hospitalName = extra.hospitalName || undefined;
+
+      if (!derivedOutOfUnitCategory) {
+        if (rawStatus === 'Civilian' || detailsLower.includes('civilian')) {
+          resolvedStatus = 'Civilian';
+        } else if (rawStatus === 'P/Lve' || detailsLower.startsWith('p/lve') || detailsLower.includes('p/lve')) {
+          derivedOutOfUnitCategory = 'P/Lve';
+          derivedLeaveType = 'P/Lve';
+          resolvedStatus = 'P/Lve';
+        } else if (rawStatus === 'C/Lve' || detailsLower.startsWith('c/lve') || detailsLower.includes('c/lve')) {
+          derivedOutOfUnitCategory = 'C/Lve';
+          derivedLeaveType = 'C/Lve';
+          resolvedStatus = 'C/Lve';
+        } else if (statusLower.includes('leave')) {
+          if (detailsLower.includes('p/lve')) {
+            derivedOutOfUnitCategory = 'P/Lve';
+            derivedLeaveType = 'P/Lve';
+            resolvedStatus = 'P/Lve';
+          } else {
+            derivedOutOfUnitCategory = 'C/Lve';
+            derivedLeaveType = 'C/Lve';
+            resolvedStatus = 'C/Lve';
+          }
+        } else if (rawStatus === 'Course/Trg' || rawStatus === 'Course' || detailsLower.startsWith('course')) {
+          derivedOutOfUnitCategory = 'Course';
+          resolvedStatus = 'Course';
+          if (!courseName && rawDetails.includes(':')) {
+            courseName = rawDetails.split(':')[1]?.trim();
+          }
+        } else if (rawStatus === 'CMH/Sick' || rawStatus === 'CMH' || detailsLower.startsWith('cmh')) {
+          derivedOutOfUnitCategory = 'CMH';
+          resolvedStatus = 'CMH';
+          if (!hospitalName && rawDetails) {
+            hospitalName = rawDetails;
+          }
+        } else if (detailsLower.includes('ere') || detailsLower.includes('dgfi') || detailsLower.includes('bgb')) {
+          derivedOutOfUnitCategory = 'ERE';
+          resolvedStatus = 'ERE';
+          if (!location && rawDetails) location = rawDetails;
+        } else if (detailsLower.includes('mission') || detailsLower.includes('un mission') || detailsLower.includes('msn')) {
+          derivedOutOfUnitCategory = 'Msn';
+          resolvedStatus = 'Msn';
+          if (!location && rawDetails) location = rawDetails;
+        } else if (rawStatus === 'Attached Out' || detailsLower.includes('att')) {
+          derivedOutOfUnitCategory = 'Att';
+          resolvedStatus = 'Att';
+          if (!location && rawDetails) location = rawDetails;
+        } else if (detailsLower.includes('fdmn') || detailsLower.includes('হোয়াইকং')) {
+          derivedOutOfUnitCategory = 'FDMN';
+          resolvedStatus = 'FDMN';
+          if (!location && rawDetails) location = rawDetails;
+        } else if (rawStatus === 'Temp Duty' || detailsLower.includes('comd')) {
+          derivedOutOfUnitCategory = 'Comd';
+          resolvedStatus = 'Comd';
+          if (!location && rawDetails) location = rawDetails;
+        }
+      }
+
       return {
         id: row.id,
         snkNo: row.army_no || row.id,
@@ -675,36 +780,36 @@ export const fetchPersonnelFromSupabase = async (): Promise<{
         name: row.name || '',
         battery: row.battery || 'HQ Bty',
         trade: row.trade || 'Gnr',
-        status: row.parade_status || 'In Unit',
-        statusDetails: extra.details || (typeof row.status_details === 'string' && !row.status_details.trim().startsWith('{') ? row.status_details : ''),
+        status: resolvedStatus,
+        statusDetails: rawDetails,
         medicalCategory: row.medical_category || 'AYE',
         phone: row.contact_no || '',
         mobileNo: row.contact_no || '',
         bloodGroup: row.blood_group || '',
-        outOfUnitCategory: extra.outOfUnitCategory,
-        outOfUnitLocation: extra.outOfUnitLocation,
-        outOfUnitStartDate: extra.outOfUnitStartDate,
-        outOfUnitEndDate: extra.outOfUnitEndDate,
-        outOfUnitAuthority: extra.outOfUnitAuthority,
-        outOfUnitRemarks: extra.outOfUnitRemarks,
-        location: extra.location,
+        outOfUnitCategory: derivedOutOfUnitCategory,
+        outOfUnitLocation: extra.outOfUnitLocation || location,
+        outOfUnitStartDate: extra.outOfUnitStartDate || extra.startDate,
+        outOfUnitEndDate: extra.outOfUnitEndDate || extra.endDate,
+        outOfUnitAuthority: extra.outOfUnitAuthority || extra.authority,
+        outOfUnitRemarks: extra.outOfUnitRemarks || extra.remarks,
+        location: location,
         authority: extra.authority,
         remarks: extra.remarks,
         startDate: extra.startDate,
         endDate: extra.endDate,
         durationDays: extra.durationDays,
         remainingDays: extra.remainingDays,
-        leaveType: extra.leaveType,
+        leaveType: derivedLeaveType,
         leaveFrom: extra.leaveFrom,
         leaveTo: extra.leaveTo,
-        leaveAddress: extra.leaveAddress,
-        courseName: extra.courseName,
+        leaveAddress: extra.leaveAddress || location,
+        courseName: courseName,
         courseLocation: extra.courseLocation,
         courseFrom: extra.courseFrom,
         courseTo: extra.courseTo,
         courseDuration: extra.courseDuration,
         sickType: extra.sickType,
-        hospitalName: extra.hospitalName,
+        hospitalName: hospitalName,
       };
     });
 

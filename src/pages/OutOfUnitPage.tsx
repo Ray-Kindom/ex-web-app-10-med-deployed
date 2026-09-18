@@ -238,19 +238,19 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
         counts['Comd'] += 1;
       } else if (p.outOfUnitCategory) {
         counts[p.outOfUnitCategory] = (counts[p.outOfUnitCategory] || 0) + 1;
-      } else if (p.status === 'CMH/Sick') {
+      } else if (p.status === 'CMH/Sick' || p.status === 'CMH') {
         counts['CMH'] += 1;
-      } else if (p.status === 'Course/Trg') {
+      } else if (p.status === 'Course/Trg' || p.status === 'Course') {
         counts['Course'] += 1;
-      } else if (p.leaveType === 'P/Lve') {
+      } else if (p.status === 'P/Lve' || p.leaveType === 'P/Lve') {
         counts['P/Lve'] += 1;
-      } else if (p.leaveType === 'C/Lve') {
+      } else if (p.status === 'C/Lve' || p.leaveType === 'C/Lve') {
         counts['C/Lve'] += 1;
-      } else if (p.status === 'Attached Out') {
+      } else if (p.status === 'Att' || p.status === 'Attached Out') {
         counts['Att'] += 1;
-      } else if (details.includes('ere')) {
+      } else if (p.status === 'ERE' || details.includes('ere')) {
         counts['ERE'] += 1;
-      } else if (details.includes('mission') || details.includes('un')) {
+      } else if (p.status === 'Msn' || details.includes('mission') || details.includes('un')) {
         counts['Msn'] += 1;
       }
     });
@@ -288,9 +288,16 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
         matchesCategory =
           Boolean(p.outOfUnitCategory) ||
           p.status === 'CMH/Sick' ||
+          p.status === 'CMH' ||
           p.status === 'Course/Trg' ||
+          p.status === 'Course' ||
           p.status === 'Attached Out' ||
+          p.status === 'Att' ||
           p.status === 'Temp Duty' ||
+          p.status === 'P/Lve' ||
+          p.status === 'C/Lve' ||
+          p.status === 'ERE' ||
+          p.status === 'Msn' ||
           p.leaveType === 'P/Lve' ||
           p.leaveType === 'C/Lve' ||
           isFdmn ||
@@ -302,13 +309,13 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
       } else {
         matchesCategory =
           p.outOfUnitCategory === currentCategory ||
-          (currentCategory === 'CMH' && p.status === 'CMH/Sick') ||
-          (currentCategory === 'Course' && p.status === 'Course/Trg') ||
-          (currentCategory === 'P/Lve' && p.leaveType === 'P/Lve') ||
-          (currentCategory === 'C/Lve' && p.leaveType === 'C/Lve') ||
-          (currentCategory === 'Att' && p.status === 'Attached Out') ||
-          (currentCategory === 'ERE' && details.includes('ere')) ||
-          (currentCategory === 'Msn' && (details.includes('mission') || details.includes('un')));
+          (currentCategory === 'CMH' && (p.status === 'CMH/Sick' || p.status === 'CMH')) ||
+          (currentCategory === 'Course' && (p.status === 'Course/Trg' || p.status === 'Course')) ||
+          (currentCategory === 'P/Lve' && (p.status === 'P/Lve' || p.leaveType === 'P/Lve')) ||
+          (currentCategory === 'C/Lve' && (p.status === 'C/Lve' || p.leaveType === 'C/Lve')) ||
+          (currentCategory === 'Att' && (p.status === 'Attached Out' || p.status === 'Att')) ||
+          (currentCategory === 'ERE' && (p.status === 'ERE' || details.includes('ere'))) ||
+          (currentCategory === 'Msn' && (p.status === 'Msn' || details.includes('mission') || details.includes('un')));
       }
 
       if (!matchesCategory) return false;
