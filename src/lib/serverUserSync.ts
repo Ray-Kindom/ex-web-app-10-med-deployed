@@ -65,6 +65,20 @@ export async function deleteUserFromServer(idOrUsername: string): Promise<boolea
   }
 }
 
+export async function fetchDeletedUserIdentifiers(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/users/deleted');
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (json.success && Array.isArray(json.deleted)) {
+      return json.deleted as string[];
+    }
+  } catch (err) {
+    console.warn('[serverUserSync] Failed to fetch deleted user identifiers:', err);
+  }
+  return [];
+}
+
 export async function fetchServerAppState(): Promise<any | null> {
   try {
     const res = await fetch('/api/sync/state');

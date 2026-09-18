@@ -2,7 +2,7 @@ import { db, isSqlConfigured } from './index.ts';
 import { users, personnel, paradeRecords, dutyRoster, auditLogs } from './schema.ts';
 import { eq, desc, or } from 'drizzle-orm';
 
-import { INITIAL_PERSONNEL, INITIAL_USERS } from '../data/initialData.ts';
+import { INITIAL_USERS } from '../data/initialData.ts';
 
 // In-memory fallback stores for when Cloud SQL is not configured
 const inMemoryUsers = new Map<string, any>();
@@ -10,27 +10,6 @@ const inMemoryPersonnel = new Map<string, any>();
 const inMemoryParadeRecords: any[] = [];
 const inMemoryDutyRoster: any[] = [];
 const inMemoryAuditLogs: any[] = [];
-
-// Initialize in-memory personnel from Nominal Roll
-if (INITIAL_PERSONNEL && INITIAL_PERSONNEL.length > 0) {
-  INITIAL_PERSONNEL.forEach((p) => {
-    const armyNo = p.snkNo || p.id;
-    inMemoryPersonnel.set(armyNo, {
-      id: armyNo,
-      armyNo: armyNo,
-      rank: p.rk,
-      name: p.name,
-      battery: p.battery,
-      trade: p.trade || 'GD',
-      paradeStatus: p.status || 'PRESENT',
-      statusDetails: p.statusDetails || '',
-      bloodGroup: p.bloodGroup || '',
-      phone: p.phone || '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  });
-}
 
 // Initialize in-memory users
 if (INITIAL_USERS && INITIAL_USERS.length > 0) {

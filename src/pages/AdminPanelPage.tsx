@@ -364,23 +364,6 @@ export const AdminPanelPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveTab('GOOGLE_WHITELIST')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === 'GOOGLE_WHITELIST'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
-            }`}
-          >
-            <Cloud className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Google Whitelist & Approvals</span>
-            {pendingGoogleCount > 0 && (
-              <span className="px-1.5 py-0.2 text-[10px] bg-amber-500 text-slate-950 font-black rounded-full animate-pulse">
-                {pendingGoogleCount}
-              </span>
-            )}
-          </button>
-
-          <button
             onClick={() => setActiveTab('LOGO')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'LOGO'
@@ -450,6 +433,24 @@ export const AdminPanelPage: React.FC = () => {
       {/* Tab 1: Roles & Battery Assignments */}
       {activeTab === 'ROLES' && (
         <div className="space-y-4">
+          {/* Clarification Notice Banner */}
+          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+            <div className="flex items-start gap-2.5">
+              <Shield className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+              <div>
+                <span className="font-bold text-white">ইউজার অ্যাকাউন্ট সিস্টেম (Single Source of Truth):</span>
+                <p className="text-slate-400 text-[11px] mt-0.5">
+                  এখানে শুধুমাত্র সফটওয়্যারে লগইন করার অনুমতিপ্রাপ্ত অ্যাকাউন্টসমূহ রয়েছে ({usersList.length} জন)। এখান থেকে ইউজার মুছে দিলে তা সেন্ট্রাল সার্ভার ও ডাটাবেজ থেকে অবিলম্বে স্থায়ীভাবে ডিলিট হয়ে যাবে। রেজিমেন্টের সকল সৈনিক ও অফিসারদের তালিকা দেখতে উপরের <strong>Personnel Database</strong> ব্যবহার করুন।
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+              <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-emerald-400 font-bold">
+                মোট ইউজার: {usersList.length} জন
+              </span>
+            </div>
+          </div>
+
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
             {/* Header with Search & Controls */}
             <div className="p-4 border-b border-slate-800 space-y-3">

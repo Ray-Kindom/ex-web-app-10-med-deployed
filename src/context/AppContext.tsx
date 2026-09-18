@@ -34,20 +34,11 @@ import {
   CustomTeam,
 } from '../types';
 import {
-  INITIAL_PERSONNEL,
   CIVILIAN_PERSONNEL,
   INITIAL_USERS,
   INITIAL_DUTY_ROSTER,
   INITIAL_AUDIT_LOGS,
   GUEST_USER,
-  FDMN_NOMINATIONS_WHYE_KONG,
-  COMD_PARTY_NOMINATIONS_08_09_26,
-  OFFICIAL_OFFICER_SNK_NOS,
-  OFFICIAL_OFFICERS,
-  OFFICIAL_P_LVE_LIST,
-  OFFICIAL_C_LVE_LIST,
-  NEWLY_REGISTERED_LEAVE_SOLDIERS,
-  calculateRemainingDays,
 } from '../data/initialData';
 import { ASLT_COURSE_SNK_NOS } from '../data/asltCourseData';
 import { CRICKET_TEAM_SNK_NOS } from '../data/cricketTeamData';
@@ -87,12 +78,22 @@ import {
   testSupabaseConnection,
   saveDutyDetailingToSupabase,
   fetchAllDutyDetailingFromSupabase,
+  upsertSinglePersonnelToSupabase,
+  deleteSinglePersonnelFromSupabase,
+  verifyUserCredentialsInSupabase,
+  fetchPersonnelFromSupabase,
+  batchUpdatePersonnelStatusInSupabase,
+  saveParadeRecordToSupabase,
+  fetchParadeRecordsFromSupabase,
+  saveSystemStateToSupabase,
+  fetchSystemStateFromSupabase,
 } from '../lib/supabase';
 import {
   fetchServerUsers,
   syncUsersToServer,
   saveUserToServer,
   deleteUserFromServer,
+  fetchDeletedUserIdentifiers,
 } from '../lib/serverUserSync';
 
 export const MASTER_ADMIN_EMAIL = 'mdraiyan1512@gmail.com';
@@ -311,7 +312,7 @@ interface AppContextType {
 
   // Authentication & Session
   isAuthenticated: boolean;
-  loginWithCredentials: (username: string, password: string) => { success: boolean; error?: string };
+  loginWithCredentials: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 
   // Role Simulation & Admin Persistence
@@ -348,6 +349,8 @@ interface AppContextType {
   resetSystemToDefaults: () => void;
   hasModulePermission: (moduleKey: string, userRole?: string) => boolean;
   isSupabaseReady: boolean;
+  isPersonnelLoading?: boolean;
+  isUsersLoading?: boolean;
   syncToSupabase: () => Promise<{ success: boolean; message: string; count?: number }>;
   syncUsersToSupabaseCloud: () => Promise<{ success: boolean; count?: number; error?: string }>;
 }
@@ -454,52 +457,9 @@ function sanitizeForFirestore<T>(obj: T): T {
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Local states initialized from localStorage cache or initial seed, filtering out deleted tombstones
-  const [usersList, setUsersList] = useState<UserAccount[]>(() => {
-    const deleted = getDeletedUserIdentifiers();
-    const saved = localStorage.getItem(STORAGE_KEYS.USERS_LIST);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          let hasMigration = false;
-          const migrated = parsed
-            .filter((u: UserAccount) => !isUserDeleted(u, deleted))
-            .map((u: UserAccount) => {
-              if (u.username === 'co' || u.snkNo === 'BA-7124' || u.name?.includes('Tariq')) {
-                hasMigration = true;
-                return {
-                  ...u,
-                  name: 'Lt Col Md Shafiqul Islam Rubel, PSC, G',
-                  snkNo: 'BA-7592',
-                  rank: 'Lt Col',
-                };
-              }
-              if (u.username === 'offr' || u.snkNo === 'BA-9844' || u.name?.includes('Saifuddin')) {
-                hasMigration = true;
-                return {
-                  ...u,
-                  name: 'Capt Iftekhar Mahmud Abir',
-                  snkNo: 'BA-11735',
-                  rank: 'Capt',
-                  accessLevel: 'Regimental Officer Access (Adjutant)',
-                };
-              }
-              return u;
-            });
-          if (hasMigration) {
-            try {
-              localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(migrated));
-            } catch (e) {}
-          }
-          return migrated;
-        }
-      } catch (e) {
-        /* fallback */
-      }
-    }
-    return INITIAL_USERS.filter((u) => !isUserDeleted(u, deleted));
-  });
+  // User Accounts initialized purely from Supabase Cloud (no hardcoded fallback or localStorage)
+  const [usersList, setUsersList] = useState<UserAccount[]>([]);
+  const [isUsersLoading, setIsUsersLoading] = useState<boolean>(true);
 
   const [currentUser, setCurrentUserState] = useState<UserAccount>(() => {
     // Only restore currentUser if there is an active session in this browser tab
@@ -515,7 +475,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     }
-    return INITIAL_USERS[0]; // Default to first user profile for structure
+    return {
+      id: 'guest_session',
+      username: 'guest',
+      name: 'Guest User',
+      rank: 'Civilian',
+      role: 'Guest',
+      assignedBattery: 'HQ Bty',
+      email: '',
+      isApproved: true,
+    };
   });
 
   // The genuinely authenticated user account (strictly session-based)
@@ -724,339 +693,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isRSM = !isGuest && currentUser.role === 'RSM';
 
 
-  const [personnelList, setPersonnelList] = useState<Personnel[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PERSONNEL);
-    if (saved) {
-      try {
-        const parsed: Personnel[] = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          let hasChanges = false;
-
-          // 1. Purge obsolete officers who are not in the official 12 officers list
-          const officialSnkNos = new Set(OFFICIAL_OFFICER_SNK_NOS);
-          let workingList = parsed.filter((p) => {
-            const isOfficer = isOfficerRank(p.rk) || (p.snkNo && p.snkNo.startsWith('BA-'));
-            if (isOfficer && !officialSnkNos.has(p.snkNo)) {
-              hasChanges = true;
-              return false; // Remove obsolete officer
-            }
-            return true;
-          });
-
-          // 2. Ensure each of the 12 official officers exists and has up-to-date name, rank, battery
-          OFFICIAL_OFFICERS.forEach((officialOffr) => {
-            const index = workingList.findIndex((p) => p.snkNo === officialOffr.snkNo);
-            if (index !== -1) {
-              const current = workingList[index];
-              if (
-                current.name !== officialOffr.name ||
-                current.rk !== officialOffr.rk ||
-                current.battery !== officialOffr.battery
-              ) {
-                hasChanges = true;
-                workingList[index] = {
-                  ...current,
-                  name: officialOffr.name,
-                  rk: officialOffr.rk,
-                  battery: officialOffr.battery,
-                };
-              }
-            } else {
-              hasChanges = true;
-              workingList.unshift(officialOffr);
-            }
-          });
-
-          // Sync official course nominations (Dated: 05-09-2026) into existing localStorage
-          const courseSnkNos = [
-            'BA-9043',
-            'BA-10776',
-            'BA-12471',
-            'BA-12781',
-            '1249400',
-            '1249312',
-            '1228024',
-            '1233234',
-            '1233187',
-            '1236311',
-            '1242900',
-            '1246164',
-          ];
-          const coursePersonnelMap = new Map(
-            INITIAL_PERSONNEL.filter((p) => courseSnkNos.includes(p.snkNo)).map((p) => [p.snkNo, p])
-          );
-
-          const updatedList = workingList.map((p) => {
-            const courseData = coursePersonnelMap.get(p.snkNo);
-            if (courseData && p.status !== 'Course/Trg') {
-              hasChanges = true;
-              return {
-                ...p,
-                status: 'Course/Trg' as ParadeStatus,
-                outOfUnitCategory: 'Course' as const,
-                outOfUnitLocation: courseData.outOfUnitLocation,
-                outOfUnitStartDate: courseData.outOfUnitStartDate,
-                outOfUnitEndDate: courseData.outOfUnitEndDate,
-                outOfUnitRemarks: courseData.outOfUnitRemarks,
-                statusDetails: courseData.statusDetails,
-              };
-            }
-            return p;
-          });
-
-          // Check if any officers or personnel are missing from the parsed list
-          coursePersonnelMap.forEach((courseData, snkNo) => {
-            const exists = updatedList.some((p) => p.snkNo === snkNo);
-            if (!exists) {
-              hasChanges = true;
-              updatedList.push(courseData);
-            }
-          });
-
-          // Sync FDMN nominations (Whye-kong Army Camp, 32 personnel) into existing localStorage
-          FDMN_NOMINATIONS_WHYE_KONG.forEach((fdmn) => {
-            const initialMatch = INITIAL_PERSONNEL.find(
-              (ip) => ip.snkNo === fdmn.snkNo || (fdmn.altSnkNos && fdmn.altSnkNos.includes(ip.snkNo))
-            );
-            const index = updatedList.findIndex(
-              (p) => p.snkNo === fdmn.snkNo || (fdmn.altSnkNos && fdmn.altSnkNos.includes(p.snkNo))
-            );
-
-            if (index !== -1) {
-              const current = updatedList[index];
-              if (current.outOfUnitCategory !== 'FDMN') {
-                hasChanges = true;
-                updatedList[index] = {
-                  ...current,
-                  status: 'Temp Duty' as ParadeStatus,
-                  outOfUnitCategory: 'FDMN' as const,
-                  outOfUnitLocation: 'হোয়াইকং আর্মি ক্যাম্প',
-                  outOfUnitStartDate: fdmn.startDate,
-                  outOfUnitEndDate: fdmn.endDate,
-                  outOfUnitRemarks: `FDMN (${fdmn.days.toString().padStart(2, '0')} দিন)`,
-                  statusDetails: 'FDMN - হোয়াইকং আর্মি ক্যাম্প',
-                };
-              }
-            } else if (initialMatch) {
-              hasChanges = true;
-              updatedList.push(initialMatch);
-            }
-          });
-
-          // Sync NC(E) rank and trade for the 9 designated personnel
-          const NCE_PERSONNEL_SNK_NOS = ['1227839', '1229728', '1235261', '1235277', '1237352', '1239301', '1246542', '1247785', '1251028'];
-          updatedList.forEach((p, idx) => {
-            if (NCE_PERSONNEL_SNK_NOS.includes(p.snkNo) && (p.rk !== 'NC(E)' || p.trade !== '-')) {
-              hasChanges = true;
-              updatedList[idx] = {
-                ...p,
-                rk: 'NC(E)',
-                trade: '-',
-              };
-            }
-          });
-
-          // Sync COMD Party nominations (08-09-2026)
-          COMD_PARTY_NOMINATIONS_08_09_26.forEach((comd) => {
-            const index = updatedList.findIndex((p) => p.snkNo === comd.snkNo);
-            const initialMatch = INITIAL_PERSONNEL.find((p) => p.snkNo === comd.snkNo);
-
-            if (index !== -1) {
-              const current = updatedList[index];
-              if (current.outOfUnitCategory !== 'Comd' || current.location !== comd.location) {
-                hasChanges = true;
-                updatedList[index] = {
-                  ...current,
-                  status: 'Temp Duty' as ParadeStatus,
-                  outOfUnitCategory: 'Comd' as const,
-                  comdAssignment: comd.location,
-                  location: comd.location,
-                  outOfUnitLocation: comd.location,
-                  outOfUnitRemarks: `কমান্ড পার্টি (${comd.location})`,
-                  statusDetails: comd.statusDetails,
-                  outOfUnitStartDate: '2026-09-08',
-                  ...(comd.snkNo === '1234544' ? { name: 'Md Rahmania Amran (Imran)' } : {}),
-                };
-              }
-            } else if (initialMatch) {
-              hasChanges = true;
-              updatedList.push(initialMatch);
-            }
-          });
-
-          // Sync EME personnel (12 designated personnel moved from HQ Bty to EME)
-          const EME_PERSONNEL_MAP: Record<string, { rk: string; trade: string; name: string }> = {
-            'BJO-77474': { rk: 'SWO', trade: 'TSA', name: 'Md. Fayzar Rahman' },
-            '2411761': { rk: 'Sgt', trade: 'TBV', name: 'Gobinda Chandra Mondal' },
-            '2413815': { rk: 'Cpl', trade: 'TSA', name: 'Md. Monirul Islam' },
-            '2415218': { rk: 'Cpl', trade: 'TSA', name: 'Md. Mahsun-E-Khoda' },
-            '2415846': { rk: 'Lcpl', trade: 'RMT', name: 'Md. Saddam Hossain' },
-            '2416197': { rk: 'Lcpl', trade: 'TBV', name: 'Md. Tuhin Sardar' },
-            '2417678': { rk: 'Lcpl', trade: 'TSA', name: 'Md. Sujon Mia' },
-            '2418593': { rk: 'Snk', trade: 'RCT', name: 'Md. Sabuj Mia' },
-            '2418380': { rk: 'Snk', trade: 'TBV', name: 'Md. Afzal Hossain' },
-            '2421869': { rk: 'Snk', trade: 'Welder', name: 'Md. Mahmudul Hasan Nasim' },
-            '2421871': { rk: 'Snk', trade: 'TBV', name: 'Md. Jony Mia' },
-            '2422081': { rk: 'Snk', trade: 'SMT', name: 'Abdul Mokaddem Khandaker' },
-          };
-
-          updatedList.forEach((p, idx) => {
-            const emeData = EME_PERSONNEL_MAP[p.snkNo];
-            if (emeData) {
-              if (p.battery !== 'EME' || p.name !== emeData.name || p.trade !== emeData.trade || p.rk !== emeData.rk) {
-                hasChanges = true;
-                updatedList[idx] = {
-                  ...p,
-                  battery: 'EME',
-                  rk: emeData.rk as any,
-                  trade: emeData.trade,
-                  name: emeData.name,
-                };
-              }
-            }
-          });
-          if (!updatedList.some((p) => p.snkNo === '2422081')) {
-            const initialMokaddem = INITIAL_PERSONNEL.find((p) => p.snkNo === '2422081');
-            if (initialMokaddem) {
-              hasChanges = true;
-              updatedList.push(initialMokaddem);
-            }
-          }
-
-          // Sync Assault Course personnel (ensure all 32 members exist in updatedList)
-          ASLT_COURSE_SNK_NOS.forEach((snk) => {
-            if (!updatedList.some((p) => p.snkNo === snk)) {
-              const match = INITIAL_PERSONNEL.find((ip) => ip.snkNo === snk);
-              if (match) {
-                hasChanges = true;
-                updatedList.push(match);
-              }
-            }
-          });
-
-          // Sync Civilian Staff (18 personnel) - Strictly Under Civilian (Not in any military battery)
-          CIVILIAN_PERSONNEL.forEach((civ) => {
-            const index = updatedList.findIndex(
-              (p) => p.snkNo === civ.snkNo || (p.name && p.name.trim().toLowerCase() === civ.name.trim().toLowerCase())
-            );
-            if (index !== -1) {
-              const current = updatedList[index];
-              if (
-                current.rk !== 'Civilian' ||
-                current.trade !== civ.trade ||
-                current.status !== 'Civilian' ||
-                current.snkNo !== civ.snkNo ||
-                current.battery !== 'Civilian'
-              ) {
-                hasChanges = true;
-                updatedList[index] = {
-                  ...current,
-                  snkNo: civ.snkNo,
-                  rk: 'Civilian',
-                  trade: civ.trade,
-                  status: 'Civilian',
-                  battery: 'Civilian',
-                  name: civ.name,
-                  statusDetails: civ.statusDetails || current.statusDetails,
-                };
-              }
-            } else {
-              hasChanges = true;
-              updatedList.push(civ);
-            }
-          });
-
-          // Sync newly registered leave soldiers (1225491 & 1224696)
-          NEWLY_REGISTERED_LEAVE_SOLDIERS.forEach((soldier) => {
-            if (!updatedList.some((p) => p.snkNo === soldier.snkNo)) {
-              hasChanges = true;
-              updatedList.push(soldier);
-            }
-          });
-
-          // Sync official P/Lve nominations (67 personnel)
-          OFFICIAL_P_LVE_LIST.forEach((l) => {
-            const index = updatedList.findIndex(
-              (p) => p.snkNo === l.snkNo || (l.altSnkNo && p.snkNo === l.altSnkNo)
-            );
-            const remDays = calculateRemainingDays(l.joiningDate);
-            if (index !== -1) {
-              const current = updatedList[index];
-              if (
-                current.status !== 'P/Lve' ||
-                current.outOfUnitCategory !== 'P/Lve' ||
-                current.outOfUnitStartDate !== l.startDate ||
-                current.outOfUnitEndDate !== l.joiningDate ||
-                current.durationDays !== l.totalDays
-              ) {
-                hasChanges = true;
-                updatedList[index] = {
-                  ...current,
-                  status: 'P/Lve' as ParadeStatus,
-                  outOfUnitCategory: 'P/Lve' as const,
-                  leaveType: 'P/Lve' as const,
-                  startDate: l.startDate,
-                  endDate: l.joiningDate,
-                  outOfUnitStartDate: l.startDate,
-                  outOfUnitEndDate: l.joiningDate,
-                  leaveFrom: l.startDate,
-                  leaveTo: l.joiningDate,
-                  durationDays: l.totalDays,
-                  remainingDays: remDays,
-                  statusDetails: `P/Lve (${l.totalDays} Days, ${remDays} Days left)`,
-                  outOfUnitRemarks: `বাৎসরিক ছুটি (মোট ${l.totalDays} দিন, অবশিষ্ট ${remDays} দিন, যোগদানের তারিখ: ${l.joiningDate})`,
-                };
-              }
-            }
-          });
-
-          // Sync official C/Lve nominations (20 personnel)
-          OFFICIAL_C_LVE_LIST.forEach((l) => {
-            const index = updatedList.findIndex(
-              (p) => p.snkNo === l.snkNo || (l.altSnkNo && p.snkNo === l.altSnkNo)
-            );
-            const remDays = calculateRemainingDays(l.joiningDate);
-            if (index !== -1) {
-              const current = updatedList[index];
-              if (
-                current.status !== 'C/Lve' ||
-                current.outOfUnitCategory !== 'C/Lve' ||
-                current.outOfUnitStartDate !== l.startDate ||
-                current.outOfUnitEndDate !== l.joiningDate ||
-                current.durationDays !== l.totalDays
-              ) {
-                hasChanges = true;
-                updatedList[index] = {
-                  ...current,
-                  status: 'C/Lve' as ParadeStatus,
-                  outOfUnitCategory: 'C/Lve' as const,
-                  leaveType: 'C/Lve' as const,
-                  startDate: l.startDate,
-                  endDate: l.joiningDate,
-                  outOfUnitStartDate: l.startDate,
-                  outOfUnitEndDate: l.joiningDate,
-                  leaveFrom: l.startDate,
-                  leaveTo: l.joiningDate,
-                  durationDays: l.totalDays,
-                  remainingDays: remDays,
-                  statusDetails: `C/Lve (${l.totalDays} Days, ${remDays} Days left)`,
-                  outOfUnitRemarks: `নৈমিত্তিক ছুটি (মোট ${l.totalDays} দিন, অবশিষ্ট ${remDays} দিন, যোগদানের তারিখ: ${l.joiningDate})`,
-                };
-              }
-            }
-          });
-
-          if (hasChanges) {
-            localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(updatedList));
-          }
-          return updatedList;
-        }
-      } catch (e) {
-        /* fallback */
-      }
-    }
-    return INITIAL_PERSONNEL;
-  });
+  // Master Personnel List initialized purely from Supabase Cloud (no hardcoded fallback or localStorage)
+  const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
+  const [isPersonnelLoading, setIsPersonnelLoading] = useState<boolean>(true);
 
   const [dutyRoster, setDutyRoster] = useState<DutyAssignment[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.DUTY);
@@ -1300,15 +939,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_PARADE_TYPES;
   });
 
-  const [paradeRecords, setParadeRecords] = useState<Record<string, DateWiseParadeRecord>>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PARADE_RECORDS);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {};
-  });
+  const [paradeRecords, setParadeRecords] = useState<Record<string, DateWiseParadeRecord>>({});
 
   const getParadeRecord = (date: string, typeId: string, battery: Battery): DateWiseParadeRecord => {
     const recordId = `${date}_${typeId}_${battery}`;
@@ -1382,9 +1013,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setParadeRecords((prev) => {
       const next = { ...prev, [recordId]: updatedRecord };
-      localStorage.setItem(STORAGE_KEYS.PARADE_RECORDS, JSON.stringify(next));
       return next;
     });
+
+    // Sync to Supabase Cloud
+    if (isSupabaseConfigured()) {
+      saveParadeRecordToSupabase(updatedRecord).catch((e) =>
+        console.warn('Supabase save parade record note:', e)
+      );
+    }
 
     // Also sync to Firestore safely
     syncDoc(
@@ -1437,9 +1074,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setParadeRecords((prev) => {
       const next = { ...prev, [recordId]: updatedRecord };
-      localStorage.setItem(STORAGE_KEYS.PARADE_RECORDS, JSON.stringify(next));
       return next;
     });
+
+    if (isSupabaseConfigured()) {
+      saveParadeRecordToSupabase(updatedRecord).catch((e) =>
+        console.warn('Supabase confirm parade record note:', e)
+      );
+    }
 
     syncDoc(
       setDoc(
@@ -1485,6 +1127,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           finalizedBy: `${currentUser.rank} ${currentUser.name} (RSM)`,
         };
         next[recordId] = updated;
+
+        if (isSupabaseConfigured()) {
+          saveParadeRecordToSupabase(updated).catch(() => {});
+        }
+
         syncDoc(
           setDoc(
             doc(db, 'parade_records', recordId),
@@ -1494,7 +1141,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           'finalize parade record'
         );
       });
-      localStorage.setItem(STORAGE_KEYS.PARADE_RECORDS, JSON.stringify(next));
       return next;
     });
 
@@ -1508,110 +1154,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // --- CUSTOM TEAMS (Between Duty Detailing and Out of Unit) ---
   const [customTeams, setCustomTeams] = useState<CustomTeam[]>(() => {
-    // 32 members for "Aslt Course"
-    const asltCourseIds = ASLT_COURSE_SNK_NOS.map(
-      (snk) => INITIAL_PERSONNEL.find((p) => p.snkNo?.toLowerCase() === snk.toLowerCase())?.id
-    ).filter(Boolean) as string[];
-
-    // 16 members for "Cricket"
-    const cricketTeamIds = CRICKET_TEAM_SNK_NOS.map(
-      (snk) => INITIAL_PERSONNEL.find((p) => p.snkNo?.toLowerCase() === snk.toLowerCase())?.id
-    ).filter(Boolean) as string[];
-
-    const saved =
-      localStorage.getItem(STORAGE_KEYS.CUSTOM_TEAMS) ||
-      localStorage.getItem('10med_custom_teams_v2') ||
-      localStorage.getItem('10med_custom_teams_v1');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const otherTeams = parsed.filter(
-            (t: any) =>
-              t.id !== 'team_aslt_course' &&
-              !t.name?.toLowerCase().includes('aslt') &&
-              t.id !== 'team_cricket' &&
-              !t.name?.toLowerCase().includes('cricket')
-          );
-          const existingAslt = parsed.find(
-            (t: any) => t.id === 'team_aslt_course' || t.name?.toLowerCase().includes('aslt')
-          );
-          const existingCricket = parsed.find(
-            (t: any) => t.id === 'team_cricket' || t.name?.toLowerCase().includes('cricket')
-          );
-          const asltTeam: CustomTeam = {
-            id: 'team_aslt_course',
-            name: 'Aslt Course',
-            description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
-            memberIds: asltCourseIds,
-            createdAt: existingAslt?.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          const cricketTeam: CustomTeam = {
-            id: 'team_cricket',
-            name: 'Cricket',
-            description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
-            memberIds: cricketTeamIds,
-            createdAt: existingCricket?.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          const next = [asltTeam, cricketTeam, ...otherTeams];
-          localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
-          return next;
-        }
-      } catch (e) {}
-    }
-    // Seed default teams with real soldiers from INITIAL_PERSONNEL
-    const allEligible = INITIAL_PERSONNEL.filter(
-      (p) => !p.rk.includes('Lt Col') && !p.rk.includes('Maj') && !p.rk.includes('Capt') && !p.rk.includes('Lt')
-    );
-    const athleticsIds = allEligible.slice(0, 12).map((p) => p.id);
-    const slCourseIds = allEligible.slice(12, 22).map((p) => p.id);
-    const firingIds = allEligible.slice(22, 32).map((p) => p.id);
-
-    const defaultTeams: CustomTeam[] = [
+    return [
       {
         id: 'team_aslt_course',
         name: 'Aslt Course',
         description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
-        memberIds: asltCourseIds,
+        memberIds: [],
         createdAt: new Date().toISOString(),
       },
       {
         id: 'team_cricket',
         name: 'Cricket',
         description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
-        memberIds: cricketTeamIds,
+        memberIds: [],
         createdAt: new Date().toISOString(),
       },
       {
         id: 'team_athletics',
         name: 'Athletics Team',
         description: 'রেজিমেন্টাল অ্যাথলেটিক্স ও স্পোর্টস দল',
-        memberIds: athleticsIds,
+        memberIds: [],
         createdAt: new Date().toISOString(),
       },
       {
         id: 'team_sl_course',
         name: 'SL Course',
         description: 'সেকেন্ডারি লিডারশিপ কোর্স ক্যাডার দল',
-        memberIds: slCourseIds,
+        memberIds: [],
         createdAt: new Date().toISOString(),
       },
       {
         id: 'team_firing',
         name: 'Firing Team',
         description: 'বার্ষিক ফায়ারিং ও অস্ত্র প্রতিযোগিতা স্কোয়াড',
-        memberIds: firingIds,
+        memberIds: [],
         createdAt: new Date().toISOString(),
       },
     ];
-
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(defaultTeams));
-    } catch (e) {}
-
-    return defaultTeams;
   });
 
   const [recentlyDeletedTeams, setRecentlyDeletedTeams] = useState<CustomTeam[]>(() => {
@@ -1757,7 +1336,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetAsltCourseTeam = () => {
     const asltIds = ASLT_COURSE_SNK_NOS.map((snk) => {
-      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
+      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
       return p?.id;
     }).filter(Boolean) as string[];
 
@@ -1776,18 +1355,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: existing?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const updated = [asltTeam, ...nonAslt];
-      try {
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
+      return [asltTeam, ...nonAslt];
     });
     showNotification('Aslt Course টিম ৩২ জন সদস্য সহ সফলভাবে রিসেট ও আপডেট করা হয়েছে।');
   };
 
   const resetCricketTeam = () => {
     const cricketIds = CRICKET_TEAM_SNK_NOS.map((snk) => {
-      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
+      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
       return p?.id;
     }).filter(Boolean) as string[];
 
@@ -1806,11 +1381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: existing?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const updated = [cricketTeam, ...nonCricket];
-      try {
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
+      return [cricketTeam, ...nonCricket];
     });
     showNotification('Cricket টিম ১৬ জন সদস্য সহ সফলভাবে রিসেট ও আপডেট করা হয়েছে।');
   };
@@ -1820,12 +1391,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!personnelList || personnelList.length === 0) return;
 
     const asltIds = ASLT_COURSE_SNK_NOS.map((snk) => {
-      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
+      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
       return p?.id;
     }).filter(Boolean) as string[];
 
     const cricketIds = CRICKET_TEAM_SNK_NOS.map((snk) => {
-      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase()) || INITIAL_PERSONNEL.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
+      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
       return p?.id;
     }).filter(Boolean) as string[];
 
@@ -1883,15 +1454,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- PARADE DUTY ASSIGNMENTS (Team, Unit Sy, working, Fixed Duty, Others) ---
   const [paradeDutyAssignments, setParadeDutyAssignments] = useState<
     Record<string, ParadeDutyAssignment[]>
-  >(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {};
-  });
+  >({});
 
   const getParadeDutyAssignments = (
     date: string,
@@ -1931,7 +1494,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (a) => !(a.personnelId === assignment.personnelId && a.category === assignment.category)
       );
       const next = { ...prev, [key]: [...filtered, newRecord] };
-      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
       return next;
     });
 
@@ -1979,7 +1541,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const nextList = [...remaining, ...newRecords];
       updatedAll = nextList;
       const next = { ...prev, [key]: nextList };
-      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
       return next;
     });
 
@@ -2010,7 +1571,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const filtered = existing.filter((a) => a.id !== id);
       updatedAssignments = filtered;
       const next = { ...prev, [key]: filtered };
-      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
       return next;
     });
 
@@ -2062,9 +1622,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       updatedAssignments = nextList;
       const next = { ...prev, [key]: nextList };
-      try {
-        localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
-      } catch (e) {}
       return next;
     });
 
@@ -2107,15 +1664,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- DUTY DETAILING WORKFLOW STATUS (Draft, Saved, Sent to Adjt) ---
   const [dutySessionStatuses, setDutySessionStatuses] = useState<
     Record<string, DutySessionStatus>
-  >(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PARADE_DUTY_STATUSES);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {};
-  });
+  >({});
 
   const getDutySessionStatus = (date: string, sessionType: string): DutySessionStatus => {
     const key = `${date}_${sessionType}`;
@@ -2136,7 +1685,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setDutySessionStatuses((prev) => {
       const next = { ...prev, [key]: updated };
-      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
       return next;
     });
 
@@ -2185,7 +1733,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setDutySessionStatuses((prev) => {
       const next = { ...prev, [key]: updated };
-      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
       return next;
     });
 
@@ -2233,7 +1780,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setDutySessionStatuses((prev) => {
       const next = { ...prev, [key]: updated };
-      localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
       return next;
     });
 
@@ -2875,14 +2421,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
 
-  // Sync to localStorage for offline cache
+  // Clean stale local storage keys on mount to ensure purely Supabase source of truth
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(usersList));
-  }, [usersList]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(personnelList));
-  }, [personnelList]);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.PERSONNEL);
+      localStorage.removeItem(STORAGE_KEYS.USERS_LIST);
+      localStorage.removeItem(STORAGE_KEYS.PARADE_RECORDS);
+      localStorage.removeItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS);
+      localStorage.removeItem(STORAGE_KEYS.PARADE_DUTY_STATUSES);
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -3035,16 +2583,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCloudPermissionDenied(false);
 
     const performDatabaseUserSync = async () => {
+      // 1. Primary: Fetch authorized users directly from Supabase Cloud
+      if (isSupabaseConfigured()) {
+        try {
+          const res = await fetchAuthorizedUsersFromSupabase();
+          if (res.success && res.users && res.users.length > 0) {
+            const deleted = getDeletedUserIdentifiers();
+            const validSupabaseUsers = res.users.filter((u) => !isUserDeleted(u, deleted));
+            setUsersList(validSupabaseUsers);
+            return;
+          }
+        } catch (e) {
+          console.warn('Supabase fetchAuthorizedUsers error:', e);
+        }
+      }
+
+      // 2. Secondary fallback: Internal server user sync
       try {
+        const serverDeleted = await fetchDeletedUserIdentifiers();
+        if (serverDeleted && serverDeleted.length > 0) {
+          addDeletedUserIdentifier(serverDeleted);
+        }
+
         const serverUsers = await fetchServerUsers();
         if (serverUsers && serverUsers.length > 0) {
           const deleted = getDeletedUserIdentifiers();
           const validServerUsers = serverUsers.filter((u) => !isUserDeleted(u, deleted));
           
           setUsersList(validServerUsers);
-          localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(validServerUsers));
 
-          // Also mirror to Supabase authorized_users for cloud consistency
           if (isSupabaseConfigured()) {
             syncAuthorizedUsersToSupabase(validServerUsers).catch((err) =>
               console.warn('Supabase mirror sync note:', err)
@@ -3054,34 +2621,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (err) {
         console.warn('Server user sync error:', err);
-      }
-
-      // Fallback: If server is unavailable, check Supabase
-      if (isSupabaseConfigured()) {
-        fetchAuthorizedUsersFromSupabase()
-          .then((res) => {
-            if (res.success && res.users && res.users.length > 0) {
-              const deleted = getDeletedUserIdentifiers();
-              setUsersList((prev) => {
-                const existingEmails = new Set(prev.map((u) => u.email?.toLowerCase()).filter(Boolean));
-                const existingUsernames = new Set(prev.map((u) => u.username?.toLowerCase()).filter(Boolean));
-                const existingIds = new Set(prev.map((u) => u.id));
-
-                const newFromSupabase = res.users.filter((u) => {
-                  if (isUserDeleted(u, deleted)) return false;
-                  const emailMatch = u.email && existingEmails.has(u.email.toLowerCase());
-                  const usernameMatch = u.username && existingUsernames.has(u.username.toLowerCase());
-                  const idMatch = u.id && existingIds.has(u.id);
-                  return !emailMatch && !usernameMatch && !idMatch;
-                });
-                if (newFromSupabase.length === 0) return prev;
-                const merged = [...prev, ...newFromSupabase];
-                localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(merged));
-                return merged;
-              });
-            }
-          })
-          .catch((e) => console.warn('Supabase bootstrap note:', e));
       }
     };
 
@@ -3103,10 +2642,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  // Supabase Personnel Bootstrap & Background Sync
+  useEffect(() => {
+    let isMounted = true;
+    const loadPersonnel = () => {
+      if (isSupabaseConfigured()) {
+        fetchPersonnelFromSupabase()
+          .then((res) => {
+            if (!isMounted) return;
+            if (res.success && res.personnel) {
+              setPersonnelList(res.personnel);
+            }
+            setIsPersonnelLoading(false);
+          })
+          .catch((err) => {
+            if (!isMounted) return;
+            console.warn('Supabase personnel bootstrap error:', err);
+            setIsPersonnelLoading(false);
+          });
+      } else {
+        setIsPersonnelLoading(false);
+      }
+    };
+
+    loadPersonnel();
+
+    // Auto-sync every 30 seconds so changes made across tabs or devices update live
+    const interval = setInterval(loadPersonnel, 30000);
+    const onFocus = () => loadPersonnel();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
+  // Supabase Parade Records Bootstrap
+  useEffect(() => {
+    if (isSupabaseConfigured()) {
+      fetchParadeRecordsFromSupabase()
+        .then((res) => {
+          if (res.success && res.records) {
+            setParadeRecords((prev) => ({ ...prev, ...res.records }));
+          }
+        })
+        .catch((e) => console.warn('Supabase parade records load note:', e));
+    }
+  }, []);
+
   // Supabase Duty Detailing Bootstrap
   useEffect(() => {
     if (isSupabaseConfigured()) {
-
       // Auto-load any previously saved Duty Detailing from Supabase Cloud
       fetchAllDutyDetailingFromSupabase()
         .then((res) => {
@@ -3119,7 +2707,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   next[key] = r.assignments;
                 }
               });
-              localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_ASSIGNMENTS, JSON.stringify(next));
               return next;
             });
 
@@ -3131,7 +2718,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   next[key] = r.status;
                 }
               });
-              localStorage.setItem(STORAGE_KEYS.PARADE_DUTY_STATUSES, JSON.stringify(next));
               return next;
             });
           }
@@ -3726,10 +3312,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  const loginWithCredentials = (
+  const loginWithCredentials = async (
     usernameInput: string,
     passwordInput: string
-  ): { success: boolean; error?: string } => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const cleanU = usernameInput.trim().toLowerCase();
     const cleanP = passwordInput.trim();
 
@@ -3740,14 +3326,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'অনুগ্রহ করে পাসওয়ার্ড প্রদান করুন।' };
     }
 
-    // Look up user by username or email (case-insensitive)
-    const user =
-      (cleanU === 'guest' ? GUEST_USER : null) ||
-      usersList.find((u) => u.username.toLowerCase() === cleanU || u.email?.toLowerCase() === cleanU) ||
-      INITIAL_USERS.find((u) => u.username.toLowerCase() === cleanU || u.email?.toLowerCase() === cleanU);
+    let user: UserAccount | null = null;
+
+    // 1. Primary: Verify directly with Supabase database (strictly no hardcoding)
+    if (isSupabaseConfigured()) {
+      const supResult = await verifyUserCredentialsInSupabase(cleanU, cleanP);
+      if (!supResult.success || !supResult.user) {
+        return {
+          success: false,
+          error: supResult.error || 'ভুল ইউজারনেম বা পাসওয়ার্ড! Supabase ডাটাবেজের সাথে মিলছে না।',
+        };
+      }
+      user = supResult.user;
+    } else {
+      // Fallback: only if Supabase client is not configured
+      const deleted = getDeletedUserIdentifiers();
+      const matched = usersList.find(
+        (u) =>
+          !isUserDeleted(u, deleted) &&
+          (u.username.toLowerCase() === cleanU || u.email?.toLowerCase() === cleanU)
+      );
+      if (!matched) {
+        return { success: false, error: 'ভুল ইউজারনেম! এই ইউজারনেমে কোনো অ্যাকাউন্ট পাওয়া যায়নি।' };
+      }
+      if (!matched.password || cleanP !== matched.password) {
+        return { success: false, error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড প্রদান করুন।' };
+      }
+      user = matched;
+    }
 
     if (!user) {
-      return { success: false, error: 'ভুল ইউজারনেম! এই ইউজারনেমে কোনো অ্যাকাউন্ট পাওয়া যায়নি।' };
+      return { success: false, error: 'ইউজার অ্যাকাউন্ট যাচাই ব্যর্থ হয়েছে।' };
     }
 
     // Check system access policies
@@ -3756,12 +3365,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, error: 'গেস্ট মোড অ্যাডমিন কর্তৃক সাময়িকভাবে বন্ধ রাখা হয়েছে।' };
       }
     } else if (user.role !== 'Admin' && cleanU !== 'admin') {
-      if (!systemSettings.allowPasskeyLogin) {
-        return {
-          success: false,
-          error: 'পাসকি দিয়ে সরাসরি লগইন বর্তমানে নিষ্ক্রিয় রয়েছে। অনুগ্রহ করে অনুমোদিত গুগল সাইন-ইন ব্যবহার করুন।',
-        };
-      }
       if (systemSettings.maintenanceMode) {
         return {
           success: false,
@@ -3772,25 +3375,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // Password verification: dynamic per user (as set by Admin). No hardcoded passwords.
-    let validPassword = user.password;
-    if (!validPassword) {
-      if (
-        user.role === 'Admin' ||
-        user.username.toLowerCase() === 'admin' ||
-        (user.email && OWNER_EMAILS.some((o) => o.toLowerCase() === user.email!.toLowerCase()))
-      ) {
-        validPassword = 'admin123';
-      } else if (user.role === 'Guest' || user.username.toLowerCase() === 'guest') {
-        validPassword = 'guest123';
-      } else {
-        return { success: false, error: 'এই ব্যবহারকারীর জন্য পাসওয়ার্ড এখনও সেট করা হয়নি! অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।' };
+    // Ensure verified user is in usersList state
+    setUsersList((prev) => {
+      const exists = prev.some((u) => u.id === user!.id || u.username.toLowerCase() === user!.username.toLowerCase());
+      if (exists) {
+        return prev.map((u) => (u.id === user!.id ? { ...u, ...user } : u));
       }
-    }
-
-    if (cleanP !== validPassword) {
-      return { success: false, error: 'ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড প্রদান করুন।' };
-    }
+      return [...prev, user!];
+    });
 
     // Login successful (Strict session storage - closes with tab)
     setCurrentUserState(user);
@@ -3884,14 +3476,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncNominalRollToCloud = async () => {
     try {
-      showNotification(`Supabase PostgreSQL ডাটাবেজে ${INITIAL_PERSONNEL.length} জন সদস্য সিঙ্ক করা হচ্ছে...`);
-      const res = await syncPersonnelToSupabase(INITIAL_PERSONNEL);
-      if (res.success) {
-        setPersonnelList(INITIAL_PERSONNEL);
-        setCloudPermissionDenied(false);
-        showNotification(`সফলভাবে ${INITIAL_PERSONNEL.length} জন সদস্য Supabase ডাটাবেজে সিঙ্ক হয়েছে!`);
+      if (personnelList.length > 0) {
+        showNotification(`Supabase PostgreSQL ডাটাবেজে ${personnelList.length} জন সদস্য সিঙ্ক করা হচ্ছে...`);
+        const res = await syncPersonnelToSupabase(personnelList);
+        if (res.success) {
+          setCloudPermissionDenied(false);
+          showNotification(`সফলভাবে ${personnelList.length} জন সদস্য Supabase ডাটাবেজে সিঙ্ক হয়েছে!`);
+        } else {
+          showNotification('Supabase সিঙ্ক নোট: ' + (res.error || 'ব্যর্থ হয়েছে'));
+        }
       } else {
-        showNotification('Supabase সিঙ্ক নোট: ' + (res.error || 'ব্যর্থ হয়েছে'));
+        showNotification(`Supabase PostgreSQL থেকে তথ্য রিফ্রেশ করা হচ্ছে...`);
+        const res = await fetchPersonnelFromSupabase();
+        if (res.success && res.personnel) {
+          setPersonnelList(res.personnel);
+          setCloudPermissionDenied(false);
+          showNotification(`সফলভাবে ${res.personnel.length} জন সদস্য Supabase থেকে লোড হয়েছে!`);
+        } else {
+          showNotification('Supabase লোড নোট: ' + (res.error || 'ব্যর্থ হয়েছে'));
+        }
       }
     } catch (e: any) {
       showNotification('সিঙ্ক ত্রুটি: ' + (e?.message || 'ব্যর্থ হয়েছে'));
@@ -4056,11 +3659,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (Array.isArray(backupData.personnelList)) {
         setPersonnelList(backupData.personnelList);
-        localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(backupData.personnelList));
+        if (isSupabaseConfigured()) {
+          syncPersonnelToSupabase(backupData.personnelList).catch(() => {});
+        }
       }
       if (Array.isArray(backupData.usersList)) {
         setUsersList(backupData.usersList);
-        localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(backupData.usersList));
+        if (isSupabaseConfigured()) {
+          syncAuthorizedUsersToSupabase(backupData.usersList).catch(() => {});
+        }
       }
       if (Array.isArray(backupData.categoriesList)) {
         setCategoriesList(backupData.categoriesList);
@@ -4096,7 +3703,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (backupData.paradeRecords && typeof backupData.paradeRecords === 'object') {
         setParadeRecords(backupData.paradeRecords);
-        localStorage.setItem(STORAGE_KEYS.PARADE_RECORDS, JSON.stringify(backupData.paradeRecords));
+        if (isSupabaseConfigured()) {
+          saveParadeRecordToSupabase(backupData.paradeRecords).catch(() => {});
+        }
       }
       if (backupData.customLogo) {
         setCustomLogoState(backupData.customLogo);
@@ -4117,8 +3726,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     setSystemSettings(DEFAULT_SYSTEM_SETTINGS);
-    setPersonnelList(INITIAL_PERSONNEL);
-    setUsersList(INITIAL_USERS);
+    if (isSupabaseConfigured()) {
+      fetchPersonnelFromSupabase().then((res) => {
+        if (res.success && res.personnel) setPersonnelList(res.personnel);
+      });
+      fetchAuthorizedUsersFromSupabase().then((res) => {
+        if (res.success && res.users) setUsersList(res.users);
+      });
+    }
     setCategoriesList(INITIAL_SYSTEM_CATEGORIES);
     setSubUnitsList(INITIAL_SUB_UNITS);
     setRanksList(INITIAL_RANKS);
@@ -4129,8 +3744,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomLogoState(null);
 
     localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(DEFAULT_SYSTEM_SETTINGS));
-    localStorage.setItem(STORAGE_KEYS.PERSONNEL, JSON.stringify(INITIAL_PERSONNEL));
-    localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(INITIAL_USERS));
+    localStorage.removeItem(STORAGE_KEYS.PERSONNEL);
+    localStorage.removeItem(STORAGE_KEYS.USERS_LIST);
     localStorage.setItem(STORAGE_KEYS.SYSTEM_CATEGORIES, JSON.stringify(INITIAL_SYSTEM_CATEGORIES));
     localStorage.setItem(STORAGE_KEYS.SUB_UNITS, JSON.stringify(INITIAL_SUB_UNITS));
     localStorage.setItem(STORAGE_KEYS.MILITARY_RANKS, JSON.stringify(INITIAL_RANKS));
@@ -4171,11 +3786,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('শুধুমাত্র এডমিন এবং গেস্ট সিমুলেটর ব্যবহার করতে পারেন।');
       return;
     }
+    const deleted = getDeletedUserIdentifiers();
     const matchingUser =
-      usersList.find((u) => u.role === role) ||
-      INITIAL_USERS.find((u) => u.role === role) ||
+      usersList.find((u) => !isUserDeleted(u, deleted) && u.role === role) ||
       (isBsmRole(role)
-        ? usersList.find((u) => isBsmRole(u.role)) || INITIAL_USERS.find((u) => isBsmRole(u.role))
+        ? usersList.find((u) => !isUserDeleted(u, deleted) && isBsmRole(u.role))
         : null);
     if (matchingUser) {
       let defaultBty: Battery | undefined = battery || matchingUser.assignedBattery;
@@ -4246,7 +3861,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsersList((prev) => {
       const next = [...prev, newUser];
       updatedNextList = next;
-      localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(next));
       return next;
     });
 
@@ -4295,7 +3909,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return u;
       });
       updatedNextList = next;
-      localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(next));
       return next;
     });
 
@@ -4368,10 +3981,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const remainingUsers = usersList.filter((u) => u.id !== id);
     setUsersList(remainingUsers);
-    localStorage.setItem(STORAGE_KEYS.USERS_LIST, JSON.stringify(remainingUsers));
 
     // Delete from centralized server / database
     deleteUserFromServer(target.id).catch((e) => console.warn('Server deleteUser error:', e));
+    if (target.username) {
+      deleteUserFromServer(target.username).catch((e) => console.warn('Server deleteUser error:', e));
+    }
     syncUsersToServer(remainingUsers).catch((e) => console.warn('Server bulk sync error:', e));
 
     showNotification(`User @${target.username} (${target.name}) removed.`);
@@ -4417,6 +4032,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     // Write to Firestore
     syncDoc(setDoc(doc(db, 'personnel', newId), sanitizeForFirestore(newPerson)), 'add personnel');
+
+    // Sync to Supabase Cloud
+    if (isSupabaseConfigured()) {
+      upsertSinglePersonnelToSupabase(newPerson).catch((e) =>
+        console.warn('Supabase add soldier note:', e)
+      );
+    }
   };
 
   const updatePersonnel = (id: string, updated: Partial<Personnel>) => {
@@ -4439,6 +4061,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Write to Firestore
     if (updatedRecord) {
       syncDoc(setDoc(doc(db, 'personnel', id), sanitizeForFirestore(updatedRecord), { merge: true }), 'update personnel');
+      // Sync to Supabase Cloud
+      if (isSupabaseConfigured()) {
+        upsertSinglePersonnelToSupabase(updatedRecord).catch((e) =>
+          console.warn('Supabase update soldier note:', e)
+        );
+      }
     }
   };
 
@@ -4454,6 +4082,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addAuditLog('Personnel Deleted', `Deleted ${target.rk} ${target.name} (${target.snkNo})`, 'PERSONNEL');
       // Delete from Firestore
       syncDoc(deleteDoc(doc(db, 'personnel', id)), 'delete personnel');
+      // Delete from Supabase Cloud
+      if (isSupabaseConfigured()) {
+        deleteSinglePersonnelFromSupabase(id, target.snkNo).catch((e) =>
+          console.warn('Supabase delete soldier note:', e)
+        );
+      }
     }
   };
 
@@ -4579,6 +4213,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Write to Firestore
     if (updatedDoc) {
       syncDoc(setDoc(doc(db, 'personnel', id), sanitizeForFirestore(updatedDoc), { merge: true }), 'update parade status');
+      // Sync to Supabase Cloud
+      if (isSupabaseConfigured() && target) {
+        const fullUpdated = { ...target, ...updatedDoc } as Personnel;
+        upsertSinglePersonnelToSupabase(fullUpdated).catch((e) =>
+          console.warn('Supabase update parade status note:', e)
+        );
+      }
     }
   };
 
@@ -4617,6 +4258,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'batch update status'
       );
     });
+
+    // Batch sync to Supabase Cloud
+    if (isSupabaseConfigured()) {
+      ids.forEach((id) => {
+        const item = personnelList.find((p) => p.id === id);
+        if (item) {
+          upsertSinglePersonnelToSupabase({
+            ...item,
+            status,
+            statusDetails: statusDetails ?? (status === 'Present' ? undefined : item.statusDetails),
+            outOfUnitCategory: status === 'Present' ? undefined : item.outOfUnitCategory,
+          }).catch(() => {});
+        }
+      });
+    }
   };
 
   // Out Of Unit Handlers
@@ -4710,6 +4366,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     // Sync to Firestore
     syncDoc(setDoc(doc(db, 'personnel', personnelId), sanitizeForFirestore(patch), { merge: true }), 'assign out of unit');
+    // Sync to Supabase Cloud
+    if (isSupabaseConfigured() && person) {
+      upsertSinglePersonnelToSupabase({ ...person, ...patch } as Personnel).catch(() => {});
+    }
   };
 
   const cancelOutOfUnit = (personnelId: string) => {
@@ -4794,6 +4454,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     // Sync to Firestore
     syncDoc(setDoc(doc(db, 'personnel', personnelId), patch, { merge: true }), 'cancel out of unit');
+    // Sync to Supabase Cloud
+    if (isSupabaseConfigured() && person) {
+      upsertSinglePersonnelToSupabase({
+        ...person,
+        status: 'In Unit',
+        outOfUnitCategory: undefined,
+        outOfUnitLocation: undefined,
+        outOfUnitStartDate: undefined,
+        outOfUnitEndDate: undefined,
+        outOfUnitAuthority: undefined,
+        outOfUnitRemarks: undefined,
+        statusDetails: undefined,
+        durationDays: undefined,
+        location: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        authority: undefined,
+        remarks: undefined,
+      } as Personnel).catch(() => {});
+    }
   };
 
   // Daily Parade State Management Handlers
@@ -5246,10 +4926,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isRSM,
         isGuest,
         usersList,
+        isUsersLoading,
         addUser,
         updateUser,
         deleteUser,
         personnelList,
+        isPersonnelLoading,
         addPersonnel,
         updatePersonnel,
         deletePersonnel,

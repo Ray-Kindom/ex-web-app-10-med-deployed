@@ -100,13 +100,27 @@ export const syncAuthorizedUsersToSupabase = async (
   }
 
   try {
-    // 1. Fetch current users in Supabase to calculate difference (prune deleted users)
+    // 1. Fetch current users in Supabase to calculate difference (prune deleted users) and preserve existing passwords
     const { data: existingRows, error: fetchErr } = await client
       .from('authorized_users')
-      .select('id, email, name');
+      .select('id, email, name, approved_by');
 
     if (fetchErr) {
       console.warn('Supabase fetch existing users notice:', fetchErr.message);
+    }
+
+    const existingMetaMap = new Map<string, { by?: string; pwd?: string; u?: string }>();
+    if (existingRows) {
+      for (const row of existingRows) {
+        if (row.approved_by && typeof row.approved_by === 'string' && row.approved_by.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(row.approved_by);
+            if (row.id) existingMetaMap.set(row.id, parsed);
+            if (row.email) existingMetaMap.set(row.email.toLowerCase(), parsed);
+            if (parsed.u) existingMetaMap.set(parsed.u.toLowerCase(), parsed);
+          } catch (e) {}
+        }
+      }
     }
 
     // Build sets of active user identifiers
@@ -124,6 +138,26 @@ export const syncAuthorizedUsersToSupabase = async (
       if (u.id) activeIds.add(u.id);
       if (u.username) activeUsernames.add(u.username.toLowerCase().trim());
 
+      const existingMeta =
+        existingMetaMap.get(u.id) ||
+        (u.email ? existingMetaMap.get(u.email.toLowerCase().trim()) : undefined) ||
+        (u.username ? existingMetaMap.get(u.username.toLowerCase().trim()) : undefined);
+
+      const finalPwd = u.password || existingMeta?.pwd || '';
+      const finalU =
+        u.username ||
+        existingMeta?.u ||
+        (userEmail.endsWith('@10med.internal')
+          ? userEmail.replace('@10med.internal', '')
+          : userEmail.split('@')[0]);
+      const finalBy = u.approvedBy || existingMeta?.by || 'Admin';
+
+      const userMeta = JSON.stringify({
+        by: finalBy,
+        pwd: finalPwd,
+        u: finalU,
+      });
+
       return {
         id: u.id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         email: userEmail,
@@ -132,7 +166,7 @@ export const syncAuthorizedUsersToSupabase = async (
         role: u.role || 'Offr',
         assigned_battery: u.assignedBattery || (u.assignedBatteries && u.assignedBatteries[0]) || 'HQ Bty',
         is_approved: u.isApproved !== false,
-        approved_by: u.approvedBy || 'Admin',
+        approved_by: userMeta,
         approved_at: u.approvedAt || new Date().toISOString(),
       };
     });
@@ -283,6 +317,123 @@ export const syncPersonnelToSupabase = async (
 };
 
 /**
+ * Upsert a single personnel record directly to Supabase
+ */
+export const upsertSinglePersonnelToSupabase = async (
+  p: Personnel
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase configured নয়।' };
+  try {
+    const extraFields: Record<string, any> = {
+      outOfUnitCategory: p.outOfUnitCategory,
+      outOfUnitLocation: p.outOfUnitLocation,
+      outOfUnitStartDate: p.outOfUnitStartDate,
+      outOfUnitEndDate: p.outOfUnitEndDate,
+      outOfUnitAuthority: p.outOfUnitAuthority,
+      outOfUnitRemarks: p.outOfUnitRemarks,
+      location: p.location,
+      authority: p.authority,
+      remarks: p.remarks || p.rmk,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      durationDays: p.durationDays,
+      remainingDays: p.remainingDays,
+      leaveType: p.leaveType,
+      leaveFrom: p.leaveFrom,
+      leaveTo: p.leaveTo,
+      leaveAddress: p.leaveAddress,
+      courseName: p.courseName,
+      courseLocation: p.courseLocation,
+      courseFrom: p.courseFrom,
+      courseTo: p.courseTo,
+      courseDuration: p.courseDuration,
+      sickType: p.sickType,
+      hospitalName: p.hospitalName,
+      details: p.statusDetails,
+    };
+
+    const hasExtra = Object.entries(extraFields).some(
+      ([k, v]) => k !== 'details' && v !== undefined && v !== null && v !== ''
+    );
+    const statusDetailsStr = hasExtra
+      ? JSON.stringify(extraFields)
+      : (p.statusDetails || '');
+
+    const row = {
+      id: p.id,
+      army_no: (p.snkNo || p.id).trim(),
+      rank: p.rk,
+      name: p.name,
+      battery: p.battery,
+      trade: p.trade || 'Gnr',
+      parade_status: p.status || 'In Unit',
+      status_details: statusDetailsStr,
+      medical_category: p.medicalCategory || 'AYE',
+      contact_no: p.phone || p.mobileNo || '',
+      blood_group: p.bloodGroup || '',
+    };
+    const { error } = await client.from('personnel').upsert([row], { onConflict: 'id' });
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Supabase upsertSinglePersonnel error:', err?.message);
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Batch update status for multiple personnel in Supabase
+ */
+export const batchUpdatePersonnelStatusInSupabase = async (
+  ids: string[],
+  status: string,
+  statusDetails?: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client || ids.length === 0) return { success: false, error: 'No client or IDs' };
+  try {
+    const { error } = await client
+      .from('personnel')
+      .update({
+        parade_status: status,
+        status_details: statusDetails || '',
+      })
+      .in('id', ids);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Supabase batch update status error:', err?.message);
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Delete a single personnel record from Supabase
+ */
+export const deleteSinglePersonnelFromSupabase = async (
+  id: string,
+  armyNo?: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase configured নয়।' };
+  try {
+    let query = client.from('personnel').delete();
+    if (id) {
+      query = query.eq('id', id);
+    } else if (armyNo) {
+      query = query.eq('army_no', armyNo);
+    }
+    const { error } = await query;
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Supabase deleteSinglePersonnel error:', err?.message);
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
  * Fetch Whitelisted Users from Supabase
  */
 export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
@@ -304,14 +455,30 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
     if (error) throw error;
 
     const mapped: UserAccount[] = (data || []).map((row: any) => {
+      let parsedApprovedBy = row.approved_by || 'System Bootstrap';
+      let parsedPassword = '';
+      let parsedUsername = '';
+
+      if (row.approved_by && typeof row.approved_by === 'string' && row.approved_by.startsWith('{')) {
+        try {
+          const meta = JSON.parse(row.approved_by);
+          if (meta.by) parsedApprovedBy = meta.by;
+          if (meta.pwd) parsedPassword = meta.pwd;
+          if (meta.u) parsedUsername = meta.u;
+        } catch (e) {}
+      }
+
       const isInternalEmail = row.email && row.email.endsWith('@10med.internal');
-      const parsedUsername = isInternalEmail 
-        ? row.email.replace('@10med.internal', '') 
-        : row.email ? row.email.split('@')[0] : `user_${row.id}`;
+      if (!parsedUsername) {
+        parsedUsername = isInternalEmail 
+          ? row.email.replace('@10med.internal', '') 
+          : row.email ? row.email.split('@')[0] : `user_${row.id}`;
+      }
 
       return {
         id: row.id,
         username: parsedUsername,
+        password: parsedPassword,
         name: row.name,
         rank: row.rank,
         role: row.role,
@@ -322,7 +489,7 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
             : [row.assigned_battery],
         email: row.email,
         isApproved: row.is_approved !== false,
-        approvedBy: row.approved_by,
+        approvedBy: parsedApprovedBy,
         approvedAt: row.approved_at,
       };
     });
@@ -334,11 +501,150 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
 };
 
 /**
+ * Verify User Credentials Directly with Supabase Database
+ * Login strictly succeeds ONLY if username and password match Supabase!
+ */
+export const verifyUserCredentialsInSupabase = async (
+  usernameOrEmail: string,
+  passwordInput: string
+): Promise<{ success: boolean; user?: UserAccount; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase ডাটাবেজ কানেকশন পাওয়া যায়নি।' };
+  }
+
+  try {
+    const cleanInput = usernameOrEmail.trim().toLowerCase();
+    const cleanPass = passwordInput.trim();
+
+    if (!cleanInput) {
+      return { success: false, error: 'অনুগ্রহ করে ইউজারনেম বা ইমেইল প্রদান করুন।' };
+    }
+    if (!cleanPass) {
+      return { success: false, error: 'অনুগ্রহ করে পাসওয়ার্ড প্রদান করুন।' };
+    }
+
+    const { data, error } = await client
+      .from('authorized_users')
+      .select('*');
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      return { success: false, error: 'Supabase ডাটাবেজে কোনো অনুমোদিত ইউজার পাওয়া যায়নি।' };
+    }
+
+    let matchedRow: any = null;
+    let matchedUsername = '';
+    let matchedPassword = '';
+    let matchedApprovedBy = 'System';
+
+    for (const row of data) {
+      let rowUsername = '';
+      let rowPassword = '';
+      let rowApprovedBy = row.approved_by || 'System';
+
+      if (row.approved_by && typeof row.approved_by === 'string' && row.approved_by.startsWith('{')) {
+        try {
+          const meta = JSON.parse(row.approved_by);
+          if (meta.u) rowUsername = meta.u;
+          if (meta.pwd) rowPassword = meta.pwd;
+          if (meta.by) rowApprovedBy = meta.by;
+        } catch (e) {}
+      }
+
+      const emailLower = (row.email || '').toLowerCase().trim();
+      const idLower = (row.id || '').toLowerCase().trim();
+
+      if (!rowUsername) {
+        if (emailLower.endsWith('@10med.internal')) {
+          rowUsername = emailLower.replace('@10med.internal', '');
+        } else if (emailLower) {
+          rowUsername = emailLower.split('@')[0];
+        } else {
+          rowUsername = idLower;
+        }
+      }
+
+      const uLower = rowUsername.toLowerCase().trim();
+      const isMatch =
+        uLower === cleanInput ||
+        emailLower === cleanInput ||
+        idLower === cleanInput ||
+        (cleanInput === 'guest' && (uLower === 'guest' || idLower.includes('guest')));
+
+      if (isMatch) {
+        matchedRow = row;
+        matchedUsername = rowUsername;
+        matchedPassword = rowPassword;
+        matchedApprovedBy = rowApprovedBy;
+        break;
+      }
+    }
+
+    if (!matchedRow) {
+      return {
+        success: false,
+        error: `ভুল ইউজারনেম! '${usernameOrEmail}' নামে Supabase ডাটাবেজে কোনো অ্যাকাউন্ট পাওয়া যায়নি।`,
+      };
+    }
+
+    if (matchedRow.is_approved === false) {
+      return {
+        success: false,
+        error: 'আপনার অ্যাকাউন্টটি Supabase ডাটাবেজে নিষ্ক্রিয় বা স্থগিত করা হয়েছে।',
+      };
+    }
+
+    if (!matchedPassword) {
+      return {
+        success: false,
+        error: 'এই ইউজারের পাসওয়ার্ড Supabase ডাটাবেজে পাওয়া যায়নি। অ্যাডমিনকে পাসওয়ার্ড রিসেট করতে বলুন।',
+      };
+    }
+
+    if (cleanPass !== matchedPassword) {
+      return {
+        success: false,
+        error: 'ভুল পাসওয়ার্ড! Supabase ডাটাবেজের তথ্যের সাথে মিলছে না।',
+      };
+    }
+
+    const verifiedUser: UserAccount = {
+      id: matchedRow.id,
+      username: matchedUsername,
+      password: matchedPassword,
+      name: matchedRow.name,
+      rank: matchedRow.rank,
+      role: matchedRow.role,
+      assignedBattery: matchedRow.assigned_battery,
+      assignedBatteries:
+        matchedRow.role === 'Admin' || matchedRow.role === 'CO' || matchedRow.role === 'Offr' || matchedRow.role === 'RSM'
+          ? ALL_BATTERIES
+          : [matchedRow.assigned_battery],
+      email: matchedRow.email,
+      isApproved: true,
+      approvedBy: matchedApprovedBy,
+      approvedAt: matchedRow.approved_at,
+    };
+
+    return { success: true, user: verifiedUser };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: 'Supabase যাচাইকরণ ব্যর্থ: ' + (err?.message || 'ডাটাবেজ সংযোগে সমস্যা'),
+    };
+  }
+};
+
+/**
  * Fetch Personnel from Supabase
  */
 export const fetchPersonnelFromSupabase = async (): Promise<{
   success: boolean;
-  personnel?: any[];
+  personnel?: Personnel[];
   error?: string;
 }> => {
   const client = getSupabaseClient();
@@ -350,10 +656,183 @@ export const fetchPersonnelFromSupabase = async (): Promise<{
     const { data, error } = await client
       .from('personnel')
       .select('*')
-      .limit(1000);
+      .limit(2000);
 
     if (error) throw error;
-    return { success: true, personnel: data || [] };
+
+    const mappedList: Personnel[] = (data || []).map((row: any) => {
+      let extra: Record<string, any> = {};
+      if (row.status_details && typeof row.status_details === 'string' && row.status_details.trim().startsWith('{')) {
+        try {
+          extra = JSON.parse(row.status_details);
+        } catch (e) {}
+      }
+
+      return {
+        id: row.id,
+        snkNo: row.army_no || row.id,
+        rk: row.rank || 'Snk',
+        name: row.name || '',
+        battery: row.battery || 'HQ Bty',
+        trade: row.trade || 'Gnr',
+        status: row.parade_status || 'In Unit',
+        statusDetails: extra.details || (typeof row.status_details === 'string' && !row.status_details.trim().startsWith('{') ? row.status_details : ''),
+        medicalCategory: row.medical_category || 'AYE',
+        phone: row.contact_no || '',
+        mobileNo: row.contact_no || '',
+        bloodGroup: row.blood_group || '',
+        outOfUnitCategory: extra.outOfUnitCategory,
+        outOfUnitLocation: extra.outOfUnitLocation,
+        outOfUnitStartDate: extra.outOfUnitStartDate,
+        outOfUnitEndDate: extra.outOfUnitEndDate,
+        outOfUnitAuthority: extra.outOfUnitAuthority,
+        outOfUnitRemarks: extra.outOfUnitRemarks,
+        location: extra.location,
+        authority: extra.authority,
+        remarks: extra.remarks,
+        startDate: extra.startDate,
+        endDate: extra.endDate,
+        durationDays: extra.durationDays,
+        remainingDays: extra.remainingDays,
+        leaveType: extra.leaveType,
+        leaveFrom: extra.leaveFrom,
+        leaveTo: extra.leaveTo,
+        leaveAddress: extra.leaveAddress,
+        courseName: extra.courseName,
+        courseLocation: extra.courseLocation,
+        courseFrom: extra.courseFrom,
+        courseTo: extra.courseTo,
+        courseDuration: extra.courseDuration,
+        sickType: extra.sickType,
+        hospitalName: extra.hospitalName,
+      };
+    });
+
+    return { success: true, personnel: mappedList };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Save Date-Wise Parade Record (Draft, Submitted, Confirmed, Finalized) to Supabase
+ */
+export const saveParadeRecordToSupabase = async (
+  record: DateWiseParadeRecord
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const row = {
+      id: `parade_${record.id}`,
+      date: record.date,
+      battery: record.battery,
+      submitted_by: record.submittedBy || record.confirmedBy || 'User',
+      status: record.status,
+      summary: record,
+    };
+
+    const { error } = await client
+      .from('parade_records')
+      .upsert([row], { onConflict: 'id' });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.warn('Failed to save parade record to Supabase:', err);
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Fetch All Parade Records from Supabase
+ */
+export const fetchParadeRecordsFromSupabase = async (): Promise<{
+  success: boolean;
+  records?: Record<string, DateWiseParadeRecord>;
+  error?: string;
+}> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('parade_records')
+      .select('*')
+      .like('id', 'parade_%');
+
+    if (error) throw error;
+
+    const recordMap: Record<string, DateWiseParadeRecord> = {};
+    (data || []).forEach((row: any) => {
+      if (row.summary && typeof row.summary === 'object') {
+        const rec = row.summary as DateWiseParadeRecord;
+        const key = rec.id || row.id.replace('parade_', '');
+        recordMap[key] = {
+          ...rec,
+          id: key,
+          date: row.date || rec.date,
+          battery: row.battery || rec.battery,
+          status: row.status || rec.status,
+        };
+      }
+    });
+
+    return { success: true, records: recordMap };
+  } catch (err: any) {
+    console.warn('Failed to fetch parade records from Supabase:', err);
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Save generic app system state (settings, teams, parade points) to Supabase
+ */
+export const saveSystemStateToSupabase = async (
+  key: string,
+  data: any
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+  try {
+    const row = {
+      id: `state_${key}`,
+      date: new Date().toISOString().split('T')[0],
+      battery: 'ALL',
+      submitted_by: 'System',
+      status: 'Active',
+      summary: data,
+    };
+    const { error } = await client.from('parade_records').upsert([row], { onConflict: 'id' });
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.warn(`Failed to save state_${key} to Supabase:`, err);
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Fetch generic app system state from Supabase
+ */
+export const fetchSystemStateFromSupabase = async (
+  key: string
+): Promise<{ success: boolean; data?: any; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+  try {
+    const { data, error } = await client
+      .from('parade_records')
+      .select('*')
+      .eq('id', `state_${key}`)
+      .maybeSingle();
+    if (error) throw error;
+    return { success: true, data: data?.summary };
   } catch (err: any) {
     return { success: false, error: err?.message };
   }

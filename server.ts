@@ -20,6 +20,7 @@ import { INITIAL_USERS } from './src/data/initialData.ts';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE_PATH = path.join(DATA_DIR, 'users.json');
+const DELETED_USERS_FILE_PATH = path.join(DATA_DIR, 'deleted_users.json');
 const APP_STATE_FILE_PATH = path.join(DATA_DIR, 'app_state.json');
 
 // Ensure data directory exists
@@ -31,30 +32,76 @@ if (!fs.existsSync(DATA_DIR)) {
   }
 }
 
+function loadDeletedUsers(): string[] {
+  try {
+    if (fs.existsSync(DELETED_USERS_FILE_PATH)) {
+      const content = fs.readFileSync(DELETED_USERS_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) return parsed.map((s) => String(s).toLowerCase().trim());
+    }
+  } catch (err) {
+    console.warn('Error reading deleted users:', err);
+  }
+  return [];
+}
+
+function saveDeletedUser(identifiers: (string | undefined | null)[]): void {
+  try {
+    const existing = new Set(loadDeletedUsers());
+    for (const id of identifiers) {
+      if (id && String(id).trim()) {
+        existing.add(String(id).toLowerCase().trim());
+      }
+    }
+    fs.writeFileSync(DELETED_USERS_FILE_PATH, JSON.stringify(Array.from(existing), null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving deleted user:', err);
+  }
+}
+
 function loadServerUsers(): any[] {
+  const deletedSet = new Set(loadDeletedUsers());
   try {
     if (fs.existsSync(USERS_FILE_PATH)) {
       const content = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
       const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (u) =>
+            !deletedSet.has(String(u.id).toLowerCase()) &&
+            (!u.username || !deletedSet.has(String(u.username).toLowerCase())) &&
+            (!u.email || !deletedSet.has(String(u.email).toLowerCase()))
+        );
       }
     }
   } catch (err) {
     console.warn('Error reading server users:', err);
   }
   // Initialize with INITIAL_USERS
+  const initialFiltered = INITIAL_USERS.filter(
+    (u) =>
+      !deletedSet.has(String(u.id).toLowerCase()) &&
+      (!u.username || !deletedSet.has(String(u.username).toLowerCase())) &&
+      (!u.email || !deletedSet.has(String(u.email).toLowerCase()))
+  );
   try {
-    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(INITIAL_USERS, null, 2), 'utf-8');
+    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(initialFiltered, null, 2), 'utf-8');
   } catch (err) {
     console.warn('Error writing initial server users:', err);
   }
-  return INITIAL_USERS;
+  return initialFiltered;
 }
 
 function saveServerUsers(users: any[]): void {
   try {
-    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2), 'utf-8');
+    const deletedSet = new Set(loadDeletedUsers());
+    const validUsers = users.filter(
+      (u) =>
+        !deletedSet.has(String(u.id).toLowerCase()) &&
+        (!u.username || !deletedSet.has(String(u.username).toLowerCase())) &&
+        (!u.email || !deletedSet.has(String(u.email).toLowerCase()))
+    );
+    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(validUsers, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error saving server users:', err);
   }
@@ -302,11 +349,22 @@ async function startServer() {
     }
   });
 
-  // 4. Delete a user
+  // 4. Delete a user (Permanently tombstones identifiers so user never resurrects)
   app.delete('/api/users/:id', (req, res) => {
     try {
       const target = (req.params.id || '').toLowerCase();
       const current = loadServerUsers();
+      const targetUser = current.find(
+        (u) =>
+          (u.id && u.id.toLowerCase() === target) ||
+          (u.username && u.username.toLowerCase() === target) ||
+          (u.email && u.email.toLowerCase() === target)
+      );
+      if (targetUser) {
+        saveDeletedUser([targetUser.id, targetUser.username, targetUser.email]);
+      } else {
+        saveDeletedUser([target]);
+      }
       const filtered = current.filter(
         (u) =>
           u.id.toLowerCase() !== target &&
@@ -315,6 +373,15 @@ async function startServer() {
       );
       saveServerUsers(filtered);
       res.json({ success: true, count: filtered.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 4b. Get all deleted user identifiers (tombstones)
+  app.get('/api/users/deleted', (req, res) => {
+    try {
+      res.json({ success: true, deleted: loadDeletedUsers() });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }
