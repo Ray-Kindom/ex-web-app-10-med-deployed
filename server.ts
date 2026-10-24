@@ -22,6 +22,7 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE_PATH = path.join(DATA_DIR, 'users.json');
 const DELETED_USERS_FILE_PATH = path.join(DATA_DIR, 'deleted_users.json');
 const APP_STATE_FILE_PATH = path.join(DATA_DIR, 'app_state.json');
+const PERSONNEL_FILE_PATH = path.join(DATA_DIR, 'personnel.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -104,6 +105,27 @@ function saveServerUsers(users: any[]): void {
     fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(validUsers, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error saving server users:', err);
+  }
+}
+
+function loadServerPersonnel(): any[] {
+  try {
+    if (fs.existsSync(PERSONNEL_FILE_PATH)) {
+      const content = fs.readFileSync(PERSONNEL_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (err) {
+    console.warn('Error reading server personnel:', err);
+  }
+  return [];
+}
+
+function saveServerPersonnel(list: any[]): void {
+  try {
+    fs.writeFileSync(PERSONNEL_FILE_PATH, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving server personnel:', err);
   }
 }
 
@@ -408,6 +430,65 @@ async function startServer() {
         fs.writeFileSync(APP_STATE_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
       }
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 6. Centralized Personnel & Military History Server Disk Persistence
+  app.get('/api/personnel', (req, res) => {
+    try {
+      const list = loadServerPersonnel();
+      res.json({ success: true, count: list.length, data: list });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/personnel/bulk', (req, res) => {
+    try {
+      const { items } = req.body;
+      if (Array.isArray(items) && items.length > 0) {
+        saveServerPersonnel(items);
+        return res.json({ success: true, count: items.length });
+      }
+      res.status(400).json({ success: false, error: 'Expected non-empty items array' });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/personnel', (req, res) => {
+    try {
+      const person = req.body.person || req.body;
+      if (!person || (!person.id && !person.snkNo)) {
+        return res.status(400).json({ success: false, error: 'Valid personnel object required' });
+      }
+      const list = loadServerPersonnel();
+      const idx = list.findIndex(
+        (p) =>
+          (person.id && p.id === person.id) ||
+          (person.snkNo && p.snkNo && p.snkNo === person.snkNo)
+      );
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...person };
+      } else {
+        list.push(person);
+      }
+      saveServerPersonnel(list);
+      res.json({ success: true, person: idx >= 0 ? list[idx] : person, count: list.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.delete('/api/personnel/:id', (req, res) => {
+    try {
+      const targetId = req.params.id;
+      const list = loadServerPersonnel();
+      const filtered = list.filter((p) => p.id !== targetId && p.snkNo !== targetId);
+      saveServerPersonnel(filtered);
+      res.json({ success: true, count: filtered.length });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }

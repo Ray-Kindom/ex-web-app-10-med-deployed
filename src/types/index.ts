@@ -428,6 +428,8 @@ export interface Personnel {
   currentDuty?: string;
   nokName?: string;
   nokContact?: string;
+  permanentAddress?: string;
+  emergencyContact?: string;
   // Out of unit category assignment
   outOfUnitCategory?: OutOfUnitCategory;
   outOfUnitLocation?: string;
@@ -455,6 +457,40 @@ export interface Personnel {
   comdFrom?: string;
   comdTo?: string;
   comdAuthority?: string;
+  // Complete Career Service & Activity Ledger
+  activityHistory?: ServiceActivityRecord[];
+}
+
+export type ServiceActivityType =
+  | 'Duty'
+  | 'FDMN Camp'
+  | 'Course'
+  | 'CMH'
+  | 'Leave'
+  | 'Att'
+  | 'Msn'
+  | 'ERE'
+  | 'Comd'
+  | 'Promotion'
+  | 'Award'
+  | 'General';
+
+export interface ServiceActivityRecord {
+  id: string;
+  type: ServiceActivityType;
+  title: string;
+  subType?: string; // e.g. "P/Lve", "C/Lve", "Quarter Guard", "Basic Gunner Cadre", "Whykong Camp"
+  startDate: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  timeSlot?: string; // e.g. "0600 - 1200 HRS", "2200 - 0200 HRS"
+  durationDays?: number; // e.g. 90, 15, 45 days
+  location?: string; // e.g. "Whykong Camp, Cox's Bazar", "CMH Dhaka", "AC&S Halishahar"
+  authority?: string; // e.g. "Unit Part II Order 14/2024", "AHQ Trg Dte 412/A"
+  remarks?: string;
+  weaponOrAmmo?: string;
+  recordedAt: string; // ISO string
+  recordedBy?: string;
+  status?: 'Active' | 'Completed' | 'Returned' | 'Cancelled';
 }
 
 export interface ParadePointCount {

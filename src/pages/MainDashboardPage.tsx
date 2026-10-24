@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { StatCard } from '../components/common/StatCard';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
@@ -26,6 +26,10 @@ import {
   Zap,
   Award,
   Crown,
+  Search,
+  X,
+  MapPin,
+  Calendar,
 } from 'lucide-react';
 
 interface MainDashboardPageProps {
@@ -53,12 +57,39 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
 
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>('All');
 
+  // Inline drilldown list state: when clicking a stat box, show list right below the boxes without popup modal
+  const [inlineCategory, setInlineCategory] = useState<{
+    id: 'Comd' | 'CMH' | 'Leave' | 'Course' | 'FDMN' | 'Att' | 'Others' | 'Present' | 'All';
+    title: string;
+    subtitle: string;
+    color: string;
+  } | null>(null);
+  const [inlineBtyFilter, setInlineBtyFilter] = useState<Battery | 'All'>('All');
+  const [inlineSearch, setInlineSearch] = useState('');
+  const inlineListRef = useRef<HTMLDivElement>(null);
+
   const troopsSectionRef = useRef<HTMLDivElement>(null);
 
   const totals = getRegimentalTotals();
   const summaries = getBatterySummaries();
   const isCO = currentUser.role === 'CO' || currentUser.role === '2IC';
   const isCoOrOffr = currentUser.role === 'CO' || currentUser.role === '2IC' || currentUser.role === 'Offr';
+
+  const handleToggleCategory = (
+    id: 'Comd' | 'CMH' | 'Leave' | 'Course' | 'FDMN' | 'Att' | 'Others' | 'Present' | 'All',
+    title: string,
+    subtitle: string,
+    color: string
+  ) => {
+    if (inlineCategory?.id === id) {
+      setInlineCategory(null);
+    } else {
+      setInlineCategory({ id, title, subtitle, color });
+      setTimeout(() => {
+        inlineListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
+  };
 
   // Count personnel detailed to FDMN Camp
   const fdmnCount = personnelList.filter((p) => {
@@ -96,6 +127,113 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
     const rem = (p.outOfUnitRemarks || '').toLowerCase();
     return details.includes('ere') || loc.includes('ere') || rem.includes('ere');
   }).length;
+
+  const filteredInlineList = useMemo(() => {
+    if (!inlineCategory) return [];
+    let list: Personnel[] = [];
+    switch (inlineCategory.id) {
+      case 'Comd':
+        list = personnelList.filter((p) => {
+          if (p.outOfUnitCategory === 'Comd') return true;
+          if (p.outOfUnitCategory === 'FDMN') return false;
+          const details = (p.statusDetails || '').toLowerCase();
+          const loc = (p.outOfUnitLocation || '').toLowerCase();
+          const rem = (p.outOfUnitRemarks || '').toLowerCase();
+          if (details.includes('fdmn') || loc.includes('fdmn') || rem.includes('fdmn') || loc.includes('camp') || details.includes('camp') || loc.includes('হোয়াইকং')) return false;
+          return details.includes('comd') || Boolean(p.comdAssignment) || (p.status === 'Temp Duty' && !p.outOfUnitCategory);
+        });
+        break;
+      case 'CMH':
+        list = personnelList.filter(
+          (p) =>
+            p.status === 'CMH/Sick' ||
+            p.outOfUnitCategory === 'CMH' ||
+            (p.statusDetails || '').toLowerCase().includes('cmh') ||
+            (p.statusDetails || '').toLowerCase().includes('sick')
+        );
+        break;
+      case 'Leave':
+        list = personnelList.filter(
+          (p) =>
+            p.status === 'Leave' ||
+            p.status === 'P/Lve' ||
+            p.status === 'C/Lve' ||
+            p.outOfUnitCategory === 'P/Lve' ||
+            p.outOfUnitCategory === 'C/Lve' ||
+            p.leaveType === 'P/Lve' ||
+            p.leaveType === 'C/Lve'
+        );
+        break;
+      case 'Course':
+        list = personnelList.filter(
+          (p) =>
+            p.status === 'Course/Trg' ||
+            p.outOfUnitCategory === 'Course' ||
+            (p.statusDetails || '').toLowerCase().includes('course')
+        );
+        break;
+      case 'FDMN':
+        list = personnelList.filter((p) => {
+          if (p.outOfUnitCategory === 'FDMN') return true;
+          const details = (p.statusDetails || '').toLowerCase();
+          const loc = (p.outOfUnitLocation || '').toLowerCase();
+          const rem = (p.outOfUnitRemarks || '').toLowerCase();
+          return (
+            details.includes('fdmn') ||
+            loc.includes('fdmn') ||
+            rem.includes('fdmn') ||
+            loc.includes('camp') ||
+            details.includes('camp') ||
+            loc.includes('হোয়াইকং')
+          );
+        });
+        break;
+      case 'Att':
+        list = personnelList.filter(
+          (p) => p.outOfUnitCategory === 'Att' || p.outOfUnitCategory === 'Msn' || p.status === 'Attached Out'
+        );
+        break;
+      case 'Others':
+        list = personnelList.filter((p) => {
+          if (p.outOfUnitCategory === 'ERE') return true;
+          if (p.outOfUnitCategory && !['Att', 'Msn', 'FDMN', 'CMH', 'Course', 'Comd', 'P/Lve', 'C/Lve'].includes(p.outOfUnitCategory)) return true;
+          if (p.status === 'Attached Out' && p.outOfUnitCategory !== 'Att' && p.outOfUnitCategory !== 'Msn' && p.outOfUnitCategory !== 'FDMN') return true;
+          if (p.status === 'AWOL/OSL') return true;
+          const details = (p.statusDetails || '').toLowerCase();
+          const loc = (p.outOfUnitLocation || '').toLowerCase();
+          const rem = (p.outOfUnitRemarks || '').toLowerCase();
+          return details.includes('ere') || loc.includes('ere') || rem.includes('ere');
+        });
+        break;
+      case 'Present':
+        list = personnelList.filter((p) => p.status === 'In Unit' || p.status === 'Present');
+        break;
+      case 'All':
+        list = personnelList;
+        break;
+      default:
+        list = [];
+    }
+
+    if (inlineBtyFilter !== 'All') {
+      list = list.filter((p) => p.battery === inlineBtyFilter);
+    }
+
+    if (inlineSearch.trim()) {
+      const q = inlineSearch.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.snkNo || '').toLowerCase().includes(q) ||
+          (p.rk || '').toLowerCase().includes(q) ||
+          (p.outOfUnitLocation || '').toLowerCase().includes(q) ||
+          (p.statusDetails || '').toLowerCase().includes(q) ||
+          (p.remarks || '').toLowerCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [inlineCategory, personnelList, inlineBtyFilter, inlineSearch]);
 
   const batteryList: { bty: Battery; name: string; shortCode: string; role: string }[] = [
     { bty: 'P Bty', name: 'P Battery (P Bty)', shortCode: 'P', role: '1st Gun Support' },
@@ -254,12 +392,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={Users}
           colorScheme="slate"
           badge="100% Accounted"
-          onClick={() => {
-            setSelectedBattery('All');
-            if (troopsSectionRef.current) {
-              troopsSectionRef.current.scrollIntoView({ behavior: 'smooth' });
-            }
-          }}
+          active={inlineCategory?.id === 'All'}
+          onClick={() => handleToggleCategory('All', 'Posted Strength (All Troops)', 'রেজিমেন্টের সম্পূর্ণ সৈনিকদের তালিকা', 'slate')}
         />
         <StatCard
           title="Present In Unit"
@@ -268,7 +402,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={CheckCircle2}
           colorScheme="emerald"
           percentage={Math.round((totals.totalPresent / totals.totalPosted) * 100)}
-          onClick={() => setActivePage('parade_state')}
+          active={inlineCategory?.id === 'Present'}
+          onClick={() => handleToggleCategory('Present', 'Present In Unit Troops', 'ইউনিট লাইনে উপস্থিত সৈনিকদের তালিকা', 'emerald')}
         />
         <StatCard
           title="Command"
@@ -277,10 +412,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={Compass}
           colorScheme="indigo"
           badge={comdCount > 0 ? `${comdCount} Out` : 'Nil Command'}
-          onClick={() => {
-            setActiveOutOfUnitCategory('Comd');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={inlineCategory?.id === 'Comd'}
+          onClick={() => handleToggleCategory('Comd', 'Command Troops (Comd)', 'কমান্ড দায়িত্বে নিয়োজিত সৈনিকবৃন্দ', 'indigo')}
         />
         <StatCard
           title="CMH/Sick"
@@ -289,10 +422,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={HeartPulse}
           colorScheme="amber"
           badge={totals.totalSick > 0 ? `${totals.totalSick} Admitted` : 'Nil Sick'}
-          onClick={() => {
-            setActiveOutOfUnitCategory('CMH');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={inlineCategory?.id === 'CMH'}
+          onClick={() => handleToggleCategory('CMH', 'CMH / Sick Admitted Troops', 'সিএমএইচ ও অসুস্থ সৈনিকদের তালিকা', 'amber')}
         />
         <StatCard
           title="Lve"
@@ -301,10 +432,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={PlaneTakeoff}
           colorScheme="purple"
           badge={totals.totalLeave > 0 ? `${totals.totalLeave} Soldiers` : 'Nil Leave'}
-          onClick={() => {
-            setActiveOutOfUnitCategory('P/Lve');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={inlineCategory?.id === 'Leave'}
+          onClick={() => handleToggleCategory('Leave', 'Leave (P/Lve & C/Lve) Troops', 'ছুটিতে থাকা সৈনিকদের বিস্তারিত তালিকা', 'purple')}
         />
         <StatCard
           title="Course"
@@ -313,10 +442,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={GraduationCap}
           colorScheme="cyan"
           badge={totals.totalCourse > 0 ? `${totals.totalCourse} Attending` : 'Nil Course'}
-          onClick={() => {
-            setActiveOutOfUnitCategory('Course');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={inlineCategory?.id === 'Course'}
+          onClick={() => handleToggleCategory('Course', 'Course & Training Cadres', 'কোর্স ও ট্রেনিংয়ে থাকা সৈনিকদের তালিকা', 'cyan')}
         />
         <StatCard
           title="FDMN Camp"
@@ -325,10 +452,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={Tent}
           colorScheme="teal"
           badge={fdmnCount > 0 ? `${fdmnCount} Soldiers` : 'Nil FDMN'}
-          onClick={() => {
-            setActiveOutOfUnitCategory('FDMN');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={inlineCategory?.id === 'FDMN'}
+          onClick={() => handleToggleCategory('FDMN', 'FDMN Camp Troops (Rohingya Security)', 'এফডিএমএন ক্যাম্প দায়িত্বে নিয়োজিত সৈনিকবৃন্দ', 'teal')}
         />
         <StatCard
           title="Att & Msn"
@@ -337,10 +462,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={Globe}
           colorScheme="blue"
           badge={attMsnCount > 0 ? `${attMsnCount} Out` : 'Nil Att/Msn'}
-          onClick={() => {
-            setActiveOutOfUnitCategory('Att');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={inlineCategory?.id === 'Att'}
+          onClick={() => handleToggleCategory('Att', 'Attached Out & UN Mission', 'সংযুক্ত (Att) ও জাতিসংঘ মিশনে থাকা সৈনিকবৃন্দ', 'blue')}
         />
         <StatCard
           title="Others Out"
@@ -349,12 +472,184 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           icon={Building2}
           colorScheme="orange"
           badge={totalOthersOutCount > 0 ? `${totalOthersOutCount} Soldiers` : 'Nil Others'}
-          onClick={() => {
-            setActiveOutOfUnitCategory('ERE');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={inlineCategory?.id === 'Others'}
+          onClick={() => handleToggleCategory('Others', 'Others Out (ERE & External Duties)', 'ইআরই ও অন্যান্য বহিঃস্থ দায়িত্বে থাকা সৈনিকবৃন্দ', 'orange')}
         />
       </div>
+
+      {/* Inline Drilldown List right underneath the StatCard boxes (No popup window!) */}
+      {inlineCategory && (
+        <div
+          ref={inlineListRef}
+          className="rounded-2xl bg-slate-900/95 border border-slate-700/80 p-4 sm:p-5 shadow-2xl backdrop-blur-md space-y-4 transition-all duration-300 animate-in fade-in slide-in-from-top-2"
+        >
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 font-bold shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-bold text-white font-sans tracking-tight">
+                    {inlineCategory.title}
+                  </h3>
+                  <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-rose-600/20 text-rose-300 border border-rose-500/30">
+                    {filteredInlineList.length} জন সৈনিক
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">{inlineCategory.subtitle}</p>
+              </div>
+            </div>
+
+            {/* Controls: Search, Battery Filter, Close */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Battery Filter Pills */}
+              <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800 text-xs">
+                {(['All', 'P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'] as const).map((b) => (
+                  <button
+                    key={b}
+                    onClick={() => setInlineBtyFilter(b)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                      inlineBtyFilter === b
+                        ? 'bg-rose-600 text-white font-bold shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {b === 'All' ? 'সব' : b.replace(' Bty', '')}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="খুঁজুন (নাম / নং)..."
+                  value={inlineSearch}
+                  onChange={(e) => setInlineSearch(e.target.value)}
+                  className="pl-8 pr-2.5 py-1 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-rose-500 w-36 sm:w-44"
+                />
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setInlineCategory(null)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                title="তালিকা বন্ধ করুন"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* List Content */}
+          {filteredInlineList.length === 0 ? (
+            <div className="py-8 text-center space-y-1.5">
+              <p className="text-sm text-slate-400 font-medium">
+                এই ক্যাটাগরিতে বর্তমানে কোনো সৈনিক পাওয়া যায়নি।
+              </p>
+              <p className="text-xs text-slate-500 font-mono">
+                (No troops matching current selection)
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto max-h-[480px] overflow-y-auto divide-y divide-slate-800/60 rounded-xl border border-slate-800/80">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="text-[11px] font-mono uppercase bg-slate-950 text-slate-400 border-b border-slate-800 sticky top-0 z-10 shadow-sm">
+                  <tr>
+                    <th className="py-2.5 px-3">সৈনিক নং / Army No</th>
+                    <th className="py-2.5 px-2">পদবী</th>
+                    <th className="py-2.5 px-3">নাম</th>
+                    <th className="py-2.5 px-2">ব্যাটারি</th>
+                    <th className="py-2.5 px-3">অবস্থান / বিবরণ / কোর্স</th>
+                    <th className="py-2.5 px-3">তারিখ / মেয়াদ</th>
+                    <th className="py-2.5 px-3">কর্তৃপক্ষ / মন্তব্য</th>
+                    <th className="py-2.5 px-3 text-right">একশন</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono bg-slate-950/40">
+                  {filteredInlineList.map((p) => {
+                    const loc =
+                      p.outOfUnitLocation ||
+                      p.location ||
+                      p.leaveAddress ||
+                      p.courseName ||
+                      p.hospitalName ||
+                      p.comdAssignment ||
+                      p.statusDetails ||
+                      '-';
+                    const startDate =
+                      p.outOfUnitStartDate ||
+                      p.startDate ||
+                      p.leaveFrom ||
+                      p.courseFrom ||
+                      p.admissionDate ||
+                      p.comdFrom;
+                    const endDate =
+                      p.outOfUnitEndDate ||
+                      p.endDate ||
+                      p.leaveTo ||
+                      p.courseTo ||
+                      p.comdTo;
+                    const auth = p.outOfUnitAuthority || p.authority || p.comdAuthority;
+                    const rem = p.outOfUnitRemarks || p.remarks || p.rmk || p.diagnosis;
+
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="py-2.5 px-3 font-bold text-amber-400 whitespace-nowrap">{p.snkNo}</td>
+                        <td className="py-2.5 px-2 whitespace-nowrap">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 text-[10px]">
+                            {p.rk}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-sans font-bold text-white whitespace-nowrap">
+                          {p.name}
+                        </td>
+                        <td className="py-2.5 px-2 whitespace-nowrap">
+                          <span className="px-1.5 py-0.5 rounded bg-rose-950/40 text-rose-300 border border-rose-800/30 text-[10px]">
+                            {p.battery}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-sans text-slate-200 max-w-xs truncate">
+                          <span className="text-emerald-400 font-semibold">{loc}</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-[11px] text-slate-300 whitespace-nowrap">
+                          {startDate || endDate ? (
+                            <div className="space-y-0.5">
+                              <div>{startDate || 'শুরু: -'} থেকে {endDate || 'ফেরত: -'}</div>
+                              {p.durationDays ? (
+                                <div className="text-[10px] text-amber-300 font-semibold">
+                                  মোট {p.durationDays} দিন {p.remainingDays !== undefined ? `(অবশিষ্ট: ${p.remainingDays} দিন)` : ''}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-slate-500">-</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-sans text-slate-400 max-w-xs truncate">
+                          {auth ? <span className="text-amber-300 mr-1.5">[{auth}]</span> : null}
+                          {rem || (p.statusDetails && p.statusDetails !== loc ? p.statusDetails : '-')}
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => onViewDossier(p)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-sans font-semibold transition-colors cursor-pointer border border-slate-700"
+                          >
+                            ডসিয়ার
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main Grid: Battery Breakdown Table + Quick Actions & Recent Log */}
       {isCoOrOffr ? (

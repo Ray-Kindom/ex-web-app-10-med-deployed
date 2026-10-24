@@ -307,6 +307,19 @@ export const syncPersonnelToSupabase = async (
         sickType: p.sickType,
         hospitalName: p.hospitalName,
         details: p.statusDetails,
+        activityHistory: Array.isArray(p.activityHistory) && p.activityHistory.length > 0 ? p.activityHistory : undefined,
+        enlistmentDate: p.enlistmentDate,
+        batch: p.batch,
+        previousUnit: p.previousUnit,
+        permanentAddress: p.permanentAddress,
+        emergencyContact: p.emergencyContact,
+        diagnosis: p.diagnosis,
+        admissionDate: p.admissionDate,
+        reviewDate: p.reviewDate,
+        comdAssignment: p.comdAssignment,
+        comdFrom: p.comdFrom,
+        comdTo: p.comdTo,
+        comdAuthority: p.comdAuthority,
       };
 
       const hasExtra = Object.entries(extraFields).some(
@@ -387,6 +400,19 @@ export const upsertSinglePersonnelToSupabase = async (
       sickType: p.sickType,
       hospitalName: p.hospitalName,
       details: p.statusDetails,
+      activityHistory: Array.isArray(p.activityHistory) && p.activityHistory.length > 0 ? p.activityHistory : undefined,
+      enlistmentDate: p.enlistmentDate,
+      batch: p.batch,
+      previousUnit: p.previousUnit,
+      permanentAddress: p.permanentAddress,
+      emergencyContact: p.emergencyContact,
+      diagnosis: p.diagnosis,
+      admissionDate: p.admissionDate,
+      reviewDate: p.reviewDate,
+      comdAssignment: p.comdAssignment,
+      comdFrom: p.comdFrom,
+      comdTo: p.comdTo,
+      comdAuthority: p.comdAuthority,
     };
 
     const hasExtra = Object.entries(extraFields).some(
@@ -810,6 +836,19 @@ export const fetchPersonnelFromSupabase = async (): Promise<{
         courseDuration: extra.courseDuration,
         sickType: extra.sickType,
         hospitalName: hospitalName,
+        activityHistory: Array.isArray(extra.activityHistory) ? extra.activityHistory : undefined,
+        enlistmentDate: extra.enlistmentDate,
+        batch: extra.batch,
+        previousUnit: extra.previousUnit,
+        permanentAddress: extra.permanentAddress,
+        emergencyContact: extra.emergencyContact,
+        diagnosis: extra.diagnosis,
+        admissionDate: extra.admissionDate,
+        reviewDate: extra.reviewDate,
+        comdAssignment: extra.comdAssignment,
+        comdFrom: extra.comdFrom,
+        comdTo: extra.comdTo,
+        comdAuthority: extra.comdAuthority,
       };
     });
 
@@ -1030,6 +1069,45 @@ export const fetchAllDutyDetailingFromSupabase = async (): Promise<{
 
     return { success: true, records: parsed };
   } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Save / Update Personnel Activity Ledger directly in Supabase
+ */
+export const savePersonnelActivityToDatabase = async (
+  personnelId: string,
+  activityHistory: any[]
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+  try {
+    const { data: row, error: fetchErr } = await client
+      .from('personnel')
+      .select('status_details')
+      .eq('id', personnelId)
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+
+    let extra: Record<string, any> = {};
+    if (row?.status_details && typeof row.status_details === 'string' && row.status_details.trim().startsWith('{')) {
+      try {
+        extra = JSON.parse(row.status_details);
+      } catch (e) {}
+    }
+    extra.activityHistory = activityHistory;
+
+    const { error: updateErr } = await client
+      .from('personnel')
+      .update({ status_details: JSON.stringify(extra) })
+      .eq('id', personnelId);
+
+    if (updateErr) throw updateErr;
+    return { success: true };
+  } catch (err: any) {
+    console.warn('savePersonnelActivityToDatabase error:', err);
     return { success: false, error: err?.message };
   }
 };

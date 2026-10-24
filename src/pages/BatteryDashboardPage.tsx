@@ -167,12 +167,27 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   const isRsm = currentUser.role === 'RSM' || currentUser.role === 'Admin';
   const canManageOutOfUnit = !isGuest && isRsm;
 
-  // Personnel for popup modal
+  // Personnel for drilldown list (displayed directly underneath the boxes)
   const modalPersonnel = selectedStatFilter
     ? selectedStatFilter.status === 'All'
       ? btyPersonnel
       : selectedStatFilter.status === 'Comd' || selectedStatFilter.status === 'Temp Duty'
       ? btyPersonnel.filter(isComdPersonnel)
+      : selectedStatFilter.status === 'FDMN'
+      ? btyPersonnel.filter((p) => {
+          if (p.outOfUnitCategory === 'FDMN') return true;
+          const details = (p.statusDetails || '').toLowerCase();
+          const loc = (p.outOfUnitLocation || '').toLowerCase();
+          const rem = (p.outOfUnitRemarks || '').toLowerCase();
+          return (
+            details.includes('fdmn') ||
+            loc.includes('fdmn') ||
+            rem.includes('fdmn') ||
+            loc.includes('camp') ||
+            details.includes('camp') ||
+            loc.includes('হোয়াইকং')
+          );
+        })
       : selectedStatFilter.status === 'AttMsn'
       ? btyPersonnel.filter((p) => p.outOfUnitCategory === 'Att' || p.outOfUnitCategory === 'Msn')
       : selectedStatFilter.status === 'Leave'
@@ -196,6 +211,14 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
         })
       : btyPersonnel.filter((p) => p.status === selectedStatFilter.status)
     : [];
+
+  const handleToggleStatFilter = (filter: { title: string; status: string }) => {
+    if (selectedStatFilter?.status === filter.status) {
+      setSelectedStatFilter(null);
+    } else {
+      setSelectedStatFilter(filter);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -240,14 +263,16 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           value={postedCount}
           icon={Users}
           colorScheme="slate"
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} Posted Strength`, status: 'All' })}
+          active={selectedStatFilter?.status === 'All'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} Posted Strength`, status: 'All' })}
         />
         <StatCard
           title="Present In Unit"
           value={presentCount}
           icon={CheckCircle2}
           colorScheme="emerald"
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} Present in Unit`, status: 'Present' })}
+          active={selectedStatFilter?.status === 'Present'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} Present in Unit`, status: 'Present' })}
         />
         <StatCard
           title="Command"
@@ -256,14 +281,16 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           icon={Compass}
           colorScheme="indigo"
           badge={comdCount > 0 ? `${comdCount} Out` : 'Nil Command'}
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} Command Troops (Comd)`, status: 'Comd' })}
+          active={selectedStatFilter?.status === 'Comd'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} Command Troops (Comd)`, status: 'Comd' })}
         />
         <StatCard
           title="CMH / Sick"
           value={sickCount}
           icon={HeartPulse}
           colorScheme="amber"
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} CMH / Sick Personnel`, status: 'CMH/Sick' })}
+          active={selectedStatFilter?.status === 'CMH/Sick'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} CMH / Sick Personnel`, status: 'CMH/Sick' })}
         />
         <StatCard
           title="On Leave"
@@ -272,9 +299,10 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           badge={leaveCount > 0 ? `${btyPLveCount} P + ${btyCLveCount} C` : 'Nil Leave'}
           icon={PlaneTakeoff}
           colorScheme="purple"
+          active={selectedStatFilter?.status === 'Leave'}
           onClick={() => {
             setLeaveSubFilter('All');
-            setSelectedStatFilter({
+            handleToggleStatFilter({
               title: `${activeBattery} Troops on Leave`,
               status: 'Leave',
             });
@@ -285,17 +313,16 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           value={courseCount}
           icon={Radio}
           colorScheme="cyan"
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} Course / Cadres Personnel`, status: 'Course/Trg' })}
+          active={selectedStatFilter?.status === 'Course/Trg'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} Course / Cadres Personnel`, status: 'Course/Trg' })}
         />
         <StatCard
           title="FDMN Camp"
           value={btyFdmnCount}
           icon={Tent}
           colorScheme="teal"
-          onClick={() => {
-            setActiveOutOfUnitCategory('FDMN');
-            setOutOfUnitModalOpen(true);
-          }}
+          active={selectedStatFilter?.status === 'FDMN'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} FDMN Camp Troops`, status: 'FDMN' })}
         />
         <StatCard
           title="Att & Msn"
@@ -303,7 +330,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           subtitle={`Att: ${btyAttCount} | Msn: ${btyMsnCount}`}
           icon={Globe}
           colorScheme="blue"
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} Attached & UN Mission (${btyAttCount} Att + ${btyMsnCount} Msn = ${btyAttMsnCount})`, status: 'AttMsn' })}
+          active={selectedStatFilter?.status === 'AttMsn'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} Attached & UN Mission (${btyAttCount} Att + ${btyMsnCount} Msn = ${btyAttMsnCount})`, status: 'AttMsn' })}
         />
         <StatCard
           title="Others Out"
@@ -311,168 +339,160 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           subtitle="ERE & Ext Duties"
           icon={Building2}
           colorScheme="orange"
-          onClick={() => setSelectedStatFilter({ title: `${activeBattery} Others Out (ERE & Ext Duties - ${btyOthersOutCount})`, status: 'OthersOut' })}
+          active={selectedStatFilter?.status === 'OthersOut'}
+          onClick={() => handleToggleStatFilter({ title: `${activeBattery} Others Out (ERE & Ext Duties - ${btyOthersOutCount})`, status: 'OthersOut' })}
         />
       </div>
+
+      {/* Inline Drilldown List right underneath the StatCard boxes (No popup window!) */}
+      {selectedStatFilter && (
+        <div className="rounded-2xl bg-slate-900/95 border border-slate-700/80 p-4 sm:p-5 shadow-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div>
+              <h3 className="text-base font-bold text-white font-sans">
+                {selectedStatFilter.title}
+              </h3>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-xs text-slate-400 font-mono">
+                  মোট: {modalPersonnel.length} জন সৈনিক
+                </p>
+                {selectedStatFilter.status === 'Leave' && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setLeaveSubFilter('All')}
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        leaveSubFilter === 'All'
+                          ? 'bg-purple-600 text-white shadow-sm font-bold'
+                          : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                      }`}
+                    >
+                      All ({leaveCount})
+                    </button>
+                    <button
+                      onClick={() => setLeaveSubFilter('P/Lve')}
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        leaveSubFilter === 'P/Lve'
+                          ? 'bg-purple-600 text-white shadow-sm font-bold'
+                          : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                      }`}
+                    >
+                      P/Lve ({btyPLveCount})
+                    </button>
+                    <button
+                      onClick={() => setLeaveSubFilter('C/Lve')}
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                        leaveSubFilter === 'C/Lve'
+                          ? 'bg-cyan-600 text-white shadow-sm font-bold'
+                          : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                      }`}
+                    >
+                      C/Lve ({btyCLveCount})
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedStatFilter(null)}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white self-start sm:self-center cursor-pointer"
+              title="তালিকা বন্ধ করুন"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-800/80 pr-1">
+            {modalPersonnel.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-500 font-mono">
+                এই ক্যাটাগরিতে বর্তমানে কোনো সৈনিক নেই। (No personnel in this category.)
+              </div>
+            ) : (
+              modalPersonnel.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => onViewDossier(p)}
+                  className="py-2.5 px-2 flex items-center justify-between hover:bg-slate-800/60 rounded-lg cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold text-amber-300 shrink-0">
+                      {p.rk}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
+                        <span className="truncate">{p.name}</span>
+                        {(p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || p.leaveType === 'P/Lve') && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 shrink-0">
+                            P/Lve
+                          </span>
+                        )}
+                        {(p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve' || p.leaveType === 'C/Lve') && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shrink-0">
+                            C/Lve
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="text-amber-400 font-semibold">{p.snkNo}</span>
+                        <span>•</span>
+                        <span className="text-amber-300/90 font-medium">{p.battery}</span>
+                        <span>•</span>
+                        <span>{p.trade}</span>
+                        {p.outOfUnitLocation || p.location ? (
+                          <>
+                            <span>•</span>
+                            <span className="text-emerald-400">{p.outOfUnitLocation || p.location}</span>
+                          </>
+                        ) : null}
+                        {p.durationDays ? (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-300">মোট {p.durationDays} দিন</span>
+                          </>
+                        ) : null}
+                        {p.remainingDays !== undefined ? (
+                          <>
+                            <span>•</span>
+                            <span className={p.remainingDays > 0 ? 'text-amber-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+                              অবশিষ্ট {p.remainingDays} দিন
+                            </span>
+                          </>
+                        ) : null}
+                        {p.statusDetails && !p.durationDays && (
+                          <>
+                            <span>•</span>
+                            <span className="text-rose-400">{p.statusDetails}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0 ml-2">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold ${
+                      p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve'
+                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                        : p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve'
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                    }`}>
+                      {p.status}
+                    </span>
+                    {(p.endDate || p.outOfUnitEndDate || p.leaveTo) && (
+                      <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                        যোগদান: {p.endDate || p.outOfUnitEndDate || p.leaveTo}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Updt Out Of Unit Action Control Box (Only accessible to RSM and BSM) */}
       {canManageOutOfUnit && (
         <ParadeActionControls battery={activeBattery === 'All Bty' ? undefined : activeBattery} />
-      )}
-
-
-
-      {/* Clickable Stat Modal Popup */}
-      {selectedStatFilter && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4 max-h-[80vh] flex flex-col animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
-              <div>
-                <h3 className="text-base font-bold text-white font-sans">
-                  {selectedStatFilter.title}
-                </h3>
-                <div className="flex items-center gap-3 mt-1">
-                  <p className="text-xs text-slate-400 font-mono">
-                    Total: {modalPersonnel.length} Personnel
-                  </p>
-                  {selectedStatFilter.status === 'Leave' && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => setLeaveSubFilter('All')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
-                          leaveSubFilter === 'All'
-                            ? 'bg-purple-600 text-white shadow-sm font-bold'
-                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-                        }`}
-                      >
-                        All ({leaveCount})
-                      </button>
-                      <button
-                        onClick={() => setLeaveSubFilter('P/Lve')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
-                          leaveSubFilter === 'P/Lve'
-                            ? 'bg-purple-600 text-white shadow-sm font-bold'
-                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-                        }`}
-                      >
-                        P/Lve ({btyPLveCount})
-                      </button>
-                      <button
-                        onClick={() => setLeaveSubFilter('C/Lve')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
-                          leaveSubFilter === 'C/Lve'
-                            ? 'bg-cyan-600 text-white shadow-sm font-bold'
-                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-                        }`}
-                      >
-                        C/Lve ({btyCLveCount})
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedStatFilter(null)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white self-start sm:self-center cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-800/80 pr-1">
-              {modalPersonnel.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-500 font-mono">
-                  No personnel in this category.
-                </div>
-              ) : (
-                modalPersonnel.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => {
-                      setSelectedStatFilter(null);
-                      onViewDossier(p);
-                    }}
-                    className="py-2.5 px-2 flex items-center justify-between hover:bg-slate-850 rounded-lg cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold text-amber-300 shrink-0">
-                        {p.rk}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
-                          <span className="truncate">{p.name}</span>
-                          {(p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || p.leaveType === 'P/Lve') && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 shrink-0">
-                              P/Lve
-                            </span>
-                          )}
-                          {(p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve' || p.leaveType === 'C/Lve') && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shrink-0">
-                              C/Lve
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
-                          <span>{p.snkNo}</span>
-                          <span>•</span>
-                          <span className="text-amber-300/90 font-medium">{p.battery}</span>
-                          <span>•</span>
-                          <span>{p.trade}</span>
-                          {p.durationDays ? (
-                            <>
-                              <span>•</span>
-                              <span className="text-slate-300">মোট {p.durationDays} দিন</span>
-                            </>
-                          ) : null}
-                          {p.remainingDays !== undefined ? (
-                            <>
-                              <span>•</span>
-                              <span className={p.remainingDays > 0 ? 'text-amber-400 font-semibold' : 'text-emerald-400 font-semibold'}>
-                                অবশিষ্ট {p.remainingDays} দিন
-                              </span>
-                            </>
-                          ) : null}
-                          {p.statusDetails && !p.durationDays && (
-                            <>
-                              <span>•</span>
-                              <span className="text-rose-400">{p.statusDetails}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0 ml-2">
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold ${
-                        p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve'
-                          ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                          : p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve'
-                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                          : 'bg-slate-800 text-slate-300 border-slate-700'
-                      }`}>
-                        {p.status}
-                      </span>
-                      {(p.endDate || p.outOfUnitEndDate || p.leaveTo) && (
-                        <div className="text-[9px] font-mono text-slate-400 mt-0.5">
-                          যোগদান: {p.endDate || p.outOfUnitEndDate || p.leaveTo}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-slate-800 flex justify-end">
-              <button
-                onClick={() => setSelectedStatFilter(null)}
-                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

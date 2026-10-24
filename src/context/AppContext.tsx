@@ -32,6 +32,8 @@ import {
   SystemSettings,
   DEFAULT_SYSTEM_SETTINGS,
   CustomTeam,
+  ServiceActivityRecord,
+  ServiceActivityType,
 } from '../types';
 import {
   CIVILIAN_PERSONNEL,
@@ -87,6 +89,7 @@ import {
   fetchParadeRecordsFromSupabase,
   saveSystemStateToSupabase,
   fetchSystemStateFromSupabase,
+  savePersonnelActivityToDatabase,
 } from '../lib/supabase';
 import {
   fetchServerUsers,
@@ -299,6 +302,18 @@ interface AppContextType {
     }
   ) => void;
   cancelOutOfUnit: (personnelId: string) => void;
+
+  // Personnel Career Service & Activity Ledger
+  addPersonnelActivity: (
+    personnelId: string,
+    activity: Omit<ServiceActivityRecord, 'id' | 'recordedAt'>
+  ) => void;
+  updatePersonnelActivity: (
+    personnelId: string,
+    activityId: string,
+    updated: Partial<ServiceActivityRecord>
+  ) => void;
+  deletePersonnelActivity: (personnelId: string, activityId: string) => void;
 
   // Modal triggers
   syncNominalRollToCloud: () => Promise<void>;
@@ -2642,33 +2657,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Supabase Personnel Bootstrap & Background Sync
+  // Multi-Tier Personnel & Career History Bootstrap (Supabase Cloud + Server Disk + Local Cache)
   useEffect(() => {
     let isMounted = true;
-    const loadPersonnel = () => {
+    const loadPersonnel = async () => {
+      // 1. Primary: Fetch from Supabase PostgreSQL Cloud Database
       if (isSupabaseConfigured()) {
-        fetchPersonnelFromSupabase()
-          .then((res) => {
-            if (!isMounted) return;
-            if (res.success && res.personnel) {
-              setPersonnelList(res.personnel);
-            }
+        try {
+          const res = await fetchPersonnelFromSupabase();
+          if (!isMounted) return;
+          if (res.success && res.personnel && res.personnel.length > 0) {
+            setPersonnelList(res.personnel);
             setIsPersonnelLoading(false);
-          })
-          .catch((err) => {
-            if (!isMounted) return;
-            console.warn('Supabase personnel bootstrap error:', err);
-            setIsPersonnelLoading(false);
-          });
-      } else {
+            try {
+              localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(res.personnel));
+            } catch (e) {}
+            // Mirror to server disk for offline resilience and permanent archive
+            fetch('/api/personnel/bulk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: res.personnel }),
+            }).catch(() => {});
+            return;
+          }
+        } catch (err) {
+          console.warn('Supabase personnel bootstrap error:', err);
+        }
+      }
+
+      // 2. Secondary fallback: Fetch from server disk persistence (/api/personnel)
+      try {
+        const sRes = await fetch('/api/personnel');
+        const sData = await sRes.json();
+        if (!isMounted) return;
+        if (sData.success && Array.isArray(sData.data) && sData.data.length > 0) {
+          setPersonnelList(sData.data);
+          setIsPersonnelLoading(false);
+          try {
+            localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(sData.data));
+          } catch (e) {}
+          // Re-seed Supabase if it was empty
+          if (isSupabaseConfigured()) {
+            syncPersonnelToSupabase(sData.data).catch(() => {});
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('Server personnel fetch error:', err);
+      }
+
+      // 3. Tertiary fallback: Browser cache
+      try {
+        const cached = localStorage.getItem('10med_personnel_cache_v2');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0 && isMounted) {
+            setPersonnelList(parsed);
+          }
+        }
+      } catch (e) {}
+
+      if (isMounted) {
         setIsPersonnelLoading(false);
       }
     };
 
     loadPersonnel();
 
-    // Auto-sync every 30 seconds so changes made across tabs or devices update live
-    const interval = setInterval(loadPersonnel, 30000);
+    // Auto-sync every 25 seconds so changes made across tabs, devices, or databases update live
+    const interval = setInterval(loadPersonnel, 25000);
     const onFocus = () => loadPersonnel();
     window.addEventListener('focus', onFocus);
 
@@ -4039,6 +4096,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('Supabase add soldier note:', e)
       );
     }
+
+    // Sync to server disk
+    fetch('/api/personnel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person: newPerson }),
+    }).catch(() => {});
   };
 
   const updatePersonnel = (id: string, updated: Partial<Personnel>) => {
@@ -4067,6 +4131,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.warn('Supabase update soldier note:', e)
         );
       }
+      // Sync to server disk
+      fetch('/api/personnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person: updatedRecord }),
+      }).catch(() => {});
     }
   };
 
@@ -4088,6 +4158,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.warn('Supabase delete soldier note:', e)
         );
       }
+      // Delete from server disk
+      fetch(`/api/personnel/${id}`, { method: 'DELETE' }).catch(() => {});
     }
   };
 
@@ -4220,6 +4292,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.warn('Supabase update parade status note:', e)
         );
       }
+      if (target) {
+        const fullUpdated = { ...target, ...updatedDoc } as Personnel;
+        fetch('/api/personnel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ person: fullUpdated }),
+        }).catch(() => {});
+      }
     }
   };
 
@@ -4345,12 +4425,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       patch.comdAuthority = details.authority;
     }
 
+    const autoActivity: ServiceActivityRecord = {
+      id: 'act_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      type: (category === 'FDMN'
+        ? 'FDMN Camp'
+        : category === 'P/Lve' || category === 'C/Lve'
+        ? 'Leave'
+        : category) as ServiceActivityType,
+      title:
+        category === 'FDMN'
+          ? `FDMN Camp: ${details.location || 'হোয়াইকং ক্যাম্প'}`
+          : category === 'Course'
+          ? `Course: ${details.location || 'Military Cadre'}`
+          : category === 'CMH'
+          ? `CMH: ${details.location || 'Medical Admission'}`
+          : `${category}: ${details.location || 'Out of Unit'}`,
+      subType: category,
+      startDate: details.startDate || new Date().toISOString().split('T')[0],
+      endDate: details.endDate,
+      durationDays: patch.durationDays,
+      location: details.location,
+      authority: details.authority,
+      remarks: details.remarks,
+      recordedAt: new Date().toISOString(),
+      recordedBy: `${currentUser.rank} ${currentUser.name}`,
+      status: 'Active',
+    };
+
     setPersonnelList((prev) =>
       prev.map((p) => {
         if (p.id === personnelId) {
+          const currentHist = p.activityHistory || [];
           return {
             ...p,
             ...patch,
+            activityHistory: [autoActivity, ...currentHist],
           };
         }
         return p;
@@ -4368,7 +4477,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncDoc(setDoc(doc(db, 'personnel', personnelId), sanitizeForFirestore(patch), { merge: true }), 'assign out of unit');
     // Sync to Supabase Cloud
     if (isSupabaseConfigured() && person) {
-      upsertSinglePersonnelToSupabase({ ...person, ...patch } as Personnel).catch(() => {});
+      upsertSinglePersonnelToSupabase({
+        ...person,
+        ...patch,
+        activityHistory: [autoActivity, ...(person.activityHistory || [])],
+      } as Personnel).catch(() => {});
+    }
+    // Sync to Server Disk
+    if (person) {
+      fetch('/api/personnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          person: {
+            ...person,
+            ...patch,
+            activityHistory: [autoActivity, ...(person.activityHistory || [])],
+          },
+        }),
+      }).catch(() => {});
     }
   };
 
@@ -4377,6 +4504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('গেস্ট মোডে আউটার ইউনিট বাতিল করা যাবে না (GUEST — VIEW ONLY)।');
       return;
     }
+    const today = new Date().toISOString().split('T')[0];
     const patch: Record<string, any> = {
       status: 'In Unit',
       outOfUnitCategory: null,
@@ -4407,9 +4535,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       comdAuthority: null,
     };
 
+    let updatedHist: ServiceActivityRecord[] = [];
+
     setPersonnelList((prev) =>
       prev.map((p) => {
         if (p.id === personnelId) {
+          // Mark active activities as returned/completed
+          updatedHist = (p.activityHistory || []).map((a) => {
+            if (a.status === 'Active') {
+              return {
+                ...a,
+                status: 'Returned' as const,
+                endDate: a.endDate || today,
+              };
+            }
+            return a;
+          });
+
           return {
             ...p,
             status: 'In Unit',
@@ -4439,6 +4581,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             comdFrom: undefined,
             comdTo: undefined,
             comdAuthority: undefined,
+            activityHistory: updatedHist,
           };
         }
         return p;
@@ -4472,8 +4615,201 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         endDate: undefined,
         authority: undefined,
         remarks: undefined,
+        activityHistory: updatedHist,
       } as Personnel).catch(() => {});
     }
+    // Sync to Server Disk
+    if (person) {
+      fetch('/api/personnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          person: {
+            ...person,
+            status: 'In Unit',
+            outOfUnitCategory: undefined,
+            outOfUnitLocation: undefined,
+            outOfUnitStartDate: undefined,
+            outOfUnitEndDate: undefined,
+            outOfUnitAuthority: undefined,
+            outOfUnitRemarks: undefined,
+            statusDetails: undefined,
+            durationDays: undefined,
+            location: undefined,
+            startDate: undefined,
+            endDate: undefined,
+            authority: undefined,
+            remarks: undefined,
+            activityHistory: updatedHist,
+          },
+        }),
+      }).catch(() => {});
+    }
+  };
+
+  // Dedicated Personnel Career Activity Ledger Handlers
+  const addPersonnelActivity = (
+    personnelId: string,
+    activity: Omit<ServiceActivityRecord, 'id' | 'recordedAt'>
+  ) => {
+    const newRec: ServiceActivityRecord = {
+      ...activity,
+      id: 'act_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      recordedAt: new Date().toISOString(),
+      recordedBy: `${currentUser.rank} ${currentUser.name}`,
+      status: activity.status || 'Active',
+    };
+
+    let fullUpdatedPerson: Personnel | null = null;
+
+    setPersonnelList((prev) =>
+      prev.map((p) => {
+        if (p.id === personnelId) {
+          const currentHist = p.activityHistory || [];
+          fullUpdatedPerson = {
+            ...p,
+            activityHistory: [newRec, ...currentHist],
+          };
+          return fullUpdatedPerson;
+        }
+        return p;
+      })
+    );
+
+    const person = personnelList.find((p) => p.id === personnelId);
+    const updatedHistory = [newRec, ...(person?.activityHistory || [])];
+
+    // 1. Save directly to Supabase PostgreSQL database
+    if (isSupabaseConfigured() && person) {
+      savePersonnelActivityToDatabase(personnelId, updatedHistory).catch((err) =>
+        console.warn('Supabase activity save note:', err)
+      );
+      upsertSinglePersonnelToSupabase({
+        ...person,
+        activityHistory: updatedHistory,
+      } as Personnel).catch((err) => console.warn('Supabase full upsert note:', err));
+    }
+
+    // 2. Save directly to Server Disk storage (/api/personnel)
+    if (person) {
+      const mergedPerson = { ...person, activityHistory: updatedHistory };
+      fetch('/api/personnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person: mergedPerson }),
+      }).catch(() => {});
+    }
+
+    // 3. Sync to Firestore
+    syncDoc(
+      setDoc(
+        doc(db, 'personnel', personnelId),
+        sanitizeForFirestore({ activityHistory: updatedHistory }),
+        { merge: true }
+      ),
+      'add personnel activity'
+    );
+
+    showNotification(`নতুন ক্যারিয়ার অ্যাক্টিভিটি রেকর্ড ডাটাবেজে সংরক্ষণ করা হয়েছে (${newRec.title})।`);
+    addAuditLog(
+      'Activity Logged',
+      `Recorded ${newRec.type} activity for ${person?.rk} ${person?.name}: ${newRec.title}`,
+      'PARADE_STATE'
+    );
+  };
+
+  const updatePersonnelActivity = (
+    personnelId: string,
+    activityId: string,
+    updated: Partial<ServiceActivityRecord>
+  ) => {
+    let fullUpdatedPerson: Personnel | null = null;
+    let finalHistory: ServiceActivityRecord[] = [];
+
+    setPersonnelList((prev) =>
+      prev.map((p) => {
+        if (p.id === personnelId) {
+          const currentHist = (p.activityHistory || []).map((a) =>
+            a.id === activityId ? { ...a, ...updated } : a
+          );
+          finalHistory = currentHist;
+          fullUpdatedPerson = { ...p, activityHistory: currentHist };
+          return fullUpdatedPerson;
+        }
+        return p;
+      })
+    );
+
+    const person = personnelList.find((p) => p.id === personnelId);
+    if (person && isSupabaseConfigured()) {
+      savePersonnelActivityToDatabase(personnelId, finalHistory).catch(() => {});
+      upsertSinglePersonnelToSupabase({
+        ...person,
+        activityHistory: finalHistory,
+      } as Personnel).catch(() => {});
+    }
+
+    if (person) {
+      fetch('/api/personnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person: { ...person, activityHistory: finalHistory } }),
+      }).catch(() => {});
+    }
+
+    syncDoc(
+      setDoc(
+        doc(db, 'personnel', personnelId),
+        sanitizeForFirestore({ activityHistory: finalHistory }),
+        { merge: true }
+      ),
+      'update personnel activity'
+    );
+
+    showNotification('অ্যাক্টিভিটি হিস্ট্রি রেকর্ড ডাটাবেজে সফলভাবে আপডেট করা হয়েছে।');
+  };
+
+  const deletePersonnelActivity = (personnelId: string, activityId: string) => {
+    let finalHistory: ServiceActivityRecord[] = [];
+
+    setPersonnelList((prev) =>
+      prev.map((p) => {
+        if (p.id === personnelId) {
+          const currentHist = (p.activityHistory || []).filter((a) => a.id !== activityId);
+          finalHistory = currentHist;
+          return { ...p, activityHistory: currentHist };
+        }
+        return p;
+      })
+    );
+
+    const person = personnelList.find((p) => p.id === personnelId);
+    if (person && isSupabaseConfigured()) {
+      savePersonnelActivityToDatabase(personnelId, finalHistory).catch(() => {});
+      upsertSinglePersonnelToSupabase({
+        ...person,
+        activityHistory: finalHistory,
+      } as Personnel).catch(() => {});
+    }
+
+    if (person) {
+      fetch('/api/personnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person: { ...person, activityHistory: finalHistory } }),
+      }).catch(() => {});
+    }
+
+    syncDoc(
+      setDoc(
+        doc(db, 'personnel', personnelId),
+        sanitizeForFirestore({ activityHistory: finalHistory }),
+        { merge: true }
+      ),
+      'delete personnel activity'
+    );
+
+    showNotification('অ্যাক্টিভিটি হিস্ট্রি রেকর্ড ডাটাবেজ থেকে মুছে ফেলা হয়েছে।');
   };
 
   // Daily Parade State Management Handlers
@@ -5056,6 +5392,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         assignOutOfUnit,
         cancelOutOfUnit,
+        addPersonnelActivity,
+        updatePersonnelActivity,
+        deletePersonnelActivity,
         syncNominalRollToCloud,
         syncAllToCloud,
 
