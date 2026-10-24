@@ -561,6 +561,16 @@ export interface ParadeTypeDefinition {
 
 export type ParadeDutyCategory = 'Team' | 'Unit Sy' | 'working' | 'Fixed Duty' | 'Others';
 
+export interface TeamMemberSnapshot {
+  id: string;
+  snkNo: string;
+  rk: string;
+  name: string;
+  battery: string;
+  trade?: string;
+  status?: string;
+}
+
 export interface CustomTeam {
   id: string;
   name: string;
@@ -569,6 +579,10 @@ export interface CustomTeam {
   createdAt: string;
   updatedAt?: string;
   createdBy?: string;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  snapshotMembers?: TeamMemberSnapshot[];
 }
 
 export interface ParadeDutyAssignment {
@@ -822,6 +836,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     Admin: {
       main_dashboard: true,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -833,6 +848,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     CO: {
       main_dashboard: true,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -844,6 +860,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     Offr: {
       main_dashboard: true,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -856,6 +873,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       main_dashboard: true,
       rsm_dashboard: true,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -867,6 +885,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     BSM: {
       main_dashboard: false,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -878,6 +897,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     'P BSM': {
       main_dashboard: false,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -889,6 +909,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     'Q BSM': {
       main_dashboard: false,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -900,6 +921,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     'R BSM': {
       main_dashboard: false,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -911,6 +933,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     'HQ BSM': {
       main_dashboard: false,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
@@ -922,9 +945,11 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     Guest: {
       main_dashboard: true,
       battery_dashboard: true,
+      trg_state: true,
       parade_state: true,
       master_personnel: true,
       duty_detail: true,
+      teams: true,
       roll_simulator: true,
       out_of_unit: true,
       admin_panel: true,

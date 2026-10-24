@@ -151,6 +151,7 @@ export const SystemSettingsTab: React.FC = () => {
   const moduleKeys = [
     { key: 'main_dashboard', label: 'Main Dashboard' },
     { key: 'battery_dashboard', label: 'Bty Dashboard' },
+    { key: 'trg_state', label: 'Trg State' },
     { key: 'parade_state', label: 'Parade State' },
     { key: 'master_personnel', label: 'Regt Nominal' },
     { key: 'duty_detail', label: 'Duty Detailing' },

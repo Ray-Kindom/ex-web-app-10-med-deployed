@@ -23,6 +23,7 @@ import { AdminPanelPage } from './pages/AdminPanelPage';
 import { DutyDetailPage } from './pages/DutyDetailPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { OutOfUnitPage } from './pages/OutOfUnitPage';
+import { TrgStatePage } from './pages/TrgStatePage';
 
 const AppContent: React.FC = () => {
   const {
@@ -155,6 +156,13 @@ const AppContent: React.FC = () => {
           <BatteryDashboardPage
             onViewDossier={handleViewDossier}
             onOpenAddModal={() => setIsAddModalOpen(true)}
+            onOpenPrintModal={() => setIsPrintModalOpen(true)}
+          />
+        );
+      case 'trg_state':
+        return (
+          <TrgStatePage
+            onViewDossier={handleViewDossier}
             onOpenPrintModal={() => setIsPrintModalOpen(true)}
           />
         );

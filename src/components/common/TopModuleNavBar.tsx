@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Edit3,
   ArrowRightLeft,
+  Target,
 } from 'lucide-react';
 
 export const TopModuleNavBar: React.FC = () => {
@@ -99,6 +100,13 @@ export const TopModuleNavBar: React.FC = () => {
           },
         ]
       : []),
+    {
+      id: 'trg_state',
+      label: 'Trg State',
+      icon: Target,
+      badge: 'Trg',
+      permissionKey: 'trg_state',
+    },
     {
       id: 'parade_state',
       label: 'Parade State',

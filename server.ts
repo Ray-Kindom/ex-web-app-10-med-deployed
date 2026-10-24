@@ -23,6 +23,40 @@ const USERS_FILE_PATH = path.join(DATA_DIR, 'users.json');
 const DELETED_USERS_FILE_PATH = path.join(DATA_DIR, 'deleted_users.json');
 const APP_STATE_FILE_PATH = path.join(DATA_DIR, 'app_state.json');
 const PERSONNEL_FILE_PATH = path.join(DATA_DIR, 'personnel.json');
+const TEAMS_FILE_PATH = path.join(DATA_DIR, 'teams.json');
+
+function loadServerTeams(): { activeTeams: any[]; teamHistory: any[]; deletedTeamIds: string[] } {
+  try {
+    if (fs.existsSync(TEAMS_FILE_PATH)) {
+      const content = fs.readFileSync(TEAMS_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed) {
+        return {
+          activeTeams: Array.isArray(parsed.activeTeams) ? parsed.activeTeams : [],
+          teamHistory: Array.isArray(parsed.teamHistory) ? parsed.teamHistory : [],
+          deletedTeamIds: Array.isArray(parsed.deletedTeamIds) ? parsed.deletedTeamIds : [],
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading server teams:', err);
+  }
+  return { activeTeams: [], teamHistory: [], deletedTeamIds: [] };
+}
+
+function saveServerTeams(data: { activeTeams?: any[]; teamHistory?: any[]; deletedTeamIds?: string[] }): void {
+  try {
+    const payload = {
+      activeTeams: Array.isArray(data.activeTeams) ? data.activeTeams : [],
+      teamHistory: Array.isArray(data.teamHistory) ? data.teamHistory : [],
+      deletedTeamIds: Array.isArray(data.deletedTeamIds) ? data.deletedTeamIds : [],
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(TEAMS_FILE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving server teams:', err);
+  }
+}
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -489,6 +523,30 @@ async function startServer() {
       const filtered = list.filter((p) => p.id !== targetId && p.snkNo !== targetId);
       saveServerPersonnel(filtered);
       res.json({ success: true, count: filtered.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 7. Centralized Custom Teams & Team History Database Persistence
+  app.get('/api/teams', (req, res) => {
+    try {
+      const data = loadServerTeams();
+      res.json({ success: true, ...data });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/teams', (req, res) => {
+    try {
+      const { activeTeams, teamHistory, deletedTeamIds } = req.body;
+      saveServerTeams({
+        activeTeams: Array.isArray(activeTeams) ? activeTeams : [],
+        teamHistory: Array.isArray(teamHistory) ? teamHistory : [],
+        deletedTeamIds: Array.isArray(deletedTeamIds) ? deletedTeamIds : [],
+      });
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }

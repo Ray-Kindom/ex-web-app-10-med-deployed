@@ -20,6 +20,10 @@ import {
   RotateCcw,
   Undo2,
   AlertTriangle,
+  History,
+  Eye,
+  EyeOff,
+  Archive,
 } from 'lucide-react';
 
 interface TeamsPageProps {
@@ -29,6 +33,7 @@ interface TeamsPageProps {
 export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
   const {
     customTeams,
+    teamHistory = [],
     recentlyDeletedTeams,
     addCustomTeam,
     updateCustomTeam,
@@ -46,6 +51,14 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     isGuest,
     showNotification,
   } = useApp();
+
+  // Tab State: 'active' (সক্রিয় টিম) vs 'history' (ডাটাবেজে সংরক্ষিত টিম হিস্ট্রি)
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState<Record<string, boolean>>({});
+
+  const toggleHistoryExpand = (id: string) => {
+    setExpandedHistoryIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Create / Edit Team Modal/Inline Form state
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -224,6 +237,18 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     );
   }, [customTeams, teamFilterQuery]);
 
+  // Filtered historical teams list based on search
+  const filteredHistoryTeams = useMemo(() => {
+    if (!teamFilterQuery.trim()) return teamHistory;
+    const q = teamFilterQuery.toLowerCase().trim();
+    return teamHistory.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q)) ||
+        (t.deletedBy && t.deletedBy.toLowerCase().includes(q))
+    );
+  }, [teamHistory, teamFilterQuery]);
+
   // Jump to Duty Detailing page
   const handleGoToDutyDetailing = (teamName: string) => {
     setActivePage('duty_detail');
@@ -244,11 +269,11 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                 Team Management / টিম ম্যানেজমেন্ট
               </h1>
               <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono font-bold">
-                {customTeams.length} Teams
+                {activeTab === 'active' ? `${customTeams.length} Active` : `${teamHistory.length} in History`}
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              বিভিন্ন টিম তৈরি করুন, সৈনিক যুক্ত বা পরিবর্তন করুন এবং ডিউটি ডিটেইলিংয়ে এক ক্লিকে ডিটেইল করুন।
+              বিভিন্ন টিম তৈরি করুন, সদস্য পরিবর্তন করুন, মুছে ফেলা হলেও ডাটাবেজ হিস্ট্রিতে পূর্বের সদস্যদের তালিকা দেখুন।
             </p>
           </div>
         </div>
@@ -296,6 +321,65 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
             <Plus className="w-4 h-4" />
             <span>নতুন টিম তৈরি করুন</span>
           </button>
+        </div>
+      </div>
+
+      {/* Navigation Tabs: Active Teams vs Team History */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/60 p-2 rounded-2xl border border-slate-800/80">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('active')}
+            className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'active'
+                ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/40'
+                : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-850 border border-slate-800'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>সক্রিয় টিমসমূহ (Active Teams)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'active'
+                  ? 'bg-rose-700 text-white'
+                  : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {customTeams.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'history'
+                ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/40'
+                : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-850 border border-slate-800'
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>টিম হিস্ট্রি ও ডাটাবেজ রেকর্ড (Team History)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'history'
+                  ? 'bg-amber-700 text-white'
+                  : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {teamHistory.length}
+            </span>
+          </button>
+        </div>
+
+        <div className="text-[11px] font-mono text-slate-400 px-2">
+          {activeTab === 'active' ? (
+            <span>🟢 বর্তমানে প্যারেড ও ডিউটি ডিটেইলিংয়ে ব্যবহারের জন্য মোট {customTeams.length}টি টিম সক্রিয়</span>
+          ) : (
+            <span className="text-amber-400/90">
+              📁 পূর্বে মুছে ফেলা {teamHistory.length}টি টিম ও তাদের সদস্যদের তথ্য ডাটাবেজে স্থায়ীভাবে সংরক্ষিত
+            </span>
+          )}
         </div>
       </div>
 
@@ -543,7 +627,8 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
       )}
 
       {/* 3. TEAMS LIST VIEW */}
-      {filteredTeams.length > 0 ? (
+      {activeTab === 'active' ? (
+        filteredTeams.length > 0 ? (
         <div className="space-y-4">
           {filteredTeams.map((team) => {
             // Member statistics
@@ -846,7 +931,250 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
             <span>প্রথম টিম তৈরি করুন</span>
           </button>
         </div>
-      )}
+      )
+    ) : (
+      /* --- TEAM HISTORY & DATABASE ARCHIVE TAB --- */
+      <div className="space-y-4">
+        {/* Info Banner */}
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3.5 text-xs text-amber-200">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5">
+            <Archive className="w-4 h-4" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-white text-sm">
+                টিম হিস্ট্রি ও ডাটাবেজ রেকর্ড (Preserved Team History & Archive)
+              </h3>
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+                {teamHistory.length}টি টিম সংরক্ষিত
+              </span>
+            </div>
+            <p className="text-amber-300/90 leading-relaxed text-[11px]">
+              সক্রিয় তালিকা থেকে কোনো টিম ডিলিট করা হলেও পেজ রিফ্রেশ দিলে তা আর ফিরবে না। বরং ডাটাবেজে এর স্থায়ী রেকর্ড এবং মুছে ফেলার মুহূর্তে ওই টিমে কারা কারা সদস্য ছিলেন তাদের নাম ও আর্মি নম্বরের পূর্ণ তালিকা এখানে সংরক্ষিত থাকবে। আপনি যেকোনো সময় তালিকা দেখতে পারবেন অথবা এক ক্লিকে পুনরায় সক্রিয় টিমে ফিরিয়ে আনতে পারবেন।
+            </p>
+          </div>
+        </div>
+
+        {filteredHistoryTeams.length > 0 ? (
+          <div className="space-y-4">
+            {filteredHistoryTeams.map((team) => {
+              const isExpanded = Boolean(expandedHistoryIds[team.id]);
+
+              // Resolve members: either from snapshotMembers or from personnelMap
+              let members: { id: string; snkNo: string; rk: string; name: string; battery: string; trade?: string; status?: string }[] = [];
+              if (Array.isArray(team.snapshotMembers) && team.snapshotMembers.length > 0) {
+                members = team.snapshotMembers;
+              } else if (Array.isArray(team.memberIds)) {
+                members = team.memberIds.map((mId) => {
+                  const p = personnelMap.get(mId);
+                  return {
+                    id: mId,
+                    snkNo: p?.snkNo || mId,
+                    rk: p?.rk || '',
+                    name: p?.name || '',
+                    battery: p?.battery || '',
+                    trade: p?.trade || '',
+                    status: p?.status || 'Archived',
+                  };
+                });
+              }
+
+              const btyBreakdown = { 'HQ Bty': 0, 'P Bty': 0, 'Q Bty': 0, 'R Bty': 0 };
+              members.forEach((m) => {
+                if (btyBreakdown[m.battery as keyof typeof btyBreakdown] !== undefined) {
+                  btyBreakdown[m.battery as keyof typeof btyBreakdown]++;
+                }
+              });
+
+              return (
+                <div
+                  key={team.id}
+                  className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl shadow-xl overflow-hidden transition-all"
+                >
+                  {/* History Card Header */}
+                  <div className="p-4 sm:p-5 bg-slate-950/80 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="w-3 h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50 shrink-0" />
+                        <h2 className="text-base sm:text-lg font-bold text-white tracking-wide">
+                          {team.name}
+                        </h2>
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                          <span>মুছে ফেলা হয়েছে (Archived in DB)</span>
+                        </span>
+                        <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                          {members.length} জন সদস্য ছিলেন
+                        </span>
+
+                        {/* Battery Breakdown chips */}
+                        <div className="flex items-center gap-1 text-[11px] font-mono text-slate-400">
+                          {ALL_BATTERIES.map((bty) => (
+                            <span
+                              key={bty}
+                              className="px-1.5 py-0.2 rounded bg-slate-850 text-slate-400 border border-slate-800"
+                            >
+                              {bty}: {btyBreakdown[bty]}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {team.description && (
+                        <p className="text-xs text-slate-400">{team.description}</p>
+                      )}
+
+                      <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400 pt-0.5 flex-wrap">
+                        {team.deletedAt && (
+                          <span className="text-amber-400/90">
+                            📅 মুছে ফেলার সময়: {new Date(team.deletedAt).toLocaleString('bn-BD', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </span>
+                        )}
+                        {team.deletedBy && (
+                          <span>• কে মুছেছেন: <strong className="text-slate-300">{team.deletedBy}</strong></span>
+                        )}
+                        <span>• ID: <span className="text-slate-500">{team.id}</span></span>
+                      </div>
+                    </div>
+
+                    {/* History Card Actions */}
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      {/* Toggle Member List */}
+                      <button
+                        type="button"
+                        onClick={() => toggleHistoryExpand(team.id)}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                            <span>সদস্য তালিকা লুকান</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-amber-400" />
+                            <span>সদস্য তালিকা দেখুন ({members.length})</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Restore to Active Teams */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          restoreCustomTeam(team);
+                          setActiveTab('active');
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-amber-950/40"
+                        title="এই টিমটি পুনরায় সক্রিয় তালিকায় নিয়ে যান"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>সক্রিয় টিমে ফিরিয়ে আনুন (Restore)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Member Roster (Expandable) */}
+                  {isExpanded && (
+                    <div className="p-3 sm:p-4 space-y-3 bg-slate-950/40 border-t border-slate-800 animate-fadeIn">
+                      <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-1">
+                        <span className="font-bold text-slate-300">
+                          টিমে থাকা সদস্যদের সংরক্ষিত তালিকা (Preserved Roster):
+                        </span>
+                        <span>মোট {members.length} জন</span>
+                      </div>
+
+                      {members.length > 0 ? (
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-slate-900">
+                          {/* Table Header */}
+                          <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-mono font-bold text-slate-700">
+                            <div className="col-span-1 text-center">SL</div>
+                            <div className="col-span-2">Army No</div>
+                            <div className="col-span-4">Rank & Name</div>
+                            <div className="col-span-2 text-center">Battery</div>
+                            <div className="col-span-2 text-center">Trade</div>
+                            <div className="col-span-1 text-center">Status</div>
+                          </div>
+
+                          {/* Table Rows */}
+                          <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                            {members.map((soldier, idx) => {
+                              const livePerson = personnelMap.get(soldier.id) || personnelMap.get(soldier.snkNo);
+                              const currentStatus = livePerson?.status || soldier.status || 'In Unit';
+
+                              return (
+                                <div
+                                  key={soldier.id || idx}
+                                  className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-xs hover:bg-slate-50 transition-colors"
+                                >
+                                  <div className="col-span-1 text-center font-mono text-slate-400">
+                                    {idx + 1}.
+                                  </div>
+                                  <div className="col-span-2 font-mono font-bold text-slate-900">
+                                    <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300">
+                                      {soldier.snkNo}
+                                    </span>
+                                  </div>
+                                  <div className="col-span-4 font-semibold text-slate-900 truncate flex items-center gap-1.5">
+                                    <span>{soldier.rk} {soldier.name}</span>
+                                    {onViewDossier && livePerson && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onViewDossier(livePerson)}
+                                        className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                                      >
+                                        (Dossier)
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="col-span-2 text-center font-mono font-bold text-slate-700">
+                                    {soldier.battery}
+                                  </div>
+                                  <div className="col-span-2 text-center font-mono text-slate-500">
+                                    {soldier.trade || '-'}
+                                  </div>
+                                  <div className="col-span-1 text-center">
+                                    <span
+                                      className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                                        currentStatus === 'In Unit' || currentStatus === 'Present'
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : 'bg-amber-100 text-amber-800'
+                                      }`}
+                                    >
+                                      {currentStatus}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-400">
+                          এই টিমে কোনো সদস্যের রেকর্ড নেই।
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-12 text-center bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-slate-800 text-slate-400 flex items-center justify-center">
+              <History className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-white">ডাটাবেজে কোনো মোছা টিমের হিস্ট্রি নেই</h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              আপনি যখন কোনো সক্রিয় টিম মুছে ফেলবেন, তখন সেটি স্বয়ংক্রিয়ভাবে ডাটাবেজ হিস্ট্রিতে এখানে সংরক্ষিত থাকবে এবং পেজ রিফ্রেশ দিলেও আর আগের মতো সক্রিয় তালিকায় ফিরে আসবে না।
+            </p>
+          </div>
+        )}
+      </div>
+    )}
 
       {/* 3. CONFIRM DELETE MODAL (In-app, iframe safe) */}
       {teamPendingDelete && (
@@ -871,9 +1199,14 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                 <span>•</span>
                 <span>ID: {teamPendingDelete.id}</span>
               </div>
-              <p className="text-amber-300/90 text-[11px] bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 leading-relaxed">
-                💡 <strong>চিন্তার কিছু নেই:</strong> ভুলবশত কোনো টিম মুছে ফেললেও আপনি সাথে সাথে নিচে থাকা <strong>"Undo (ফিরিয়ে আনুন)"</strong> বাটন বা উপরের <strong>"মোছা টিম পুনরুদ্ধার"</strong> অপশন থেকে যে কোনো সময় তা এক ক্লিকে ফিরিয়ে আনতে পারবেন।
-              </p>
+              <div className="text-emerald-300/90 text-[11px] bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 leading-relaxed space-y-1">
+                <p>
+                  ✅ <strong>ডাটাবেজ হিস্ট্রি গ্যারান্টি:</strong> টিমটি সক্রিয় তালিকা থেকে স্থায়ীভাবে মুছে যাবে এবং পেজ রিফ্রেশ দিলেও আর স্বয়ংক্রিয়ভাবে ফেরত আসবে না।
+                </p>
+                <p>
+                  📋 কিন্তু ওই টিমে থাকা সকল সদস্যদের নাম, আর্মি নম্বর ও বিবরণ ডাটাবেজের <strong>"টিম হিস্ট্রি ও ডাটাবেজ রেকর্ড"</strong> ট্যাবে আজীবন সংরক্ষিত থাকবে যেন আপনি পরবর্তীতে যেকোনো সময় দেখতে পারেন কারা কারা এই টিমে ছিলেন।
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2.5 pt-2">

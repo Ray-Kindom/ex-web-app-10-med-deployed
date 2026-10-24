@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { StatCard } from '../components/common/StatCard';
+import { QuickRosterWidgets } from '../components/dashboard/QuickRosterWidgets';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
 import { PersonnelTable } from '../components/personnel/PersonnelTable';
 import { Battery, Personnel } from '../types';
@@ -68,6 +69,9 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
   const [inlineSearch, setInlineSearch] = useState('');
   const inlineListRef = useRef<HTMLDivElement>(null);
 
+  // Quick Roster view state for Appointment Holders and Regimental Police
+  const [activeRosterView, setActiveRosterView] = useState<'appointments' | 'rp' | null>(null);
+
   const troopsSectionRef = useRef<HTMLDivElement>(null);
 
   const totals = getRegimentalTotals();
@@ -81,6 +85,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
     subtitle: string,
     color: string
   ) => {
+    setActiveRosterView(null);
     if (inlineCategory?.id === id) {
       setInlineCategory(null);
     } else {
@@ -476,6 +481,18 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           onClick={() => handleToggleCategory('Others', 'Others Out (ERE & External Duties)', 'ইআরই ও অন্যান্য বহিঃস্থ দায়িত্বে থাকা সৈনিকবৃন্দ', 'orange')}
         />
       </div>
+
+      {/* Quick Access Roster Widgets: Appointment Holders & Regimental Police */}
+      <QuickRosterWidgets
+        onViewDossier={onViewDossier}
+        externalActiveView={activeRosterView}
+        onRosterToggled={(view) => {
+          setActiveRosterView(view);
+          if (view) {
+            setInlineCategory(null);
+          }
+        }}
+      />
 
       {/* Inline Drilldown List right underneath the StatCard boxes (No popup window!) */}
       {inlineCategory && (

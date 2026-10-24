@@ -12,6 +12,7 @@ import {
   Shield,
   ShieldAlert,
   ArrowRightLeft,
+  Target,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -87,6 +88,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: currentUser.assignedBattery || 'Bty',
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
       hasSubmenu: true,
+    });
+    items.push({
+      id: 'trg_state',
+      label: 'Trg State',
+      description: 'RET, IPFT, Gren Firing & Firing',
+      icon: Target,
+      badge: 'Trg',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     });
     items.push({
       id: 'parade_state',
@@ -181,6 +190,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
     });
     items.push({
+      id: 'trg_state',
+      label: 'Trg State',
+      description: 'RET, IPFT, Gren Firing & Firing',
+      icon: Target,
+      badge: 'Trg',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+    });
+    items.push({
       id: 'parade_state',
       label: 'Parade State Dashboard',
       description: 'Morning & Evening Muster Roll',
@@ -213,6 +230,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Building2,
       badge: '5 Units',
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+    });
+    items.push({
+      id: 'trg_state',
+      label: 'Trg State',
+      description: 'RET, IPFT, Gren Firing & Firing',
+      icon: Target,
+      badge: 'Trg',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     });
     items.push({
       id: 'parade_state',
