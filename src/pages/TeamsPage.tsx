@@ -1118,15 +1118,17 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                                     </span>
                                   </div>
                                   <div className="col-span-4 font-semibold text-slate-900 truncate flex items-center gap-1.5">
-                                    <span>{soldier.rk} {soldier.name}</span>
-                                    {onViewDossier && livePerson && (
+                                    {onViewDossier && livePerson ? (
                                       <button
                                         type="button"
                                         onClick={() => onViewDossier(livePerson)}
-                                        className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                                        className="hover:text-rose-600 hover:underline cursor-pointer text-left transition-colors truncate"
+                                        title="ক্লিক করে ডসিয়ার দেখুন"
                                       >
-                                        (Dossier)
+                                        <span>{soldier.rk} {soldier.name}</span>
                                       </button>
+                                    ) : (
+                                      <span>{soldier.rk} {soldier.name}</span>
                                     )}
                                   </div>
                                   <div className="col-span-2 text-center font-mono font-bold text-slate-700">

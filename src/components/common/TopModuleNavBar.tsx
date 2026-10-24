@@ -10,6 +10,7 @@ import {
   Edit3,
   ArrowRightLeft,
   Target,
+  GraduationCap,
 } from 'lucide-react';
 
 export const TopModuleNavBar: React.FC = () => {
@@ -105,6 +106,13 @@ export const TopModuleNavBar: React.FC = () => {
       label: 'Trg State',
       icon: Target,
       badge: 'Trg',
+      permissionKey: 'trg_state',
+    },
+    {
+      id: 'course_qualification',
+      label: 'Course/Cdre Qual',
+      icon: GraduationCap,
+      badge: 'Course',
       permissionKey: 'trg_state',
     },
     {

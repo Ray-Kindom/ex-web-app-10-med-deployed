@@ -24,6 +24,7 @@ import { DutyDetailPage } from './pages/DutyDetailPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { OutOfUnitPage } from './pages/OutOfUnitPage';
 import { TrgStatePage } from './pages/TrgStatePage';
+import { CourseQualificationPage } from './pages/CourseQualificationPage';
 
 const AppContent: React.FC = () => {
   const {
@@ -57,6 +58,8 @@ const AppContent: React.FC = () => {
       activePage === 'offr_dashboard' ||
       activePage === 'rsm_dashboard'
         ? 'main_dashboard'
+        : activePage === 'course_qualification'
+        ? 'trg_state'
         : activePage;
 
     // RBAC Security Check
@@ -162,6 +165,13 @@ const AppContent: React.FC = () => {
       case 'trg_state':
         return (
           <TrgStatePage
+            onViewDossier={handleViewDossier}
+            onOpenPrintModal={() => setIsPrintModalOpen(true)}
+          />
+        );
+      case 'course_qualification':
+        return (
+          <CourseQualificationPage
             onViewDossier={handleViewDossier}
             onOpenPrintModal={() => setIsPrintModalOpen(true)}
           />

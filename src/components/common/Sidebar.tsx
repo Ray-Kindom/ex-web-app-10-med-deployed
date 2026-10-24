@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   ArrowRightLeft,
   Target,
+  GraduationCap,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -95,6 +96,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       description: 'RET, IPFT, Gren Firing & Firing',
       icon: Target,
       badge: 'Trg',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+    });
+    items.push({
+      id: 'course_qualification',
+      label: 'Course / Cdre',
+      description: 'Course & Cadre Qualification',
+      icon: GraduationCap,
+      badge: 'Course',
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     });
     items.push({
@@ -198,6 +207,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     });
     items.push({
+      id: 'course_qualification',
+      label: 'Course / Cdre',
+      description: 'Course & Cadre Qualification',
+      icon: GraduationCap,
+      badge: 'Course',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+    });
+    items.push({
       id: 'parade_state',
       label: 'Parade State Dashboard',
       description: 'Morning & Evening Muster Roll',
@@ -237,6 +254,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       description: 'RET, IPFT, Gren Firing & Firing',
       icon: Target,
       badge: 'Trg',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+    });
+    items.push({
+      id: 'course_qualification',
+      label: 'Course / Cdre',
+      description: 'Course & Cadre Qualification',
+      icon: GraduationCap,
+      badge: 'Course',
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     });
     items.push({

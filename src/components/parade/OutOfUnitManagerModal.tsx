@@ -979,7 +979,21 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                         <td className="py-3 px-3">
                           <div className="font-bold text-slate-200">
                             <span className="text-rose-400 font-mono mr-1.5">{person.rk}</span>
-                            <span>{person.name}</span>
+                            {onViewDossier ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onClose();
+                                  onViewDossier(person);
+                                }}
+                                className="hover:text-emerald-400 hover:underline cursor-pointer text-left transition-colors"
+                                title="ক্লিক করে ডসিয়ার দেখুন"
+                              >
+                                {person.name}
+                              </button>
+                            ) : (
+                              <span>{person.name}</span>
+                            )}
                           </div>
                           {person.batch && (
                             <span className="text-[10px] text-slate-500 font-mono">
@@ -1009,20 +1023,6 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                         </td>
                         <td className="py-3 px-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {onViewDossier && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onClose();
-                                  onViewDossier(person);
-                                }}
-                                title="View Soldier Dossier"
-                                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-semibold transition-all inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <User className="w-3 h-3 text-rose-400" />
-                                <span>Dossier</span>
-                              </button>
-                            )}
                             <button
                               type="button"
                               onClick={() => startInlineEdit(person)}

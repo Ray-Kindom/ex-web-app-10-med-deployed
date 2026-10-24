@@ -357,7 +357,6 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
                     <th className="p-3">Appointment / Role</th>
                     <th className="p-3">Parade Status</th>
                     <th className="p-3">Details / Location</th>
-                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -369,7 +368,14 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
                           <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono text-[11px] font-bold border border-indigo-500/20">
                             {offr.rk}
                           </span>
-                          <span>{offr.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => onViewDossier(offr)}
+                            className="hover:text-emerald-400 hover:underline cursor-pointer text-left transition-colors font-semibold"
+                            title="ক্লিক করে ডসিয়ার দেখুন"
+                          >
+                            {offr.name}
+                          </button>
                         </div>
                       </td>
                       <td className="p-3 font-mono text-slate-300">{offr.battery}</td>
@@ -391,14 +397,6 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
                       </td>
                       <td className="p-3 text-slate-400 text-xs">
                         {offr.statusDetails || offr.rmk || 'In Unit'}
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => onViewDossier(offr)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-                        >
-                          Dossier
-                        </button>
                       </td>
                     </tr>
                   ))}

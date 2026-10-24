@@ -1095,7 +1095,6 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       <th className="py-2.5 px-3">ব্যাটারী</th>
                       <th className="py-2.5 px-3">বর্তমান প্যারেড স্টেটাস</th>
                       <th className="py-2.5 px-3">যোগাযোগ</th>
-                      <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-200">
@@ -1120,7 +1119,18 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
                               <RankBadge rank={item.rk} size="sm" />
-                              <span className="font-semibold text-white">{item.name}</span>
+                              {person ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onViewDossier(person)}
+                                  className="font-semibold text-white hover:text-amber-300 hover:underline cursor-pointer text-left transition-colors"
+                                  title="ক্লিক করে ডসিয়ার দেখুন"
+                                >
+                                  {item.name}
+                                </button>
+                              ) : (
+                                <span className="font-semibold text-white">{item.name}</span>
+                              )}
                             </div>
                           </td>
 
@@ -1158,21 +1168,6 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                               <span className="text-slate-600">—</span>
                             )}
                           </td>
-
-                          {/* Action Dossier */}
-                          <td className="py-2.5 px-3 text-right">
-                            {person ? (
-                              <button
-                                onClick={() => onViewDossier(person)}
-                                className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                <span>ডসিয়ার</span>
-                              </button>
-                            ) : (
-                              <span className="text-slate-600 text-xs">—</span>
-                            )}
-                          </td>
                         </tr>
                       );
                     })}
@@ -1200,7 +1195,6 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       <th className="py-2.5 px-3">শিফট / সময়সূচী</th>
                       <th className="py-2.5 px-3">ডিউটি লোকেশন</th>
                       <th className="py-2.5 px-3">স্টেটাস</th>
-                      <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-200">
@@ -1225,7 +1219,18 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
                               <RankBadge rank={item.rk} size="sm" />
-                              <span className="font-semibold text-white">{item.name}</span>
+                              {person ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onViewDossier(person)}
+                                  className="font-semibold text-white hover:text-indigo-300 hover:underline cursor-pointer text-left transition-colors"
+                                  title="ক্লিক করে ডসিয়ার দেখুন"
+                                >
+                                  {item.name}
+                                </button>
+                              ) : (
+                                <span className="font-semibold text-white">{item.name}</span>
+                              )}
                             </div>
                           </td>
 
@@ -1266,21 +1271,6 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           {/* Status */}
                           <td className="py-2.5 px-3">
                             <StatusBadge status={item.status} details={item.statusDetails} size="sm" />
-                          </td>
-
-                          {/* Action Dossier */}
-                          <td className="py-2.5 px-3 text-right">
-                            {person ? (
-                              <button
-                                onClick={() => onViewDossier(person)}
-                                className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 hover:border-indigo-500/50 text-[11px] font-semibold transition-all cursor-pointer inline-flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                <span>ডসিয়ার</span>
-                              </button>
-                            ) : (
-                              <span className="text-slate-600 text-xs">—</span>
-                            )}
                           </td>
                         </tr>
                       );

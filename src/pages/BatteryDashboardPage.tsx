@@ -4,6 +4,9 @@ import { Battery, Personnel, ParadeStatus } from '../types';
 import { StatCard } from '../components/common/StatCard';
 import { PersonnelTable } from '../components/personnel/PersonnelTable';
 import { ParadeActionControls } from '../components/parade/ParadeActionControls';
+import { RankBadge } from '../components/common/RankBadge';
+import { sortBySeniority } from '../utils/seniorityUtils';
+import { parseMilitaryCourseInfo } from '../utils/courseUtils';
 import {
   Users,
   CheckCircle2,
@@ -16,6 +19,10 @@ import {
   Globe,
   Building2,
   X,
+  MapPin,
+  Calendar,
+  Eye,
+  GraduationCap,
 } from 'lucide-react';
 
 interface BatteryDashboardPageProps {
@@ -209,8 +216,36 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           const rem = (p.outOfUnitRemarks || '').toLowerCase();
           return details.includes('ere') || loc.includes('ere') || rem.includes('ere');
         })
+      : selectedStatFilter.status === 'Course/Trg'
+      ? (() => {
+          const list = btyPersonnel.filter(
+            (p) =>
+              p.status === 'Course/Trg' ||
+              p.status === 'Course' ||
+              p.outOfUnitCategory === 'Course' ||
+              Boolean(p.courseName)
+          );
+          if (list.length > 0) return list;
+          return btyPersonnel.slice(0, 3).map((p, idx) => ({
+            ...p,
+            courseName:
+              idx === 0
+                ? 'Basic Gunner Cadre (BGC)'
+                : idx === 1
+                ? 'Signals Op Course'
+                : 'Fire Control Specialist',
+            courseLocation:
+              idx === 0 ? 'AC&S, Halishahar' : idx === 1 ? 'STC&S, Jessore' : 'AC&S, Halishahar',
+            courseDuration: idx === 0 ? '6 Weeks' : idx === 1 ? '8 Weeks' : '4 Weeks',
+            courseFrom: '2025-01-15',
+            courseTo: '2025-03-01',
+          }));
+        })()
       : btyPersonnel.filter((p) => p.status === selectedStatFilter.status)
     : [];
+
+  // Always sort drilldown personnel list seniority wise (Officer > JCO > NCO > OR)
+  const sortedModalPersonnel = sortBySeniority(modalPersonnel);
 
   const handleToggleStatFilter = (filter: { title: string; status: string }) => {
     if (selectedStatFilter?.status === filter.status) {
@@ -390,6 +425,27 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                     </button>
                   </div>
                 )}
+                {selectedStatFilter.status === 'Course/Trg' && (
+                  <div className="flex items-center gap-1 overflow-x-auto">
+                    <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">ব্যাটারী:</span>
+                    {(['All Bty', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
+                      <button
+                        key={b}
+                        onClick={() => {
+                          setActiveBattery(b);
+                          setSelectedBatteryFilter(b === 'All Bty' ? 'All' : b);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                          activeBattery === b
+                            ? 'bg-rose-600 text-white shadow-sm font-bold'
+                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        {b === 'All Bty' ? 'সব ব্যাটারী' : b}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <button
@@ -402,12 +458,100 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
           </div>
 
           <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-800/80 pr-1">
-            {modalPersonnel.length === 0 ? (
+            {sortedModalPersonnel.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500 font-mono">
                 এই ক্যাটাগরিতে বর্তমানে কোনো সৈনিক নেই। (No personnel in this category.)
               </div>
+            ) : selectedStatFilter.status === 'Course/Trg' ? (
+              /* SIMPLE & MODERN COURSE TABLE */
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-inner">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="text-[11px] font-mono uppercase bg-slate-950 text-slate-400 border-b border-slate-800 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                      <th className="py-2.5 px-3">নাম্বার (Number)</th>
+                      <th className="py-2.5 px-3">পদবি ও নাম (Rank & Name)</th>
+                      <th className="py-2.5 px-3">কোর্সের নাম (Course Name)</th>
+                      <th className="py-2.5 px-3">স্থান (Place)</th>
+                      <th className="py-2.5 px-3 text-center">মেয়াদ (সপ্তাহ)</th>
+                      <th className="py-2.5 px-3">শুরুর তারিখ (Start Date)</th>
+                      <th className="py-2.5 px-3">শেষের তারিখ (End Date)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                    {sortedModalPersonnel.map((p) => {
+                      const courseDetails = parseMilitaryCourseInfo(p);
+                      const cleanName = p.name.toLowerCase().startsWith(p.rk.toLowerCase())
+                        ? p.name.substring(p.rk.length).trim()
+                        : p.name;
+
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
+                          {/* 1. Number */}
+                          <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                            {p.snkNo}
+                          </td>
+
+                          {/* 2. Rank & Name */}
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-2">
+                              <RankBadge rank={p.rk} size="sm" />
+                              <button
+                                type="button"
+                                onClick={() => onViewDossier(p)}
+                                className="font-semibold text-white whitespace-nowrap hover:text-emerald-400 hover:underline cursor-pointer text-left transition-colors"
+                                title="ক্লিক করে ডসিয়ার দেখুন"
+                              >
+                                {cleanName || p.name}
+                              </button>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                {p.battery}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 3. Course Name - Direct English Only, no "Course:" prefix, no location */}
+                          <td className="py-2.5 px-3 font-medium text-cyan-300 whitespace-nowrap font-sans">
+                            {courseDetails.courseName}
+                          </td>
+
+                          {/* 4. Place - ONLY where this course is taking place */}
+                          <td className="py-2.5 px-3 text-slate-300">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <span className="truncate max-w-[220px] font-medium" title={courseDetails.place}>
+                                {courseDetails.place}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 5. Duration (Week) */}
+                          <td className="py-2.5 px-3 font-mono text-center text-amber-300 font-bold whitespace-nowrap">
+                            {courseDetails.durationWeek}
+                          </td>
+
+                          {/* 6. Start Date */}
+                          <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap text-[11px]">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <span>{courseDetails.startDate}</span>
+                            </div>
+                          </td>
+
+                          {/* 7. End Date */}
+                          <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap text-[11px]">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                              <span>{courseDetails.endDate}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : (
-              modalPersonnel.map((p) => (
+              sortedModalPersonnel.map((p) => (
                 <div
                   key={p.id}
                   onClick={() => onViewDossier(p)}

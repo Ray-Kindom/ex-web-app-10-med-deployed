@@ -1001,8 +1001,10 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                     {/* 5. Full Name */}
                     <td className="py-2.5 px-4 font-semibold text-white whitespace-nowrap">
                       <button
+                        type="button"
                         onClick={() => onViewDossier(person)}
-                        className="text-left hover:text-rose-400 transition-colors group-hover:underline"
+                        className="text-left hover:text-emerald-400 hover:underline transition-colors cursor-pointer"
+                        title="ক্লিক করে ডসিয়ার দেখুন (Click to view dossier)"
                       >
                         {person.name}
                       </button>
@@ -1118,14 +1120,6 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                     {/* 10. Actions */}
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => onViewDossier(person)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
-                          title="View Dossier"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-rose-400" />
-                          <span>Dossier</span>
-                        </button>
                         {(onEditPerson || canEditPerson(person)) && (
                           <button
                             type="button"
