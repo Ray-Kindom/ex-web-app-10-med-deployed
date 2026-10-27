@@ -52,7 +52,7 @@ export const TRADE_INFO: Record<string, { label: string; full: string; color: st
   },
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
+const CATEGORY_COLORS_DARK: Record<string, string> = {
   COMBAT: 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40',
   TECHNICAL: 'bg-cyan-950/60 text-cyan-300 border-cyan-500/40',
   SERVICES: 'bg-rose-950/60 text-rose-300 border-rose-500/40',
@@ -61,17 +61,37 @@ const CATEGORY_COLORS: Record<string, string> = {
   OTHER: 'bg-slate-800 text-slate-300 border-slate-700',
 };
 
+const CATEGORY_COLORS_LIGHT: Record<string, string> = {
+  COMBAT: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+  TECHNICAL: 'bg-cyan-100 text-cyan-900 border-cyan-300',
+  SERVICES: 'bg-rose-100 text-rose-900 border-rose-300',
+  SUPPORT: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+  CIVILIAN: 'bg-amber-100 text-amber-900 border-amber-300',
+  OTHER: 'bg-slate-100 text-slate-800 border-slate-300',
+};
+
+const TRADE_INFO_LIGHT: Record<string, string> = {
+  TA: 'bg-cyan-100 text-cyan-900 border-cyan-300',
+  OCU: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+  DMT: 'bg-amber-100 text-amber-900 border-amber-300',
+  Gnr: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+  'Ck(U)': 'bg-rose-100 text-rose-900 border-rose-300',
+  Tech: 'bg-purple-100 text-purple-900 border-purple-300',
+  GD: 'bg-slate-100 text-slate-800 border-slate-300',
+};
+
 export const TradeBadge: React.FC<TradeBadgeProps> = ({
   trade,
   size = 'sm',
   showDescription = false,
 }) => {
-  const { tradesList } = useApp();
+  const { tradesList, theme } = useApp();
+  const isLight = theme === 'light';
 
   // If trade is officer or empty
   if (!trade || trade === '-') {
     return (
-      <span className="text-slate-500 font-mono text-[10px] italic">
+      <span className="text-slate-400 font-mono text-[10px] italic">
         -
       </span>
     );
@@ -85,7 +105,7 @@ export const TradeBadge: React.FC<TradeBadgeProps> = ({
   let label = trade;
   let full = trade;
   let desc = 'Artillery Regimental Specialist';
-  let color = 'bg-slate-800 text-slate-300 border-slate-700';
+  let color = isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700';
 
   if (dynamicTrade) {
     label = dynamicTrade.code || dynamicTrade.name;
@@ -93,13 +113,13 @@ export const TradeBadge: React.FC<TradeBadgeProps> = ({
       ? `${dynamicTrade.name} (${dynamicTrade.banglaName})`
       : dynamicTrade.name;
     desc = dynamicTrade.description || `${dynamicTrade.category} Trade`;
-    color = CATEGORY_COLORS[dynamicTrade.category] || color;
+    color = (isLight ? CATEGORY_COLORS_LIGHT[dynamicTrade.category] : CATEGORY_COLORS_DARK[dynamicTrade.category]) || color;
   } else if (TRADE_INFO[trade]) {
     const staticInfo = TRADE_INFO[trade];
     label = staticInfo.label;
     full = staticInfo.full;
     desc = staticInfo.desc;
-    color = staticInfo.color;
+    color = isLight ? (TRADE_INFO_LIGHT[trade] || 'bg-slate-100 text-slate-800 border-slate-300') : staticInfo.color;
   }
 
   return (
@@ -112,7 +132,9 @@ export const TradeBadge: React.FC<TradeBadgeProps> = ({
         {label}
       </span>
       {showDescription && (
-        <span className="text-[10px] text-slate-400 font-sans hidden sm:inline truncate max-w-[120px]">
+        <span className={`text-[10px] font-sans hidden sm:inline truncate max-w-[120px] ${
+          isLight ? 'text-slate-600' : 'text-slate-400'
+        }`}>
           {full}
         </span>
       )}

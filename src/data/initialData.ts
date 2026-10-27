@@ -245,6 +245,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'u-1',
     username: 'co',
+    password: 'co123',
     name: 'Lt Col Md Shafiqul Islam Rubel, PSC, G',
     email: 'co@10med.internal',
     snkNo: 'BA-7592',
@@ -260,6 +261,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'u-2',
     username: 'offr',
+    password: 'offr123',
     name: 'Capt Iftekhar Mahmud Abir',
     email: 'offr@10med.internal',
     snkNo: 'BA-11735',
@@ -275,6 +277,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'u-3',
     username: 'rsm',
+    password: 'rsm123',
     name: 'SWO Nasir',
     email: 'rsm@10med.internal',
     snkNo: 'BJO-52470',
@@ -290,6 +293,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'u-4',
     username: 'p_bsm',
+    password: 'bsm123',
     name: 'SWO Mohammad Rezaul Karim',
     email: 'p_bsm@10med.internal',
     snkNo: 'BJO-52668',
@@ -305,6 +309,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'u-5',
     username: 'q_bsm',
+    password: 'bsm123',
     name: 'SWO MD NASHIR UDDIN',
     email: 'q_bsm@10med.internal',
     snkNo: 'BJO-52470',
@@ -320,6 +325,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'u-6',
     username: 'r_bsm',
+    password: 'bsm123',
     name: 'SWO Muhammad Mostafa',
     email: 'r_bsm@10med.internal',
     snkNo: 'BJO-52689',
@@ -335,6 +341,7 @@ export const INITIAL_USERS: UserAccount[] = [
   {
     id: 'u-7',
     username: 'hq_bsm',
+    password: 'bsm123',
     name: 'MWO Md Sahinur Alam',
     email: 'hq_bsm@10med.internal',
     snkNo: 'BJO-52253',

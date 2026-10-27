@@ -1,5 +1,6 @@
 import React from 'react';
 import { ParadeStatus } from '../../types';
+import { useApp } from '../../context/AppContext';
 
 interface StatusBadgeProps {
   status: ParadeStatus | string;
@@ -18,140 +19,143 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   size = 'md',
   showDot = true,
 }) => {
+  const { theme } = useApp();
+  const isLight = theme === 'light';
+
   const getStatusConfig = (st: string) => {
     switch (st) {
       case 'In Unit':
       case 'Present':
         return {
-          bg: 'bg-emerald-500/15',
-          text: 'text-emerald-400',
-          border: 'border-emerald-500/30',
-          dot: 'bg-emerald-400 shadow-emerald-400/50',
+          bg: isLight ? 'bg-emerald-100' : 'bg-emerald-500/15',
+          text: isLight ? 'text-emerald-900 font-semibold' : 'text-emerald-400',
+          border: isLight ? 'border-emerald-300' : 'border-emerald-500/30',
+          dot: isLight ? 'bg-emerald-600' : 'bg-emerald-400 shadow-emerald-400/50',
           label: 'In Unit (On Parade)',
         };
       case 'On Duty':
         return {
-          bg: 'bg-blue-500/15',
-          text: 'text-blue-400',
-          border: 'border-blue-500/30',
-          dot: 'bg-blue-400 shadow-blue-400/50',
+          bg: isLight ? 'bg-blue-100' : 'bg-blue-500/15',
+          text: isLight ? 'text-blue-900 font-semibold' : 'text-blue-400',
+          border: isLight ? 'border-blue-300' : 'border-blue-500/30',
+          dot: isLight ? 'bg-blue-600' : 'bg-blue-400 shadow-blue-400/50',
           label: 'Off Parade: Duty',
         };
       case 'Line Sick':
         return {
-          bg: 'bg-orange-500/15',
-          text: 'text-orange-400',
-          border: 'border-orange-500/30',
-          dot: 'bg-orange-400 shadow-orange-400/50',
+          bg: isLight ? 'bg-orange-100' : 'bg-orange-500/15',
+          text: isLight ? 'text-orange-900 font-semibold' : 'text-orange-400',
+          border: isLight ? 'border-orange-300' : 'border-orange-500/30',
+          dot: isLight ? 'bg-orange-600' : 'bg-orange-400 shadow-orange-400/50',
           label: 'Line Sick (Off Parade)',
         };
       case 'P/Lve':
         return {
-          bg: 'bg-purple-500/15',
-          text: 'text-purple-400',
-          border: 'border-purple-500/30',
-          dot: 'bg-purple-400 shadow-purple-400/50',
+          bg: isLight ? 'bg-purple-100' : 'bg-purple-500/15',
+          text: isLight ? 'text-purple-900 font-semibold' : 'text-purple-400',
+          border: isLight ? 'border-purple-300' : 'border-purple-500/30',
+          dot: isLight ? 'bg-purple-600' : 'bg-purple-400 shadow-purple-400/50',
           label: 'P/Lve (Leave)',
         };
       case 'C/Lve':
         return {
-          bg: 'bg-fuchsia-500/15',
-          text: 'text-fuchsia-400',
-          border: 'border-fuchsia-500/30',
-          dot: 'bg-fuchsia-400 shadow-fuchsia-400/50',
+          bg: isLight ? 'bg-fuchsia-100' : 'bg-fuchsia-500/15',
+          text: isLight ? 'text-fuchsia-900 font-semibold' : 'text-fuchsia-400',
+          border: isLight ? 'border-fuchsia-300' : 'border-fuchsia-500/30',
+          dot: isLight ? 'bg-fuchsia-600' : 'bg-fuchsia-400 shadow-fuchsia-400/50',
           label: 'C/Lve (Leave)',
         };
       case 'Leave':
         return {
-          bg: 'bg-purple-500/15',
-          text: 'text-purple-400',
-          border: 'border-purple-500/30',
-          dot: 'bg-purple-400 shadow-purple-400/50',
+          bg: isLight ? 'bg-purple-100' : 'bg-purple-500/15',
+          text: isLight ? 'text-purple-900 font-semibold' : 'text-purple-400',
+          border: isLight ? 'border-purple-300' : 'border-purple-500/30',
+          dot: isLight ? 'bg-purple-600' : 'bg-purple-400 shadow-purple-400/50',
           label: 'Leave',
         };
       case 'Course':
       case 'Course/Trg':
         return {
-          bg: 'bg-cyan-500/15',
-          text: 'text-cyan-400',
-          border: 'border-cyan-500/30',
-          dot: 'bg-cyan-400 shadow-cyan-400/50',
+          bg: isLight ? 'bg-cyan-100' : 'bg-cyan-500/15',
+          text: isLight ? 'text-cyan-900 font-semibold' : 'text-cyan-400',
+          border: isLight ? 'border-cyan-300' : 'border-cyan-500/30',
+          dot: isLight ? 'bg-cyan-600' : 'bg-cyan-400 shadow-cyan-400/50',
           label: 'Course',
         };
       case 'CMH':
       case 'CMH/Sick':
         return {
-          bg: 'bg-amber-500/15',
-          text: 'text-amber-400',
-          border: 'border-amber-500/30',
-          dot: 'bg-amber-400 shadow-amber-400/50',
+          bg: isLight ? 'bg-amber-100' : 'bg-amber-500/15',
+          text: isLight ? 'text-amber-900 font-semibold' : 'text-amber-400',
+          border: isLight ? 'border-amber-300' : 'border-amber-500/30',
+          dot: isLight ? 'bg-amber-600' : 'bg-amber-400 shadow-amber-400/50',
           label: 'CMH (Hospital)',
         };
       case 'FDMN':
         return {
-          bg: 'bg-indigo-500/15',
-          text: 'text-indigo-400',
-          border: 'border-indigo-500/30',
-          dot: 'bg-indigo-400 shadow-indigo-400/50',
+          bg: isLight ? 'bg-indigo-100' : 'bg-indigo-500/15',
+          text: isLight ? 'text-indigo-900 font-semibold' : 'text-indigo-400',
+          border: isLight ? 'border-indigo-300' : 'border-indigo-500/30',
+          dot: isLight ? 'bg-indigo-600' : 'bg-indigo-400 shadow-indigo-400/50',
           label: 'FDMN (Field Duty)',
         };
       case 'Comd':
       case 'Temp Duty':
         return {
-          bg: 'bg-blue-500/15',
-          text: 'text-blue-400',
-          border: 'border-blue-500/30',
-          dot: 'bg-blue-400 shadow-blue-400/50',
+          bg: isLight ? 'bg-blue-100' : 'bg-blue-500/15',
+          text: isLight ? 'text-blue-900 font-semibold' : 'text-blue-400',
+          border: isLight ? 'border-blue-300' : 'border-blue-500/30',
+          dot: isLight ? 'bg-blue-600' : 'bg-blue-400 shadow-blue-400/50',
           label: 'Comd (Task)',
         };
       case 'Att':
       case 'Attached Out':
         return {
-          bg: 'bg-teal-500/15',
-          text: 'text-teal-400',
-          border: 'border-teal-500/30',
-          dot: 'bg-teal-400 shadow-teal-400/50',
+          bg: isLight ? 'bg-teal-100' : 'bg-teal-500/15',
+          text: isLight ? 'text-teal-900 font-semibold' : 'text-teal-400',
+          border: isLight ? 'border-teal-300' : 'border-teal-500/30',
+          dot: isLight ? 'bg-teal-600' : 'bg-teal-400 shadow-teal-400/50',
           label: 'Att (Attachment)',
         };
       case 'Msn':
         return {
-          bg: 'bg-sky-500/15',
-          text: 'text-sky-400',
-          border: 'border-sky-500/30',
-          dot: 'bg-sky-400 shadow-sky-400/50',
+          bg: isLight ? 'bg-sky-100' : 'bg-sky-500/15',
+          text: isLight ? 'text-sky-900 font-semibold' : 'text-sky-400',
+          border: isLight ? 'border-sky-300' : 'border-sky-500/30',
+          dot: isLight ? 'bg-sky-600' : 'bg-sky-400 shadow-sky-400/50',
           label: 'UN Mission',
         };
       case 'ERE':
         return {
-          bg: 'bg-violet-500/15',
-          text: 'text-violet-400',
-          border: 'border-violet-500/30',
-          dot: 'bg-violet-400 shadow-violet-400/50',
+          bg: isLight ? 'bg-violet-100' : 'bg-violet-500/15',
+          text: isLight ? 'text-violet-900 font-semibold' : 'text-violet-400',
+          border: isLight ? 'border-violet-300' : 'border-violet-500/30',
+          dot: isLight ? 'bg-violet-600' : 'bg-violet-400 shadow-violet-400/50',
           label: 'ERE (Non-Posted)',
         };
       case 'Civilian':
         return {
-          bg: 'bg-slate-500/15',
-          text: 'text-slate-400',
-          border: 'border-slate-500/30',
-          dot: 'bg-slate-400 shadow-slate-400/50',
+          bg: isLight ? 'bg-slate-100' : 'bg-slate-500/15',
+          text: isLight ? 'text-slate-800 font-semibold' : 'text-slate-400',
+          border: isLight ? 'border-slate-300' : 'border-slate-500/30',
+          dot: isLight ? 'bg-slate-500' : 'bg-slate-400 shadow-slate-400/50',
           label: 'Civilian Staff',
         };
       case 'AWOL':
       case 'AWOL/OSL':
         return {
-          bg: 'bg-rose-500/15',
-          text: 'text-rose-400',
-          border: 'border-rose-500/30',
-          dot: 'bg-rose-400 shadow-rose-400/50',
+          bg: isLight ? 'bg-rose-100' : 'bg-rose-500/15',
+          text: isLight ? 'text-rose-900 font-semibold' : 'text-rose-400',
+          border: isLight ? 'border-rose-300' : 'border-rose-500/30',
+          dot: isLight ? 'bg-rose-600' : 'bg-rose-400 shadow-rose-400/50',
           label: 'AWOL / OSL',
         };
       default:
         return {
-          bg: 'bg-slate-700/50',
-          text: 'text-slate-300',
-          border: 'border-slate-600',
-          dot: 'bg-slate-400',
+          bg: isLight ? 'bg-slate-100' : 'bg-slate-700/50',
+          text: isLight ? 'text-slate-800 font-semibold' : 'text-slate-300',
+          border: isLight ? 'border-slate-300' : 'border-slate-600',
+          dot: isLight ? 'bg-slate-500' : 'bg-slate-400',
           label: st,
         };
     }
@@ -194,13 +198,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       >
         {showDot && (
           <span
-            className={`w-1.5 h-1.5 rounded-full ${config.dot} shadow-[0_0_8px_rgba(0,0,0,0.5)]`}
+            className={`w-1.5 h-1.5 rounded-full ${config.dot} ${isLight ? 'shadow-sm' : 'shadow-[0_0_8px_rgba(0,0,0,0.5)]'}`}
           />
         )}
         <span>{config.label}</span>
       </span>
       {details && (
-        <span className="text-[10px] text-slate-400 pl-1 max-w-[170px] truncate" title={details}>
+        <span className={`text-[10px] pl-1 max-w-[170px] truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`} title={details}>
           {details}
         </span>
       )}

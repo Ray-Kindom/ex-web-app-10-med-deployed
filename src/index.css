@@ -8,3 +8,514 @@ div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-t
 div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(3) > div:nth-of-type(2) {
   display: none !important;
 }
+
+/* ==========================================================================
+   THEME ARCHITECTURE: LIGHT & DARK MILITARY COMMAND THEMES
+   ========================================================================== */
+
+/* Dark Theme Default */
+:root,
+html[data-theme="dark"],
+body.dark-theme {
+  color-scheme: dark;
+}
+
+/* Light Theme Root */
+html[data-theme="light"],
+body.light-theme,
+.light-theme {
+  color-scheme: light;
+}
+
+/* Base Document Styling in Light Theme */
+html[data-theme="light"] body,
+body.light-theme {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* ==========================================================================
+   LIGHT THEME DIRECT CLASS TRANSFORMATIONS & HIGH CONTRAST READABILITY
+   ========================================================================== */
+html[data-theme="light"] {
+  /* Surfaces & Backgrounds */
+  .bg-slate-950,
+  [class*="bg-slate-950"] {
+    background-color: #f8fafc !important;
+  }
+
+  .bg-slate-900,
+  [class*="bg-slate-900"] {
+    background-color: #ffffff !important;
+  }
+
+  .bg-slate-850,
+  [class*="bg-slate-850"] {
+    background-color: #f1f5f9 !important;
+  }
+
+  .bg-slate-800,
+  [class*="bg-slate-800"] {
+    background-color: #f1f5f9 !important;
+  }
+
+  /* Reset Dark Background Gradients to Clean Light Surfaces */
+  [class*="from-slate-950"],
+  [class*="from-slate-900"],
+  [class*="from-slate-850"],
+  [class*="from-slate-800"] {
+    background-image: none !important;
+    background-color: #ffffff !important;
+  }
+
+  [class*="via-slate-900"],
+  [class*="via-slate-850"],
+  [class*="via-slate-950"] {
+    background-color: #ffffff !important;
+  }
+
+  /* Colored dark gradient containers become soft clean pastels */
+  [class*="from-blue-950"],
+  [class*="bg-blue-950"] {
+    background-image: none !important;
+    background-color: #eff6ff !important;
+  }
+  [class*="from-emerald-950"],
+  [class*="bg-emerald-950"] {
+    background-image: none !important;
+    background-color: #ecfdf5 !important;
+  }
+  [class*="from-amber-950"],
+  [class*="bg-amber-950"] {
+    background-image: none !important;
+    background-color: #fffbeb !important;
+  }
+  [class*="from-purple-950"],
+  [class*="bg-purple-950"] {
+    background-image: none !important;
+    background-color: #faf5ff !important;
+  }
+  [class*="from-rose-950"],
+  [class*="bg-rose-950"] {
+    background-image: none !important;
+    background-color: #fff1f2 !important;
+  }
+  [class*="from-cyan-950"],
+  [class*="bg-cyan-950"] {
+    background-image: none !important;
+    background-color: #ecfeff !important;
+  }
+  [class*="from-indigo-950"],
+  [class*="bg-indigo-950"] {
+    background-image: none !important;
+    background-color: #eef2ff !important;
+  }
+  [class*="from-teal-950"],
+  [class*="bg-teal-950"] {
+    background-image: none !important;
+    background-color: #f0fdfa !important;
+  }
+
+  /* Borders & Dividers */
+  [class*="border-slate-800"],
+  [class*="border-slate-750"],
+  [class*="border-slate-700"],
+  [class*="border-slate-600"],
+  .border-slate-800,
+  .border-slate-700 {
+    border-color: #e2e8f0 !important;
+  }
+
+  .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+  .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* ========================================================================
+     TEXT HIERARCHY & CONTRAST (SOLVES UNREADABLE / WHITE-ON-WHITE TEXT)
+     ======================================================================== */
+
+  /* Primary Headings, Labels, Numbers, Titles & Body Text */
+  .text-slate-100,
+  .text-slate-50 {
+    color: #0f172a !important;
+  }
+  .text-slate-200 {
+    color: #1e293b !important;
+  }
+  .text-slate-300 {
+    color: #334155 !important;
+  }
+  .text-slate-400 {
+    color: #475569 !important;
+  }
+  .text-slate-500 {
+    color: #64748b !important;
+  }
+
+  /* UNIVERSAL text-white transformation:
+     In light mode, ALL elements with text-white become deep dark slate #0f172a,
+     EXCEPT when inside intentionally saturated solid action buttons & badges */
+  .text-white {
+    color: #0f172a !important;
+  }
+
+  /* Solid Action Buttons and Badges KEEP Crisp White Text & White Icons */
+  button.bg-rose-600,
+  button.bg-rose-700,
+  button.bg-emerald-600,
+  button.bg-emerald-700,
+  button.bg-blue-600,
+  button.bg-indigo-600,
+  button.bg-purple-600,
+  .btn-primary,
+  .badge-solid,
+  [class*="bg-rose-600"],
+  [class*="bg-rose-700"],
+  [class*="bg-emerald-600"],
+  [class*="bg-emerald-700"],
+  [class*="bg-blue-600"],
+  [class*="bg-indigo-600"],
+  [class*="bg-purple-600"],
+  button[class*="from-rose-600"],
+  button[class*="from-emerald-600"],
+  button[class*="from-indigo-600"],
+  button[class*="from-blue-600"] {
+    color: #ffffff !important;
+  }
+
+  button.bg-rose-600 *,
+  button.bg-rose-700 *,
+  button.bg-emerald-600 *,
+  button.bg-emerald-700 *,
+  button.bg-blue-600 *,
+  button.bg-indigo-600 *,
+  button.bg-purple-600 *,
+  .btn-primary *,
+  .badge-solid *,
+  [class*="bg-rose-600"] *,
+  [class*="bg-rose-700"] *,
+  [class*="bg-emerald-600"] *,
+  [class*="bg-emerald-700"] *,
+  [class*="bg-blue-600"] *,
+  [class*="bg-indigo-600"] *,
+  [class*="bg-purple-600"] *,
+  button[class*="from-rose-600"] *,
+  button[class*="from-emerald-600"] *,
+  button[class*="from-indigo-600"] *,
+  button[class*="from-blue-600"] * {
+    color: #ffffff !important;
+  }
+
+  /* Amber & Yellow solid buttons have deep dark text for maximum contrast */
+  button.bg-amber-500,
+  button[class*="bg-amber-500"],
+  button[class*="from-amber-500"] {
+    color: #020617 !important;
+  }
+  button[class*="bg-amber-500"] *,
+  button[class*="from-amber-500"] * {
+    color: #020617 !important;
+  }
+
+  /* Amber & Yellow text -> Rich dark bronze (WCAG AAA contrast on light backgrounds) */
+  .text-amber-200,
+  .text-amber-300,
+  .text-amber-400,
+  .text-yellow-300,
+  .text-yellow-400 {
+    color: #92400e !important;
+    font-weight: 600;
+  }
+  .text-amber-500 {
+    color: #78350f !important;
+    font-weight: 600;
+  }
+
+  /* Emerald & Green text -> Rich deep forest emerald */
+  .text-emerald-200,
+  .text-emerald-300,
+  .text-emerald-400,
+  .text-green-300,
+  .text-green-400 {
+    color: #047857 !important;
+    font-weight: 600;
+  }
+  .text-emerald-500 {
+    color: #065f46 !important;
+    font-weight: 600;
+  }
+
+  /* Cyan & Teal text -> Rich deep ocean teal */
+  .text-cyan-200,
+  .text-cyan-300,
+  .text-cyan-400,
+  .text-teal-300,
+  .text-teal-400 {
+    color: #0e7490 !important;
+    font-weight: 600;
+  }
+
+  /* Rose & Red text -> Deep saturated crimson */
+  .text-rose-200,
+  .text-rose-300,
+  .text-rose-400,
+  .text-red-300,
+  .text-red-400 {
+    color: #be123c !important;
+    font-weight: 600;
+  }
+  .text-rose-500,
+  .text-red-500 {
+    color: #9f1239 !important;
+    font-weight: 600;
+  }
+
+  /* Blue & Sky text -> Deep royal navy */
+  .text-blue-200,
+  .text-blue-300,
+  .text-blue-400,
+  .text-sky-300,
+  .text-sky-400 {
+    color: #1d4ed8 !important;
+    font-weight: 600;
+  }
+
+  /* Indigo text -> Deep saturated indigo */
+  .text-indigo-200,
+  .text-indigo-300,
+  .text-indigo-400 {
+    color: #3730a3 !important;
+    font-weight: 600;
+  }
+
+  /* Purple, Violet, Fuchsia text -> Rich deep purple */
+  .text-purple-200,
+  .text-purple-300,
+  .text-purple-400,
+  .text-violet-300,
+  .text-violet-400,
+  .text-fuchsia-300,
+  .text-fuchsia-400 {
+    color: #6b21a8 !important;
+    font-weight: 600;
+  }
+
+  /* Orange text */
+  .text-orange-300,
+  .text-orange-400 {
+    color: #c2410c !important;
+    font-weight: 600;
+  }
+
+  /* ========================================================================
+     GRAPHICS, CHARTS, GAUGES & PROGRESS BARS
+     ======================================================================== */
+
+  /* Operational Combat Readiness Gauge Bar Track (Visible sunken slot) */
+  .rounded-full.h-3\.5,
+  .rounded-full.h-3,
+  .rounded-full.h-2\.5 {
+    background-color: #e2e8f0 !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Gauge Progress Bar Fill */
+  .rounded-full.h-3\.5 > div,
+  .rounded-full.h-3 > div,
+  .rounded-full.h-2\.5 > div {
+    background: linear-gradient(90deg, #10b981 0%, #0d9488 50%, #f59e0b 100%) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  /* CO Executive Command Banner */
+  .rounded-2xl.border-amber-500\/40,
+  .rounded-2xl.border-amber-500\/30 {
+    background: linear-gradient(135deg, #ffffff 0%, #fffdf5 60%, #fef3c7 100%) !important;
+    border-color: #f59e0b !important;
+    box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  /* Gauge index card inside CO banner */
+  .rounded-xl.bg-slate-950\/90.border-amber-500\/25,
+  .rounded-xl.bg-slate-950.border-slate-800 {
+    background-color: #ffffff !important;
+    border-color: #f59e0b !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  /* Sub-unit breakdown pills in gauge card */
+  .rounded-xl.bg-slate-950\/90 .rounded-lg,
+  .rounded-xl.bg-slate-950 .rounded-lg {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Duty Heading Boxes in Parade Duty */
+  #duty-btn-team:not(.bg-rose-600),
+  #duty-btn-unit-sy:not(.bg-rose-600),
+  #duty-btn-working:not(.bg-rose-600),
+  #duty-btn-fixed-duty:not(.bg-rose-600),
+  #duty-btn-others:not(.bg-rose-600) {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    color: #1e293b !important;
+  }
+
+  #duty-btn-team:not(.bg-rose-600):hover,
+  #duty-btn-unit-sy:not(.bg-rose-600):hover,
+  #duty-btn-working:not(.bg-rose-600):hover,
+  #duty-btn-fixed-duty:not(.bg-rose-600):hover,
+  #duty-btn-others:not(.bg-rose-600):hover {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  /* Inactive duty box badges */
+  #duty-btn-team:not(.bg-rose-600) span.font-mono,
+  #duty-btn-unit-sy:not(.bg-rose-600) span.font-mono,
+  #duty-btn-working:not(.bg-rose-600) span.font-mono,
+  #duty-btn-fixed-duty:not(.bg-rose-600) span.font-mono,
+  #duty-btn-others:not(.bg-rose-600) span.font-mono {
+    background-color: #e2e8f0 !important;
+    color: #1e293b !important;
+  }
+
+  /* Quick Roster Widgets (Appointment Holders & RP Cards) */
+  .select-none.border.cursor-pointer {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  .select-none.border.cursor-pointer .bg-slate-950\/60 {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Inputs, Selects & Textareas */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+  select,
+  textarea {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
+  select option {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b !important;
+  }
+
+  /* Neutral Slate Buttons */
+  button.bg-slate-900,
+  button.bg-slate-950,
+  button.bg-slate-800 {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    border-color: #cbd5e1 !important;
+  }
+  button.bg-slate-900:hover,
+  button.bg-slate-950:hover,
+  button.bg-slate-800:hover {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+  }
+
+  /* Header & Top Navigation Bar */
+  header.bg-slate-950\/95,
+  header {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
+  }
+
+  header input {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  header input::placeholder {
+    color: #64748b !important;
+  }
+
+  /* TopModuleNavBar items */
+  .sticky.top-12,
+  .sticky.top-13 {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .sticky.top-12 button:not(.bg-rose-600),
+  .sticky.top-13 button:not(.bg-rose-600) {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    color: #334155 !important;
+  }
+
+  .sticky.top-12 button:not(.bg-rose-600):hover,
+  .sticky.top-13 button:not(.bg-rose-600):hover {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  .sticky.top-12 button.bg-rose-600,
+  .sticky.top-13 button.bg-rose-600 {
+    background-color: #e11d48 !important;
+    color: #ffffff !important;
+    border-color: #be123c !important;
+    box-shadow: 0 4px 6px -1px rgba(225, 29, 72, 0.25) !important;
+  }
+
+  /* Table Styles */
+  table {
+    border-color: #e2e8f0 !important;
+    background-color: #ffffff !important;
+  }
+  thead,
+  th {
+    background-color: #f8fafc !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+    font-weight: 700 !important;
+  }
+  tbody tr {
+    border-color: #f1f5f9 !important;
+    background-color: #ffffff !important;
+  }
+  tbody tr:hover {
+    background-color: #f8fafc !important;
+  }
+  td {
+    color: #0f172a !important;
+    border-color: #f1f5f9 !important;
+  }
+  td button {
+    color: inherit;
+  }
+
+  /* Modals & Dialogs */
+  .fixed.inset-0.bg-black\/80,
+  .fixed.inset-0.bg-black\/70,
+  .fixed.inset-0.bg-black\/60,
+  .fixed.inset-0.bg-slate-950\/80 {
+    background-color: rgba(15, 23, 42, 0.55) !important;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Elevation Shadows */
+  .shadow-2xl {
+    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
+  }
+  .shadow-xl {
+    box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -4px rgba(15, 23, 42, 0.03) !important;
+  }
+}

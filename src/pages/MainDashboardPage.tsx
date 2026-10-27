@@ -58,7 +58,10 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
     auditLogs,
     setOutOfUnitModalOpen,
     setActiveOutOfUnitCategory,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>('All');
 

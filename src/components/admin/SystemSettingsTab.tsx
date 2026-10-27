@@ -22,10 +22,15 @@ import {
   Database,
   Sliders,
   HelpCircle,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { ThemeSwitch } from '../common/ThemeSwitch';
 
 export const SystemSettingsTab: React.FC = () => {
   const {
+    theme,
+    setTheme,
     systemSettings,
     updateSystemSettings,
     exportSystemBackup,
@@ -351,6 +356,49 @@ export const SystemSettingsTab: React.FC = () => {
             <p className="text-xs text-slate-400 mt-0.5">
               এখানে পরিবর্তিত নাম, স্লোগান এবং লোকেশন পুরো ওয়েবসাইটের হেডার, লগইন পেজ এবং প্রিন্ট কপিতে স্বয়ংক্রিয়ভাবে প্রতিফলিত হবে।
             </p>
+          </div>
+
+          {/* Display Theme Mode Switcher */}
+          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-white font-sans flex items-center gap-2">
+                  {theme === 'dark' ? <Moon className="w-4 h-4 text-amber-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+                  <span>Display Theme (সিস্টেম ভিজ্যুয়াল থিম)</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  ডার্ক থিম (কমান্ড সেন্টারের ট্যাক্টিক্যাল মোড) বা লাইট থিম (উজ্জ্বল হাই-ভিজিবিলিটি ডে মোড)-এ রূপান্তর করুন।
+                </p>
+              </div>
+              <ThemeSwitch />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setTheme('dark')}
+                className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-slate-800 text-white border-amber-500/60 ring-1 ring-amber-500/30'
+                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                <Moon className="w-4 h-4 text-amber-400" />
+                <span>Dark Theme (ডার্ক থিম)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('light')}
+                className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  theme === 'light'
+                    ? 'bg-white text-slate-900 border-indigo-400 shadow-sm ring-1 ring-indigo-400/30'
+                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                <Sun className="w-4 h-4 text-amber-500" />
+                <span>Light Theme (লাইট থিম)</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

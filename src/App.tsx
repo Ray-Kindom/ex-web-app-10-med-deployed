@@ -38,6 +38,7 @@ const AppContent: React.FC = () => {
     outOfUnitModalOpen,
     setOutOfUnitModalOpen,
     activeOutOfUnitCategory,
+    theme,
   } = useApp();
 
   // Modal States
@@ -246,7 +247,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className={`min-h-screen ${theme === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'} flex flex-col font-sans transition-colors duration-200`}>
       {/* Top Header */}
       <Header
         onOpenPrintModal={() => setIsPrintModalOpen(true)}

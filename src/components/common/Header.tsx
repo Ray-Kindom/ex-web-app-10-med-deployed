@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { UnitLogo } from './UnitLogo';
 import { Role, Battery } from '../../types';
 import { CloudSyncModal } from './CloudSyncModal';
+import { ThemeSwitch } from './ThemeSwitch';
 import {
   ShieldAlert,
   Clock,
@@ -311,6 +312,9 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
             )}
+
+            {/* Theme Mode Switcher */}
+            <ThemeSwitch />
 
             {/* Firebase Cloud Sync Interactive Button */}
             <button

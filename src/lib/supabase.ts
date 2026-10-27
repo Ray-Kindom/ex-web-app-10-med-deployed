@@ -1,16 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES } from '../types';
 
-// Read Vite client-side environment variables or provided Supabase project credentials
-const SUPABASE_URL = (
-  import.meta.env.VITE_SUPABASE_URL ||
-  'https://pulzsiyjvnshychyxuix.supabase.co'
-).trim();
-
-const SUPABASE_ANON_KEY = (
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1bHpzaXlqdm5zaHljaHl4dWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NzgzNDAsImV4cCI6MjEwNDM1NDM0MH0.R1xAohrTO61jjTYybM8PdnV6w5RnQyhBCLI8F4Yf4VA'
-).trim();
+// Read Vite client-side environment variables for Supabase project credentials
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
 let clientInstance: SupabaseClient | null = null;
 

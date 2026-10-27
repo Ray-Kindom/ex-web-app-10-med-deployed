@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { UnitLogo } from '../components/common/UnitLogo';
+import { ThemeSwitch } from '../components/common/ThemeSwitch';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -64,6 +65,11 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden">
+      {/* Top Header Theme Controls */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeSwitch />
+      </div>
+
       {/* Background Ambience */}
       <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none" />
       <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
