@@ -50,7 +50,10 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     currentUser,
     isGuest,
     showNotification,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   // Tab State: 'active' (সক্রিয় টিম) vs 'history' (ডাটাবেজে সংরক্ষিত টিম হিস্ট্রি)
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
@@ -772,12 +775,16 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                   </div>
                 </div>
 
-                {/* Team Members List (Clean White Table Style) */}
+                {/* Team Members List (Theme-Aware Table Style) */}
                 <div className="p-3 sm:p-4 space-y-3">
                   {members.length > 0 ? (
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-slate-900">
+                    <div className={`rounded-xl border shadow-sm overflow-hidden ${
+                      isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-slate-100'
+                    }`}>
                       {/* Table Header */}
-                      <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-mono font-bold text-slate-700">
+                      <div className={`grid grid-cols-12 gap-2 px-3 py-2 border-b text-xs font-mono font-bold ${
+                        isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-950/90 border-slate-800 text-slate-300'
+                      }`}>
                         <div className="col-span-1 text-center">SL</div>
                         <div className="col-span-2">Army No</div>
                         <div className="col-span-4">Rank & Name</div>
@@ -785,36 +792,43 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                         <div className="col-span-2 text-center">Trade</div>
                         <div className="col-span-1 text-right">Action</div>
                       </div>
-
                       {/* Table Rows */}
-                      <div className="divide-y divide-slate-100">
+                      <div className={isLight ? 'divide-y divide-slate-100' : 'divide-y divide-slate-800/60'}>
                         {members.map((soldier, idx) => (
                           <div
                             key={soldier.id}
-                            className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-xs hover:bg-slate-50 transition-colors"
+                            className={`grid grid-cols-12 gap-2 px-3 py-2 items-center text-xs transition-colors ${
+                              isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
+                            }`}
                           >
                             <div className="col-span-1 text-center font-mono text-slate-400">
                               {idx + 1}.
                             </div>
-                            <div className="col-span-2 font-mono font-bold text-slate-900">
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300">
+                            <div className="col-span-2 font-mono font-bold">
+                              <span className={`px-1.5 py-0.5 rounded border ${
+                                isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-800 text-amber-300 border-slate-700'
+                              }`}>
                                 {soldier.snkNo}
                               </span>
                             </div>
-                            <div className="col-span-4 font-semibold text-slate-900 truncate">
+                            <div className={`col-span-4 font-semibold truncate ${
+                              isLight ? 'text-slate-900' : 'text-slate-100'
+                            }`}>
                               {soldier.rk} {soldier.name}
                             </div>
-                            <div className="col-span-2 text-center font-mono font-bold text-slate-700">
+                            <div className={`col-span-2 text-center font-mono font-bold ${
+                              isLight ? 'text-slate-700' : 'text-slate-300'
+                            }`}>
                               {soldier.battery}
                             </div>
-                            <div className="col-span-2 text-center font-mono text-slate-500">
+                            <div className="col-span-2 text-center font-mono text-slate-400">
                               {soldier.trade}
                             </div>
                             <div className="col-span-1 text-right">
                               <button
                                 type="button"
                                 onClick={() => removeMemberFromTeam(team.id, soldier.id)}
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                                 title="এই টিম থেকে বাদ দিন"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -825,12 +839,14 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-6 rounded-xl bg-white border border-slate-200 text-center text-xs font-mono text-slate-500 space-y-2">
+                    <div className={`p-6 rounded-xl border text-center text-xs font-mono space-y-2 ${
+                      isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-900/80 border-slate-800 text-slate-400'
+                    }`}>
                       <p>এই টিমে এখনও কোনো সৈনিক যোগ করা হয়নি।</p>
                       <button
                         type="button"
                         onClick={() => handleOpenEditForm(team)}
-                        className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs hover:bg-rose-500 cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs hover:bg-rose-500 cursor-pointer shadow-sm"
                       >
                         + সৈনিক যোগ করুন
                       </button>
@@ -1087,9 +1103,13 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                       </div>
 
                       {members.length > 0 ? (
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-slate-900">
+                        <div className={`rounded-xl border shadow-sm overflow-hidden ${
+                          isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-slate-100'
+                        }`}>
                           {/* Table Header */}
-                          <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-100 border-b border-slate-200 text-xs font-mono font-bold text-slate-700">
+                          <div className={`grid grid-cols-12 gap-2 px-3 py-2 border-b text-xs font-mono font-bold ${
+                            isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-950/90 border-slate-800 text-slate-300'
+                          }`}>
                             <div className="col-span-1 text-center">SL</div>
                             <div className="col-span-2">Army No</div>
                             <div className="col-span-4">Rank & Name</div>
@@ -1099,7 +1119,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                           </div>
 
                           {/* Table Rows */}
-                          <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                          <div className={`max-h-80 overflow-y-auto ${isLight ? 'divide-y divide-slate-100' : 'divide-y divide-slate-800/60'}`}>
                             {members.map((soldier, idx) => {
                               const livePerson = personnelMap.get(soldier.id) || personnelMap.get(soldier.snkNo);
                               const currentStatus = livePerson?.status || soldier.status || 'In Unit';
@@ -1107,22 +1127,28 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                               return (
                                 <div
                                   key={soldier.id || idx}
-                                  className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-xs hover:bg-slate-50 transition-colors"
+                                  className={`grid grid-cols-12 gap-2 px-3 py-2 items-center text-xs transition-colors ${
+                                    isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
+                                  }`}
                                 >
                                   <div className="col-span-1 text-center font-mono text-slate-400">
                                     {idx + 1}.
                                   </div>
-                                  <div className="col-span-2 font-mono font-bold text-slate-900">
-                                    <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300">
+                                  <div className="col-span-2 font-mono font-bold">
+                                    <span className={`px-1.5 py-0.5 rounded border ${
+                                      isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-800 text-amber-300 border-slate-700'
+                                    }`}>
                                       {soldier.snkNo}
                                     </span>
                                   </div>
-                                  <div className="col-span-4 font-semibold text-slate-900 truncate flex items-center gap-1.5">
+                                  <div className={`col-span-4 font-semibold truncate flex items-center gap-1.5 ${
+                                    isLight ? 'text-slate-900' : 'text-slate-100'
+                                  }`}>
                                     {onViewDossier && livePerson ? (
                                       <button
                                         type="button"
                                         onClick={() => onViewDossier(livePerson)}
-                                        className="hover:text-rose-600 hover:underline cursor-pointer text-left transition-colors truncate"
+                                        className="hover:text-rose-500 hover:underline cursor-pointer text-left transition-colors truncate"
                                         title="ক্লিক করে ডসিয়ার দেখুন"
                                       >
                                         <span>{soldier.rk} {soldier.name}</span>
@@ -1131,18 +1157,20 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                                       <span>{soldier.rk} {soldier.name}</span>
                                     )}
                                   </div>
-                                  <div className="col-span-2 text-center font-mono font-bold text-slate-700">
+                                  <div className={`col-span-2 text-center font-mono font-bold ${
+                                    isLight ? 'text-slate-700' : 'text-slate-300'
+                                  }`}>
                                     {soldier.battery}
                                   </div>
-                                  <div className="col-span-2 text-center font-mono text-slate-500">
+                                  <div className="col-span-2 text-center font-mono text-slate-400">
                                     {soldier.trade || '-'}
                                   </div>
                                   <div className="col-span-1 text-center">
                                     <span
                                       className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
                                         currentStatus === 'In Unit' || currentStatus === 'Present'
-                                          ? 'bg-emerald-100 text-emerald-800'
-                                          : 'bg-amber-100 text-amber-800'
+                                          ? isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                          : isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                                       }`}
                                     >
                                       {currentStatus}
@@ -1154,7 +1182,9 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                           </div>
                         </div>
                       ) : (
-                        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-400">
+                        <div className={`p-4 rounded-xl border text-center text-xs font-mono ${
+                          isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-900 border-slate-800 text-slate-400'
+                        }`}>
                           এই টিমে কোনো সদস্যের রেকর্ড নেই।
                         </div>
                       )}

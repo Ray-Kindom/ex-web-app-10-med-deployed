@@ -66,7 +66,9 @@ export const AdminPanelPage: React.FC = () => {
     exitSimulation,
     isGuest,
     accessRequests,
+    theme,
   } = useApp();
+  const isLight = theme === 'light';
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [activeTab, setActiveTab] = useState<
@@ -205,24 +207,40 @@ export const AdminPanelPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Admin Header */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 shadow-xl space-y-4">
+      <div className={`p-6 rounded-2xl border shadow-xl space-y-4 ${
+        isLight
+          ? 'bg-white border-slate-200 shadow-sm'
+          : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
+      }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+              <span className={`text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
+                isLight
+                  ? 'text-slate-700 bg-slate-100 border-slate-200'
+                  : 'text-slate-400 bg-slate-800 border-slate-700'
+              }`}>
                 System Administration
               </span>
               <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
                 isGuest
-                  ? 'text-amber-300 bg-amber-500/20 border border-amber-500/40'
+                  ? isLight
+                    ? 'text-amber-800 bg-amber-100 border border-amber-300'
+                    : 'text-amber-300 bg-amber-500/20 border border-amber-500/40'
                   : isAdmin
-                  ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                  ? isLight
+                    ? 'text-emerald-800 bg-emerald-100 border border-emerald-300'
+                    : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                  : isLight
+                  ? 'text-amber-800 bg-amber-100 border border-amber-300'
                   : 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
               }`}>
                 {isGuest ? 'GUEST — VIEW ONLY' : isAdmin ? 'FULL ADMIN ACCESS' : `VIEW MODE (${currentUser.role})`}
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight font-sans mt-1">
+            <h1 className={`text-2xl font-bold tracking-tight font-sans mt-1 ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>
               Admin & System Security Panel
             </h1>
           </div>
@@ -232,7 +250,7 @@ export const AdminPanelPage: React.FC = () => {
               <button
                 onClick={handleOpenAddUser}
                 id="btn-add-user-admin"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-950/50 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/30 transition-all cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>+ Add User</span>
@@ -242,49 +260,59 @@ export const AdminPanelPage: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1.5 pt-2 border-t border-slate-800/80 flex-wrap">
+        <div className={`flex items-center gap-1.5 pt-2 border-t flex-wrap ${
+          isLight ? 'border-slate-200' : 'border-slate-800/80'
+        }`}>
           <button
             onClick={() => setActiveTab('DATABASE_HUB')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'DATABASE_HUB'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/50'
-                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
-            <Database className="w-3.5 h-3.5 text-amber-400" />
+            <Database className="w-3.5 h-3.5 text-amber-500" />
             <span>Master Database Hub (সকল ডাটাবেজ হাব)</span>
           </button>
 
           <button
             onClick={() => setActiveTab('PERSONNEL_DB')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'PERSONNEL_DB'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/50'
-                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
-            <Users className="w-3.5 h-3.5 text-rose-400" />
+            <Users className="w-3.5 h-3.5 text-rose-500" />
             <span>Personnel Nominal Roll (পার্সোনেল ডাটাবেজ)</span>
           </button>
 
           <button
             onClick={() => setActiveTab('DUTY_DB')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'DUTY_DB'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/50'
-                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
-            <Clock className="w-3.5 h-3.5 text-orange-400" />
+            <Clock className="w-3.5 h-3.5 text-orange-500" />
             <span>Duty & Security Board (ডিউটি ডাটাবেজ)</span>
           </button>
 
           <button
             onClick={() => setActiveTab('SYSTEM_SETTINGS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'SYSTEM_SETTINGS'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Settings className="w-3.5 h-3.5" />
@@ -293,10 +321,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('CATEGORIES')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'CATEGORIES'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -305,10 +335,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('PARADE_STATES')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'PARADE_STATES'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <CalendarDays className="w-3.5 h-3.5" />
@@ -317,10 +349,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('ESTABLISHMENT')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'ESTABLISHMENT'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
@@ -329,10 +363,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('SUB_UNITS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'SUB_UNITS'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Award className="w-3.5 h-3.5" />
@@ -341,10 +377,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('CALCULATIONS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'CALCULATIONS'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Calculator className="w-3.5 h-3.5" />
@@ -353,10 +391,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('ROLES')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'ROLES'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -365,10 +405,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('LOGO')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'LOGO'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <ImageIcon className="w-3.5 h-3.5" />
@@ -377,10 +419,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('AUDIT')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'AUDIT'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
@@ -389,10 +433,12 @@ export const AdminPanelPage: React.FC = () => {
 
           <button
             onClick={() => setActiveTab('CLOUD_SYNC')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
               activeTab === 'CLOUD_SYNC'
-                ? 'bg-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white bg-slate-900'
+                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                : 'text-slate-400 hover:text-white bg-slate-900 border-slate-800'
             }`}
           >
             <Server className="w-3.5 h-3.5" />
@@ -434,31 +480,41 @@ export const AdminPanelPage: React.FC = () => {
       {activeTab === 'ROLES' && (
         <div className="space-y-4">
           {/* Clarification Notice Banner */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+          <div className={`p-3.5 rounded-xl border text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs ${
+            isLight
+              ? 'bg-amber-50/70 border-amber-200 text-slate-800'
+              : 'bg-slate-900/90 border-slate-800 text-slate-300'
+          }`}>
             <div className="flex items-start gap-2.5">
-              <Shield className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+              <Shield className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
               <div>
-                <span className="font-bold text-white">ইউজার অ্যাকাউন্ট সিস্টেম (Single Source of Truth):</span>
-                <p className="text-slate-400 text-[11px] mt-0.5">
+                <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>ইউজার অ্যাকাউন্ট সিস্টেম (Single Source of Truth):</span>
+                <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                   এখানে শুধুমাত্র সফটওয়্যারে লগইন করার অনুমতিপ্রাপ্ত অ্যাকাউন্টসমূহ রয়েছে ({usersList.length} জন)। এখান থেকে ইউজার মুছে দিলে তা সেন্ট্রাল সার্ভার ও ডাটাবেজ থেকে অবিলম্বে স্থায়ীভাবে ডিলিট হয়ে যাবে। রেজিমেন্টের সকল সৈনিক ও অফিসারদের তালিকা দেখতে উপরের <strong>Personnel Database</strong> ব্যবহার করুন।
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-emerald-400 font-bold">
+              <span className={`px-2.5 py-1 rounded-lg border font-bold ${
+                isLight ? 'bg-white border-slate-200 text-emerald-700' : 'bg-slate-950 border-slate-800 text-emerald-400'
+              }`}>
                 মোট ইউজার: {usersList.length} জন
               </span>
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+          <div className={`border rounded-xl overflow-hidden shadow-sm ${
+            isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+          }`}>
             {/* Header with Search & Controls */}
-            <div className="p-4 border-b border-slate-800 space-y-3">
+            <div className={`p-4 border-b space-y-3 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-bold text-white font-sans flex items-center gap-2">
+                  <h3 className={`text-base font-bold font-sans flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     <span>Regimental User Accounts & Battery Access</span>
-                    <span className="text-xs font-mono font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                    <span className={`text-xs font-mono font-normal px-2 py-0.5 rounded border ${
+                      isLight ? 'text-slate-600 bg-slate-100 border-slate-200' : 'text-slate-400 bg-slate-800 border-slate-700'
+                    }`}>
                       {filteredUsers.length} of {usersList.length} Users
                     </span>
                   </h3>
@@ -468,10 +524,14 @@ export const AdminPanelPage: React.FC = () => {
                   <button
                     onClick={() => syncUsersToSupabaseCloud()}
                     id="btn-sync-users-cloud"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold shadow-2xs transition-colors cursor-pointer ${
+                      isLight
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                    }`}
                     title="Sync User Accounts directly to Supabase PostgreSQL"
                   >
-                    <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+                    <Cloud className="w-3.5 h-3.5 text-emerald-500" />
                     <span className="hidden sm:inline">Sync Users to Cloud</span>
                     <span className="sm:hidden">Sync</span>
                   </button>
@@ -479,7 +539,7 @@ export const AdminPanelPage: React.FC = () => {
                   <button
                     onClick={handleOpenAddUser}
                     id="btn-add-user-table-top"
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/40 transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/20 transition-colors cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Add New User</span>
@@ -490,13 +550,17 @@ export const AdminPanelPage: React.FC = () => {
               {/* User search & filter */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-xs">
                 <div className="sm:col-span-2 relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
                   <input
                     type="text"
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
                     placeholder="Search user name, username, rank, or service ID..."
-                    className="w-full bg-slate-950 border border-slate-700/80 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                    className={`w-full rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:border-rose-500 border ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                        : 'bg-slate-950 border-slate-700/80 text-white placeholder-slate-500'
+                    }`}
                   />
                 </div>
 
@@ -504,7 +568,11 @@ export const AdminPanelPage: React.FC = () => {
                   <select
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-rose-500 font-mono border ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900'
+                        : 'bg-slate-950 border-slate-700/80 text-slate-200'
+                    }`}
                   >
                     <option value="All">All Roles</option>
                     <option value="Admin">Admin</option>
@@ -524,7 +592,11 @@ export const AdminPanelPage: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] border-b border-slate-800">
+                  <tr className={`uppercase font-mono text-[10px] border-b ${
+                    isLight
+                      ? 'bg-slate-100 text-slate-700 border-slate-200'
+                      : 'bg-slate-950 text-slate-400 border-slate-800'
+                  }`}>
                     <th className="p-3">User / Rank</th>
                     <th className="p-3">Role</th>
                     <th className="p-3">Username & Auth</th>
@@ -534,11 +606,13 @@ export const AdminPanelPage: React.FC = () => {
                     <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-sans">
+                <tbody className={`divide-y font-sans ${
+                  isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'
+                }`}>
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-400">
-                        <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                      <td colSpan={7} className={`p-8 text-center ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <Users className={`w-8 h-8 mx-auto mb-2 ${isLight ? 'text-slate-400' : 'text-slate-600'}`} />
                         <p>No user accounts found matching current query.</p>
                       </td>
                     </tr>
@@ -552,9 +626,9 @@ export const AdminPanelPage: React.FC = () => {
                       const isAllBtys = userBtys.length >= ALL_BATTERIES.length;
 
                       return (
-                        <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={u.id} className={`transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'}`}>
                           {/* User / Rank */}
-                          <td className="p-3 font-semibold text-white">
+                          <td className="p-3 font-semibold">
                             <div className="flex items-center gap-2.5">
                               {u.avatar ? (
                                 <img
@@ -563,7 +637,11 @@ export const AdminPanelPage: React.FC = () => {
                                   className="w-8 h-8 rounded-full object-cover border border-rose-500/50"
                                 />
                               ) : (
-                                <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-amber-400 shadow-inner">
+                                <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-mono font-bold text-xs shadow-inner ${
+                                  isLight
+                                    ? 'bg-slate-100 border-slate-300 text-slate-700'
+                                    : 'bg-slate-800 border-slate-700 text-amber-400'
+                                }`}>
                                   {(() => {
                                     const parts = (u.name || '').trim().split(/\s+/);
                                     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -573,14 +651,18 @@ export const AdminPanelPage: React.FC = () => {
                               )}
                               <div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-bold text-slate-100">{u.name}</span>
+                                  <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>{u.name}</span>
                                   {u.id === currentUser.id && (
-                                    <span className="text-[9px] font-mono bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                                      isLight
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    }`}>
                                       YOU
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-[10px] text-slate-400 font-mono">{u.rank}</div>
+                                <div className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{u.rank}</div>
                               </div>
                             </div>
                           </td>
@@ -589,15 +671,27 @@ export const AdminPanelPage: React.FC = () => {
                           <td className="p-3">
                             <span className={`font-bold text-xs font-mono px-2 py-0.5 rounded border ${
                               u.role === 'Admin'
-                                ? 'bg-rose-950/50 text-rose-300 border-rose-600/40'
+                                ? isLight
+                                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                  : 'bg-rose-950/50 text-rose-300 border-rose-600/40'
                                 : u.role === 'CO'
-                                ? 'bg-amber-950/50 text-amber-300 border-amber-600/40'
+                                ? isLight
+                                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                  : 'bg-amber-950/50 text-amber-300 border-amber-600/40'
                                 : u.role === 'Offr'
-                                ? 'bg-blue-950/50 text-blue-300 border-blue-600/40'
+                                ? isLight
+                                  ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                  : 'bg-blue-950/50 text-blue-300 border-blue-600/40'
                                 : u.role === 'RSM'
-                                ? 'bg-purple-950/50 text-purple-300 border-purple-600/40'
+                                ? isLight
+                                  ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                  : 'bg-purple-950/50 text-purple-300 border-purple-600/40'
                                 : u.role.endsWith('BSM')
-                                ? 'bg-emerald-950/50 text-emerald-300 border-emerald-600/40'
+                                ? isLight
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : 'bg-emerald-950/50 text-emerald-300 border-emerald-600/40'
+                                : isLight
+                                ? 'bg-slate-100 text-slate-700 border-slate-300'
                                 : 'bg-slate-800 text-slate-200 border-slate-700'
                             }`}>
                               {u.role}
@@ -606,14 +700,16 @@ export const AdminPanelPage: React.FC = () => {
 
                           {/* Username & Auth */}
                           <td className="p-3 font-mono">
-                            <div className="text-slate-200 font-semibold">@{u.username}</div>
+                            <div className={`font-semibold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>@{u.username}</div>
                             {u.email ? (
-                              <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5 truncate max-w-[170px]" title={u.email}>
-                                <Cloud className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <div className={`text-[10px] flex items-center gap-1 mt-0.5 truncate max-w-[170px] ${
+                                isLight ? 'text-emerald-700' : 'text-emerald-400'
+                              }`} title={u.email}>
+                                <Cloud className="w-3 h-3 shrink-0" />
                                 <span className="truncate">{u.email}</span>
                               </div>
                             ) : (
-                              <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                              <div className={`text-[10px] flex items-center gap-1 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                                 <Lock className="w-2.5 h-2.5 text-slate-400" />
                                 <span>Passkey Set</span>
                               </div>
@@ -621,14 +717,18 @@ export const AdminPanelPage: React.FC = () => {
                           </td>
 
                           {/* Service ID */}
-                          <td className="p-3 font-mono text-slate-300">
+                          <td className={`p-3 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                             {u.snkNo || 'BA-OFFICER'}
                           </td>
 
                           {/* Assigned Battery Access (Multi-Battery) */}
                           <td className="p-3">
                             {isAllBtys ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded border ${
+                                isLight
+                                  ? 'text-emerald-800 bg-emerald-100 border-emerald-300'
+                                  : 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                              }`}>
                                 <Building2 className="w-3 h-3" />
                                 <span>All 4 Btys (Regimental)</span>
                               </span>
@@ -637,7 +737,11 @@ export const AdminPanelPage: React.FC = () => {
                                 {userBtys.map((b) => (
                                   <span
                                     key={b}
-                                    className="text-[10px] font-mono font-semibold bg-slate-950 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700"
+                                    className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded border ${
+                                      isLight
+                                        ? 'bg-slate-100 text-slate-700 border-slate-200'
+                                        : 'bg-slate-950 text-slate-300 border-slate-700'
+                                    }`}
                                   >
                                     {b}
                                   </span>
@@ -648,7 +752,7 @@ export const AdminPanelPage: React.FC = () => {
 
                           {/* Access Level */}
                           <td className="p-3">
-                            <span className="text-slate-300 text-[11px] font-medium">
+                            <span className={`text-[11px] font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                               {u.accessLevel || 'Standard Regimental View'}
                             </span>
                           </td>
@@ -659,7 +763,11 @@ export const AdminPanelPage: React.FC = () => {
                               <button
                                 onClick={() => handleOpenEditUser(u)}
                                 title="Edit User & Battery Assignments"
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                  isLight
+                                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-transparent'
+                                }`}
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
@@ -668,10 +776,14 @@ export const AdminPanelPage: React.FC = () => {
                                 onClick={() => confirmDeleteUser(u)}
                                 title="Delete User Account"
                                 disabled={u.id === currentUser.id}
-                                className={`p-1.5 rounded-lg transition-colors ${
+                                className={`p-1.5 rounded-lg transition-colors border ${
                                   u.id === currentUser.id
-                                    ? 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
-                                    : 'bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 cursor-pointer'
+                                    ? isLight
+                                      ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                                      : 'bg-slate-800/40 text-slate-600 border-transparent cursor-not-allowed'
+                                    : isLight
+                                    ? 'bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-600 border-slate-300 cursor-pointer'
+                                    : 'bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 border-transparent cursor-pointer'
                                 }`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -679,7 +791,11 @@ export const AdminPanelPage: React.FC = () => {
 
                               <button
                                 onClick={() => switchRole(u.role, userBtys[0])}
-                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium cursor-pointer"
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer border ${
+                                  isLight
+                                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-transparent'
+                                }`}
                               >
                                 Switch
                               </button>
@@ -702,28 +818,38 @@ export const AdminPanelPage: React.FC = () => {
       {/* Tab 2: Unit Logo Management (Strictly Admin Authorized) */}
       {activeTab === 'LOGO' && (
         <div className="space-y-4">
-          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className={`p-6 rounded-2xl border shadow-xl space-y-6 ${
+            isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-rose-400" />
+                <h3 className={`text-lg font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <ImageIcon className="w-5 h-5 text-rose-500" />
                   <span>Unit Heraldic Logo Management</span>
                 </h3>
               </div>
 
-              <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20">
+              <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded border ${
+                isLight
+                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                  : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
+              }`}>
                 ADMIN PRIVILEGE ONLY
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-xl bg-slate-950 border border-slate-800 items-center">
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-xl border items-center ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+            }`}>
               {/* Logo Preview */}
-              <div className="flex flex-col items-center justify-center p-6 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                <span className="text-xs font-mono uppercase text-slate-400 font-bold">
+              <div className={`flex flex-col items-center justify-center p-6 rounded-xl border space-y-3 ${
+                isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-slate-900 border-slate-800'
+              }`}>
+                <span className={`text-xs font-mono uppercase font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                   Active Display Logo
                 </span>
                 <UnitLogo size="xl" allowAdminUpload />
-                <span className="text-[11px] text-slate-500 font-mono">
+                <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                   {customLogo ? 'Custom Uploaded Logo Active' : 'Default Official Heraldic Logo'}
                 </span>
               </div>
@@ -731,7 +857,7 @@ export const AdminPanelPage: React.FC = () => {
               {/* Upload Controls */}
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h4 className="text-sm font-bold text-white">Upload New Unit Logo</h4>
+                  <h4 className={`text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Upload New Unit Logo</h4>
                 </div>
 
                 <input
@@ -751,7 +877,7 @@ export const AdminPanelPage: React.FC = () => {
                       }
                       fileInputRef.current?.click();
                     }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-950/40 transition-colors cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/20 transition-colors cursor-pointer"
                   >
                     <Upload className="w-4 h-4" />
                     <span>Upload Logo File</span>
@@ -760,9 +886,13 @@ export const AdminPanelPage: React.FC = () => {
                   {customLogo && (
                     <button
                       onClick={() => setCustomLogo(null)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                        isLight
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                      }`}
                     >
-                      <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
                       <span>Restore Default</span>
                     </button>
                   )}
@@ -778,31 +908,37 @@ export const AdminPanelPage: React.FC = () => {
         <div className="space-y-4">
           {!isAdmin ? (
             /* Non-Admin Security Lockout */
-            <div className="p-8 rounded-2xl bg-slate-900 border border-rose-500/40 shadow-2xl text-center space-y-4 max-w-2xl mx-auto">
-              <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto">
+            <div className={`p-8 rounded-2xl border text-center space-y-4 max-w-2xl mx-auto shadow-xl ${
+              isLight ? 'bg-white border-rose-300' : 'bg-slate-900 border-rose-500/40'
+            }`}>
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 mx-auto">
                 <ShieldAlert className="w-8 h-8" />
               </div>
               <div className="space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                <span className={`text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
+                  isLight ? 'text-rose-800 bg-rose-100 border-rose-300' : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                }`}>
                   SECURITY CLEARANCE RESTRICTION
                 </span>
-                <h3 className="text-xl font-bold text-white tracking-tight">
+                <h3 className={`text-xl font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   Access Restricted — System Admin Clearance Required
                 </h3>
-                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                <p className={`text-xs max-w-md mx-auto ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                   Activity and military system audit logs contain immutable records of user logins, role switches, and parade state verifications.
-                  Only users logged in under the <strong className="text-rose-400">Admin</strong> role are authorized to inspect audit records.
+                  Only users logged in under the <strong className="text-rose-600">Admin</strong> role are authorized to inspect audit records.
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-400 inline-block">
-                Current Role: <strong className="text-amber-400">{currentUser.role}</strong> ({currentUser.name})
+              <div className={`p-3 rounded-xl border text-xs font-mono inline-block ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-400'
+              }`}>
+                Current Role: <strong className={isLight ? 'text-amber-700' : 'text-amber-400'}>{currentUser.role}</strong> ({currentUser.name})
               </div>
 
               <div className="pt-2">
                 <button
                   onClick={() => switchRole('Admin')}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-950/50 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/20 transition-colors cursor-pointer"
                 >
                   Switch to Admin Role to View Logs
                 </button>
@@ -810,28 +946,38 @@ export const AdminPanelPage: React.FC = () => {
             </div>
           ) : (
             /* Admin View of Audit Logs */
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl p-4 space-y-4">
+            <div className={`border rounded-xl overflow-hidden shadow-sm p-4 space-y-4 ${
+              isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800 shadow-xl'
+            }`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <span className={`text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
+                      isLight ? 'text-emerald-800 bg-emerald-100 border-emerald-300' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                    }`}>
                       ADMIN AUTHORIZED
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                      isLight ? 'text-slate-600 bg-slate-100' : 'text-slate-400 bg-slate-800'
+                    }`}>
                       {auditLogs.length} Events Logged
                     </span>
                   </div>
-                  <h3 className="text-base font-bold text-white font-sans mt-1">
+                  <h3 className={`text-base font-bold font-sans mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     Military System Audit & Activity Logs
                   </h3>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <span className="text-slate-400">Category:</span>
+                  <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>Category:</span>
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono"
+                    className={`border rounded-lg px-2.5 py-1 font-mono focus:outline-none ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900'
+                        : 'bg-slate-950 border-slate-700 text-white'
+                    }`}
                   >
                     <option value="All">All Categories</option>
                     <option value="PARADE_STATE">PARADE_STATE</option>
@@ -842,39 +988,52 @@ export const AdminPanelPage: React.FC = () => {
 
                   <button
                     onClick={handleExportAuditLogs}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs font-semibold cursor-pointer"
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-semibold cursor-pointer ${
+                      isLight
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                    }`}
                   >
-                    <Download className="w-3 h-3 text-blue-400" />
+                    <Download className="w-3 h-3 text-blue-500" />
                     <span>Export CSV</span>
                   </button>
                 </div>
               </div>
 
-              <div className="divide-y divide-slate-800/80 max-h-[500px] overflow-y-auto">
+              <div className={`divide-y max-h-[500px] overflow-y-auto ${
+                isLight ? 'divide-slate-200' : 'divide-slate-800/80'
+              }`}>
                 {filteredLogs.map((log) => (
-                  <div key={log.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs hover:bg-slate-850/40 px-2 rounded-lg transition-colors">
+                  <div
+                    key={log.id}
+                    className={`py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs px-2 rounded-lg transition-colors ${
+                      isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-850/40'
+                    }`}
+                  >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-white font-mono">{log.action}</span>
+                        <span className={`font-bold font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{log.action}</span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
                           log.category === 'SECURITY'
-                            ? 'bg-rose-950/60 text-rose-300 border-rose-500/40'
+                            ? isLight ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-rose-950/60 text-rose-300 border-rose-500/40'
                             : log.category === 'PARADE_STATE'
-                            ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                            ? isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
                             : log.category === 'PERSONNEL'
-                            ? 'bg-blue-950/60 text-blue-300 border-blue-500/40'
-                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                            ? isLight ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-blue-950/60 text-blue-300 border-blue-500/40'
+                            : isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'
                         }`}>
                           {log.category}
                         </span>
                       </div>
-                      <p className="text-slate-300 font-sans">{log.details}</p>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        Performed By: <span className="text-slate-200 font-semibold">{log.performedBy}</span>
+                      <p className={`font-sans ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{log.details}</p>
+                      <div className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        Performed By: <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{log.performedBy}</span>
                       </div>
                     </div>
 
-                    <div className="text-right text-[11px] font-mono text-slate-400 whitespace-nowrap self-start sm:self-center">
+                    <div className={`text-right text-[11px] font-mono whitespace-nowrap self-start sm:self-center ${
+                      isLight ? 'text-slate-500' : 'text-slate-400'
+                    }`}>
                       {log.timestamp}
                     </div>
                   </div>
@@ -887,62 +1046,72 @@ export const AdminPanelPage: React.FC = () => {
 
       {/* Tab: Cloud Schema Architecture */}
       {activeTab === 'CLOUD_SYNC' && (
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 text-xs">
+        <div className={`p-6 rounded-2xl border space-y-4 text-xs shadow-sm ${
+          isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+        }`}>
           <div className="flex items-center gap-2">
-            <Server className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-base font-bold text-white">
+            <Server className="w-5 h-5 text-emerald-500" />
+            <h3 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
               Cloud Database & PostgreSQL Architecture
             </h3>
           </div>
-          <p className="text-slate-400">
+          <p className={isLight ? 'text-slate-600' : 'text-slate-400'}>
             The frontend and backend applications are architected with clean TypeScript schemas, Supabase PostgreSQL, and Cloud SQL:
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 font-mono">
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="font-bold text-amber-400">1. Users Table / Schema</div>
-              <p className="text-[11px] text-slate-400">
+            <div className={`p-4 rounded-xl border space-y-2 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+            }`}>
+              <div className={`font-bold ${isLight ? 'text-amber-800' : 'text-amber-400'}`}>1. Users Table / Schema</div>
+              <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 Stores rank, name, username, role (CO, Officers, Adjt, RSM, BSM, Admin), assignedBatteries array, password hashes, and authorization.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="font-bold text-blue-400">2. Personnel Table / Schema</div>
-              <p className="text-[11px] text-slate-400">
+            <div className={`p-4 rounded-xl border space-y-2 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+            }`}>
+              <div className={`font-bold ${isLight ? 'text-blue-800' : 'text-blue-400'}`}>2. Personnel Table / Schema</div>
+              <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 Stores military armyNo, rank (Offr, JCO, NCO, Snk), trade (TA, OCU, DMT, Gnr, Ck(U)), name, battery, paradeStatus, bloodGroup, medicalCategory.
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <div className="font-bold text-emerald-400">3. Parade Records Table</div>
-              <p className="text-[11px] text-slate-400">
+            <div className={`p-4 rounded-xl border space-y-2 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+            }`}>
+              <div className={`font-bold ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>3. Parade Records Table</div>
+              <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 Daily morning & evening consolidated muster states with date, battery totals, submittedBy, and approval stages.
               </p>
             </div>
           </div>
 
           {/* Cloud Connection & Auto Sync Center */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 mt-4">
+          <div className={`p-4 rounded-xl border space-y-3 mt-4 ${
+            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+          }`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
                     authUser
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      ? isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : isLight ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                   }`}>
                     {authUser ? 'LIVE CLOUD AUTO-SYNC: ON' : 'LOCAL MODE: AUTO-SYNC OFF'}
                   </span>
                   {authUser && (
-                    <span className="text-[11px] font-mono text-slate-300">
-                      Connected: <strong className="text-white">{authUser.email}</strong>
+                    <span className={`text-[11px] font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                      Connected: <strong className={isLight ? 'text-slate-900' : 'text-white'}>{authUser.email}</strong>
                     </span>
                   )}
                 </div>
-                <h4 className="font-bold text-white text-sm">
+                <h4 className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   {authUser ? 'Real-Time Cloud Synchronization Active' : 'Connect Account for Cloud Sync'}
                 </h4>
-                <p className="text-xs text-slate-400">
+                <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                   {authUser
                     ? 'All edits to users, nominal roll, and parade states are automatically saved to Cloud Database.'
                     : 'Connect your account to automatically push and sync all edits directly to the Cloud server.'}
@@ -955,7 +1124,7 @@ export const AdminPanelPage: React.FC = () => {
                   onClick={async () => {
                     await loginWithGoogle();
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shadow-lg shadow-emerald-950/50"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shadow-md shadow-emerald-950/20"
                 >
                   <Cloud className="w-4 h-4" />
                   <span>Connect Account</span>
@@ -963,13 +1132,15 @@ export const AdminPanelPage: React.FC = () => {
               )}
             </div>
 
-            <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className={`pt-3 border-t flex flex-col sm:flex-row items-center justify-between gap-3 ${
+              isLight ? 'border-slate-200' : 'border-slate-800/80'
+            }`}>
               <div className="space-y-0.5 text-left w-full sm:w-auto">
-                <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Database className="w-3.5 h-3.5 text-emerald-400" />
+                <div className={`text-xs font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <Database className="w-3.5 h-3.5 text-emerald-500" />
                   <span>Push All Current Data to Cloud Database</span>
                 </div>
-                <div className="text-[11px] text-slate-400">
+                <div className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   Uploads all users, sub-units, ranks, calculation rules, parade states, and personnel.
                 </div>
               </div>
@@ -978,7 +1149,7 @@ export const AdminPanelPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => syncAllToCloud()}
-                  className="px-4 py-2.5 rounded-xl text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shadow-lg bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50"
+                  className="px-4 py-2.5 rounded-xl text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shadow-sm bg-emerald-600 hover:bg-emerald-500"
                 >
                   <RefreshCw className="w-4 h-4" />
                   <span>Sync Entire Regiment to Cloud</span>
@@ -1002,30 +1173,36 @@ export const AdminPanelPage: React.FC = () => {
 
       {/* Confirm Delete User Dialog */}
       {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className={`w-full max-w-md border rounded-2xl p-6 shadow-2xl space-y-4 ${
+            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
+          }`}>
+            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div className="text-center space-y-1">
-              <h3 className="text-base font-bold text-white">
+              <h3 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 Delete User Account?
               </h3>
-              <p className="text-xs text-slate-400">
-                Are you sure you want to remove user <strong className="text-white">@{userToDelete.username}</strong> ({userToDelete.rank} {userToDelete.name})? This user will no longer be able to sign in or access the system.
+              <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                Are you sure you want to remove user <strong className={isLight ? 'text-slate-900' : 'text-white'}>@{userToDelete.username}</strong> ({userToDelete.rank} {userToDelete.name})? This user will no longer be able to sign in or access the system.
               </p>
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 onClick={() => setUserToDelete(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer border ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-transparent'
+                }`}
               >
                 Cancel
               </button>
               <button
                 onClick={executeDeleteUser}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-950/50 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/20 cursor-pointer"
               >
                 Confirm Delete
               </button>

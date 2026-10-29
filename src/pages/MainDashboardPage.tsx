@@ -303,56 +303,80 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
     <div className="space-y-6">
       {/* Top Banner: Standard Luxury Executive Command for CO, or Dignified Command for others */}
       {isCO ? (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/40 border border-amber-500/40 p-5 sm:p-7 shadow-2xl shadow-amber-950/20 space-y-5">
+        <div className={`relative overflow-hidden rounded-2xl border p-5 sm:p-7 shadow-2xl space-y-5 transition-colors duration-200 ${
+          isLight
+            ? 'bg-gradient-to-r from-amber-50/80 via-white to-amber-100/50 border-amber-300/80 shadow-amber-950/5 text-slate-900'
+            : 'bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/40 border-amber-500/40 shadow-amber-950/20 text-white'
+        }`}>
           <div className="absolute right-0 top-0 bottom-0 w-2/5 bg-radial-gradient from-amber-500/10 via-amber-600/5 to-transparent pointer-events-none" />
           <div className="absolute left-0 top-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
           
           <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1.5 shadow-sm">
-                  <Crown className="w-3 h-3 text-amber-400" />
+                <span className={`text-[10px] uppercase font-mono font-bold tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-sm ${
+                  isLight
+                    ? 'text-amber-800 bg-amber-100 border-amber-300'
+                    : 'text-amber-300 bg-amber-500/15 border-amber-500/30'
+                }`}>
+                  <Crown className="w-3 h-3 text-amber-500" />
                   <span>Commanding Officer Executive Console</span>
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
+                  isLight
+                    ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                    : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span>REGIMENTAL STATE: ACTIVE</span>
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white font-serif tracking-tight flex items-center gap-2.5">
+              <h1 className={`text-2xl sm:text-3xl font-black font-serif tracking-tight flex items-center gap-2.5 ${
+                isLight ? 'text-slate-900' : 'text-white'
+              }`}>
                 <span>10 Medium Regiment Artillery</span>
               </h1>
-              <p className="text-xs sm:text-sm text-slate-300">
-                <span className="text-amber-200 font-semibold">{currentUser.rank} {currentUser.name}</span> — Commanding Officer
+              <p className={`text-xs sm:text-sm ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                <span className={`font-semibold ${isLight ? 'text-amber-800' : 'text-amber-200'}`}>{currentUser.rank} {currentUser.name}</span> — Commanding Officer
               </p>
             </div>
 
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <div className="text-[10px] font-mono text-amber-400/80 uppercase tracking-wider font-semibold">Total Combat Force</div>
-                <div className="text-xl font-bold font-mono text-white">{totals.totalPosted} Troops</div>
+                <div className={`text-[10px] font-mono uppercase tracking-wider font-semibold ${
+                  isLight ? 'text-amber-700' : 'text-amber-400/80'
+                }`}>Total Combat Force</div>
+                <div className={`text-xl font-bold font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{totals.totalPosted} Troops</div>
               </div>
             </div>
           </div>
 
           {/* Operational Combat Readiness Gauge Bar for CO */}
-          <div className="relative p-4 sm:p-5 rounded-xl bg-slate-950/90 border border-amber-500/25 space-y-3 shadow-inner">
+          <div className={`relative p-4 sm:p-5 rounded-xl border space-y-3 transition-colors ${
+            isLight
+              ? 'bg-white border-amber-200 shadow-sm text-slate-900'
+              : 'bg-slate-950/90 border-amber-500/25 shadow-inner text-white'
+          }`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-              <span className="font-bold text-slate-100 flex items-center gap-2 font-mono tracking-wide">
-                <Zap className="w-4 h-4 text-amber-400" />
+              <span className={`font-bold flex items-center gap-2 font-mono tracking-wide ${
+                isLight ? 'text-slate-800' : 'text-slate-100'
+              }`}>
+                <Zap className="w-4 h-4 text-amber-500" />
                 <span>OPERATIONAL COMBAT READINESS INDEX</span>
               </span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-emerald-400 font-extrabold text-sm sm:text-base">
+                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-sm sm:text-base">
                   {totals.presentPercentage}% COMBAT FIT
                 </span>
-                <span className="text-[11px] font-mono text-slate-400">
+                <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   ({totals.totalPresent + totals.totalDuty} / {totals.totalPosted})
                 </span>
               </div>
             </div>
 
-            <div className="w-full bg-slate-900 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-800">
+            <div className={`w-full rounded-full h-3.5 overflow-hidden p-0.5 border ${
+              isLight ? 'bg-slate-200 border-slate-300' : 'bg-slate-900 border-slate-800'
+            }`}>
               <div
                 className="bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-1000 shadow-sm"
                 style={{ width: `${totals.presentPercentage}%` }}
@@ -361,33 +385,45 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] font-mono">
               {summaries.map((s) => (
-                <div key={s.battery} className="bg-slate-900/80 border border-slate-800/80 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
-                  <span className="text-slate-300 font-semibold">{s.battery}:</span>
-                  <span className="text-amber-300 font-bold">{s.percentage}%</span>
+                <div key={s.battery} className={`px-2.5 py-1.5 rounded-lg flex items-center justify-between border ${
+                  isLight
+                    ? 'bg-slate-50 border-slate-200'
+                    : 'bg-slate-900/80 border-slate-800/80'
+                }`}>
+                  <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{s.battery}:</span>
+                  <span className={`font-bold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>{s.percentage}%</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
       ) : (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 p-5 sm:p-6 shadow-xl space-y-4">
+        <div className={`relative overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-xl space-y-4 transition-colors duration-200 ${
+          isLight
+            ? 'bg-gradient-to-r from-slate-50 via-white to-rose-50/30 border-slate-200 text-slate-900'
+            : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800 text-white'
+        }`}>
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial-gradient from-rose-600/10 to-transparent pointer-events-none" />
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-rose-500 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
                   10 Medium Regiment Artillery
                 </span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                  isLight
+                    ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                    : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                }`}>
                   MORNING PARADE ACTIVE
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white font-sans tracking-tight">
+              <h1 className={`text-xl sm:text-2xl font-bold font-sans tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 Regimental Command Dashboard
               </h1>
-              <p className="text-xs text-slate-400">
-                <span className="text-white font-semibold">{currentUser.rank} {currentUser.name}</span> ({currentUser.role})
+              <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                <span className={`font-semibold ${isLight ? 'text-slate-800' : 'text-white'}`}>{currentUser.rank} {currentUser.name}</span> ({currentUser.role})
               </p>
             </div>
 
@@ -406,17 +442,23 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           </div>
 
           {/* Operational Readiness Summary Gauge */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+          <div className={`p-3.5 rounded-xl border space-y-2 transition-colors ${
+            isLight
+              ? 'bg-white border-slate-200'
+              : 'bg-slate-950/80 border-slate-800/80'
+          }`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
-              <span className="font-bold text-slate-300 flex items-center gap-2 font-mono">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span className={`font-bold flex items-center gap-2 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>OPERATIONAL COMBAT READINESS</span>
               </span>
-              <span className="font-mono text-emerald-400 font-bold">
+              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                 {totals.presentPercentage}% COMBAT FIT ({totals.totalPresent + totals.totalDuty} / {totals.totalPosted})
               </span>
             </div>
-            <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden p-0.5 border border-slate-800">
+            <div className={`w-full rounded-full h-2.5 overflow-hidden p-0.5 border ${
+              isLight ? 'bg-slate-200 border-slate-300' : 'bg-slate-900 border-slate-800'
+            }`}>
               <div
                 className="bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-700"
                 style={{ width: `${totals.presentPercentage}%` }}
@@ -536,31 +578,41 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
       {inlineCategory && (
         <div
           ref={inlineListRef}
-          className="rounded-2xl bg-slate-900/95 border border-slate-700/80 p-4 sm:p-5 shadow-2xl backdrop-blur-md space-y-4 transition-all duration-300 animate-in fade-in slide-in-from-top-2"
+          className={`rounded-2xl border p-4 sm:p-5 shadow-2xl backdrop-blur-md space-y-4 transition-all duration-300 animate-in fade-in slide-in-from-top-2 ${
+            isLight
+              ? 'bg-white border-slate-200 text-slate-900 shadow-xl'
+              : 'bg-slate-900/95 border-slate-700/80 text-white shadow-2xl'
+          }`}
         >
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b ${
+            isLight ? 'border-slate-200' : 'border-slate-800'
+          }`}>
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 font-bold shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 font-bold shrink-0">
                 <Users className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-base sm:text-lg font-bold text-white font-sans tracking-tight">
+                  <h3 className={`text-base sm:text-lg font-bold font-sans tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     {inlineCategory.title}
                   </h3>
-                  <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-rose-600/20 text-rose-300 border border-rose-500/30">
+                  <span className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${
+                    isLight ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-rose-600/20 text-rose-300 border-rose-500/30'
+                  }`}>
                     {filteredInlineList.length} জন সৈনিক
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">{inlineCategory.subtitle}</p>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{inlineCategory.subtitle}</p>
               </div>
             </div>
 
             {/* Controls: Search, Battery Filter, Close */}
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               {/* Battery Filter Options (বটি ফিল্টার) */}
-              <div className="flex items-center gap-1 bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-xs overflow-x-auto">
+              <div className={`flex items-center gap-1 p-1 rounded-xl border text-xs overflow-x-auto ${
+                isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950/90 border-slate-800'
+              }`}>
                 {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
                   <button
                     key={b}
@@ -568,6 +620,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                     className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap text-xs ${
                       inlineBtyFilter === b
                         ? 'bg-rose-600 text-white font-bold shadow-sm'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                     }`}
                     title={b === 'All' ? 'সকল ব্যাটারীর সৈনিক' : `${b}-এর সৈনিক`}
@@ -579,20 +633,28 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
 
               {/* Search */}
               <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
                 <input
                   type="text"
                   placeholder="খুঁজুন (নাম / নং)..."
                   value={inlineSearch}
                   onChange={(e) => setInlineSearch(e.target.value)}
-                  className="pl-8 pr-2.5 py-1 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-rose-500 w-36 sm:w-44"
+                  className={`pl-8 pr-2.5 py-1 text-xs rounded-xl border focus:outline-none focus:border-rose-500 w-36 sm:w-44 transition-colors ${
+                    isLight
+                      ? 'bg-slate-100 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-slate-950 border-slate-800 text-slate-200 placeholder-slate-500'
+                  }`}
                 />
               </div>
 
               {/* Close Button */}
               <button
                 onClick={() => setInlineCategory(null)}
-                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                className={`p-1.5 rounded-xl transition-colors cursor-pointer shrink-0 ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+                }`}
                 title="তালিকা বন্ধ করুন"
               >
                 <X className="w-4 h-4" />
@@ -603,18 +665,22 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           {/* List Content */}
           {filteredInlineList.length === 0 ? (
             <div className="py-8 text-center space-y-1.5">
-              <p className="text-sm text-slate-400 font-medium">
+              <p className={`text-sm font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 এই ক্যাটাগরিতে বর্তমানে কোনো সৈনিক পাওয়া যায়নি।
               </p>
-              <p className="text-xs text-slate-500 font-mono">
+              <p className={`text-xs font-mono ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
                 (No troops matching current selection)
               </p>
             </div>
           ) : inlineCategory.id === 'Course' ? (
             /* SIMPLE & MODERN COURSE TABLE */
-            <div className="overflow-x-auto max-h-[480px] overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-inner">
+            <div className={`overflow-x-auto max-h-[480px] overflow-y-auto rounded-xl border shadow-inner ${
+              isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-950/60'
+            }`}>
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="text-[11px] font-mono uppercase bg-slate-950 text-slate-400 border-b border-slate-800 sticky top-0 z-10 shadow-sm">
+                <thead className={`text-[11px] font-mono uppercase border-b sticky top-0 z-10 shadow-sm ${
+                  isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}>
                     <tr>
                     <th className="py-2.5 px-3">নাম্বার (Number)</th>
                     <th className="py-2.5 px-3">পদবি ও নাম (Rank & Name)</th>
@@ -625,7 +691,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                     <th className="py-2.5 px-3">শেষের তারিখ (End Date)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                <tbody className={`divide-y ${isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'}`}>
                   {filteredInlineList.map((p) => {
                     const courseDetails = parseMilitaryCourseInfo(p);
                     const cleanName = p.name.toLowerCase().startsWith(p.rk.toLowerCase())
@@ -633,9 +699,11 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                       : p.name;
 
                     return (
-                      <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
+                      <tr key={p.id} className={`transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/50'}`}>
                         {/* 1. Number */}
-                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                        <td className={`py-2.5 px-3 font-mono font-bold whitespace-nowrap ${
+                          isLight ? 'text-emerald-700' : 'text-emerald-400'
+                        }`}>
                           {p.snkNo}
                         </td>
 
@@ -646,26 +714,32 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                             <button
                               type="button"
                               onClick={() => onViewDossier(p)}
-                              className="font-semibold text-white whitespace-nowrap hover:text-emerald-400 hover:underline cursor-pointer text-left transition-colors"
+                              className={`font-semibold whitespace-nowrap hover:underline cursor-pointer text-left transition-colors ${
+                                isLight ? 'text-slate-900 hover:text-emerald-700' : 'text-white hover:text-emerald-400'
+                              }`}
                               title="ক্লিক করে ডসিয়ার দেখুন"
                             >
                               {cleanName || p.name}
                             </button>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                              isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-800 text-slate-300 border-slate-700'
+                            }`}>
                               {p.battery}
                             </span>
                           </div>
                         </td>
 
                         {/* 3. Course Name - Direct English Only, no "Course:" prefix, no location */}
-                        <td className="py-2.5 px-3 font-medium text-cyan-300 whitespace-nowrap font-sans">
+                        <td className={`py-2.5 px-3 font-medium whitespace-nowrap font-sans ${
+                          isLight ? 'text-cyan-800' : 'text-cyan-300'
+                        }`}>
                           {courseDetails.courseName}
                         </td>
 
                         {/* 4. Place - ONLY where this course is taking place */}
-                        <td className="py-2.5 px-3 text-slate-300">
+                        <td className={`py-2.5 px-3 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                           <div className="flex items-center gap-1.5 text-xs">
-                            <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             <span className="truncate max-w-[220px] font-medium" title={courseDetails.place}>
                               {courseDetails.place}
                             </span>
@@ -673,12 +747,16 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                         </td>
 
                         {/* 5. Duration (Week) */}
-                        <td className="py-2.5 px-3 font-mono text-center text-amber-300 font-bold whitespace-nowrap">
+                        <td className={`py-2.5 px-3 font-mono text-center font-bold whitespace-nowrap ${
+                          isLight ? 'text-amber-700' : 'text-amber-300'
+                        }`}>
                           {courseDetails.durationWeek}
                         </td>
 
                         {/* 6. Start Date */}
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-slate-300 whitespace-nowrap">
+                        <td className={`py-2.5 px-3 font-mono text-[11px] whitespace-nowrap ${
+                          isLight ? 'text-slate-600' : 'text-slate-300'
+                        }`}>
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3 text-emerald-500 shrink-0" />
                             <span>{courseDetails.startDate}</span>
@@ -686,9 +764,11 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                         </td>
 
                         {/* 7. End Date */}
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-slate-300 whitespace-nowrap">
+                        <td className={`py-2.5 px-3 font-mono text-[11px] whitespace-nowrap ${
+                          isLight ? 'text-slate-600' : 'text-slate-300'
+                        }`}>
                           <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-rose-400 shrink-0" />
+                            <Calendar className="w-3 h-3 text-rose-500 shrink-0" />
                             <span>{courseDetails.endDate}</span>
                           </div>
                         </td>
@@ -699,9 +779,13 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-[480px] overflow-y-auto divide-y divide-slate-800/60 rounded-xl border border-slate-800/80">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="text-[11px] font-mono uppercase bg-slate-950 text-slate-400 border-b border-slate-800 sticky top-0 z-10 shadow-sm">
+            <div className={`overflow-x-auto max-h-[480px] overflow-y-auto divide-y rounded-xl border ${
+              isLight ? 'divide-slate-200 border-slate-200' : 'divide-slate-800/60 border-slate-800/80'
+            }`}>
+              <table className={`w-full text-left text-xs ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                <thead className={`text-[11px] font-mono uppercase border-b sticky top-0 z-10 shadow-sm ${
+                  isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}>
                   <tr>
                     <th className="py-2.5 px-3">সৈনিক নং / Army No</th>
                     <th className="py-2.5 px-2">পদবী</th>
@@ -712,7 +796,9 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                     <th className="py-2.5 px-3">কর্তৃপক্ষ / মন্তব্য</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono bg-slate-950/40">
+                <tbody className={`divide-y font-mono ${
+                  isLight ? 'divide-slate-200 bg-white' : 'divide-slate-800/60 bg-slate-950/40'
+                }`}>
                   {filteredInlineList.map((p) => {
                     const loc =
                       p.outOfUnitLocation ||
@@ -740,10 +826,14 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                     const rem = p.outOfUnitRemarks || p.remarks || p.rmk || p.diagnosis;
 
                     return (
-                      <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
-                        <td className="py-2.5 px-3 font-bold text-amber-400 whitespace-nowrap">{p.snkNo}</td>
+                      <tr key={p.id} className={`transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/50'}`}>
+                        <td className={`py-2.5 px-3 font-bold whitespace-nowrap ${
+                          isLight ? 'text-amber-800' : 'text-amber-400'
+                        }`}>{p.snkNo}</td>
                         <td className="py-2.5 px-2 whitespace-nowrap">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 text-[10px]">
+                          <span className={`px-1.5 py-0.5 rounded border text-[10px] ${
+                            isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-800 text-slate-200 border-slate-700'
+                          }`}>
                             {p.rk}
                           </span>
                         </td>
@@ -751,36 +841,40 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                           <button
                             type="button"
                             onClick={() => onViewDossier(p)}
-                            className="font-sans font-bold text-white hover:text-emerald-400 hover:underline cursor-pointer text-left transition-colors"
+                            className={`font-sans font-bold hover:underline cursor-pointer text-left transition-colors ${
+                              isLight ? 'text-slate-900 hover:text-emerald-700' : 'text-white hover:text-emerald-400'
+                            }`}
                             title="ক্লিক করে ডসিয়ার দেখুন"
                           >
                             {p.name}
                           </button>
                         </td>
                         <td className="py-2.5 px-2 whitespace-nowrap">
-                          <span className="px-1.5 py-0.5 rounded bg-rose-950/40 text-rose-300 border border-rose-800/30 text-[10px]">
+                          <span className={`px-1.5 py-0.5 rounded border text-[10px] ${
+                            isLight ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-rose-950/40 text-rose-300 border-rose-800/30'
+                          }`}>
                             {p.battery}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 font-sans text-slate-200 max-w-xs truncate">
-                          <span className="text-emerald-400 font-semibold">{loc}</span>
+                        <td className={`py-2.5 px-3 font-sans max-w-xs truncate ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                          <span className={`font-semibold ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>{loc}</span>
                         </td>
-                        <td className="py-2.5 px-3 text-[11px] text-slate-300 whitespace-nowrap">
+                        <td className={`py-2.5 px-3 text-[11px] whitespace-nowrap ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                           {startDate || endDate ? (
                             <div className="space-y-0.5">
                               <div>{startDate || 'শুরু: -'} থেকে {endDate || 'ফেরত: -'}</div>
                               {p.durationDays ? (
-                                <div className="text-[10px] text-amber-300 font-semibold">
+                                <div className={`text-[10px] font-semibold ${isLight ? 'text-amber-800' : 'text-amber-300'}`}>
                                   মোট {p.durationDays} দিন {p.remainingDays !== undefined ? `(অবশিষ্ট: ${p.remainingDays} দিন)` : ''}
                                 </div>
                               ) : null}
                             </div>
                           ) : (
-                            <span className="text-slate-500">-</span>
+                            <span className={isLight ? 'text-slate-400' : 'text-slate-500'}>-</span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 font-sans text-slate-400 max-w-xs truncate">
-                          {auth ? <span className="text-amber-300 mr-1.5">[{auth}]</span> : null}
+                        <td className={`py-2.5 px-3 font-sans max-w-xs truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                          {auth ? <span className={`mr-1.5 ${isLight ? 'text-amber-800 font-semibold' : 'text-amber-300'}`}>[{auth}]</span> : null}
                           {rem || (p.statusDetails && p.statusDetails !== loc ? p.statusDetails : '-')}
                         </td>
                       </tr>
@@ -831,10 +925,14 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                   <button
                     key={item.bty}
                     onClick={() => handleSelectBatteryBox(item.bty)}
-                    className={`p-3.5 rounded-xl text-left transition-all group flex flex-col justify-between border ${
+                    className={`p-3.5 rounded-xl text-left transition-all group flex flex-col justify-between border cursor-pointer ${
                       isSelected
-                        ? 'bg-rose-950/40 border-rose-500/80 ring-2 ring-rose-500/40 shadow-lg shadow-rose-950/30'
-                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 hover:border-slate-700'
+                        ? isLight
+                          ? 'bg-rose-50 border-rose-500/80 ring-2 ring-rose-500/30 shadow-md text-slate-900'
+                          : 'bg-rose-950/40 border-rose-500/80 ring-2 ring-rose-500/40 shadow-lg shadow-rose-950/30 text-white'
+                        : isLight
+                        ? 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 shadow-sm text-slate-900'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 hover:border-slate-700 text-white'
                     }`}
                   >
                     <div>
@@ -843,6 +941,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                           className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm border transition-colors ${
                             isSelected
                               ? 'bg-rose-600 text-white border-rose-500'
+                              : isLight
+                              ? 'bg-slate-100 border-slate-200 text-rose-600 group-hover:border-rose-400'
                               : 'bg-slate-800 border-slate-700 text-rose-400 group-hover:border-rose-500'
                           }`}
                         >
@@ -852,6 +952,8 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                           className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
                             isSelected
                               ? 'bg-rose-500 text-white'
+                              : isLight
+                              ? 'bg-slate-100 text-slate-600 border border-slate-200'
                               : 'bg-slate-800 text-slate-400'
                           }`}
                         >
@@ -859,23 +961,25 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                         </span>
                       </div>
 
-                      <div className="font-bold text-xs text-white mt-2.5 font-sans flex items-center gap-1">
+                      <div className={`font-bold text-xs mt-2.5 font-sans flex items-center gap-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                         <span>{item.bty}</span>
                         {isSelected && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         )}
                       </div>
-                      <div className="text-[10px] text-slate-400 truncate">{item.name}</div>
+                      <div className={`text-[10px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{item.name}</div>
                     </div>
 
                     <div className="mt-3 flex items-center justify-between text-[11px] font-mono">
-                      <span className={isSelected ? 'text-rose-300 font-bold' : 'text-slate-400'}>
+                      <span className={isSelected ? 'text-rose-600 dark:text-rose-300 font-bold' : isLight ? 'text-slate-500' : 'text-slate-400'}>
                         {isSelected ? 'Active Roll' : 'View Nominal'}
                       </span>
                       <ArrowRight
                         className={`w-3.5 h-3.5 transition-transform ${
                           isSelected
-                            ? 'text-rose-400 translate-x-1'
+                            ? 'text-rose-500 translate-x-1'
+                            : isLight
+                            ? 'text-slate-400 group-hover:text-rose-500 group-hover:translate-x-1'
                             : 'text-slate-500 group-hover:text-rose-400 group-hover:translate-x-1'
                         }`}
                       />
@@ -890,70 +994,98 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
         {/* Right 1 Col: Quick Action Shortcuts & Live Audit Log */}
         <div className="space-y-6">
           {/* Quick Shortcuts */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-2">
-              <Shield className="w-3.5 h-3.5 text-rose-400" />
+          <div className={`rounded-xl p-4 shadow-xl space-y-3 border transition-colors ${
+            isLight
+              ? 'bg-white border-slate-200 text-slate-900 shadow-md'
+              : 'bg-slate-900 border-slate-800 text-white shadow-xl'
+          }`}>
+            <h3 className={`text-xs font-bold uppercase tracking-wider font-mono flex items-center gap-2 ${
+              isLight ? 'text-slate-700' : 'text-slate-400'
+            }`}>
+              <Shield className="w-3.5 h-3.5 text-rose-500" />
               <span>Quick Navigation Actions</span>
             </h3>
 
             <div className="space-y-2">
               <button
                 onClick={() => setActivePage('master_personnel')}
-                className="w-full p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-xs text-slate-200 transition-colors"
+                className={`w-full p-2.5 rounded-lg border flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                  isLight
+                    ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                    : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Users className="w-4 h-4 text-blue-400" />
+                  <Users className="w-4 h-4 text-blue-500" />
                   <span className="font-medium">Search Master Nominal Roll</span>
                 </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                <ArrowRight className={`w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
               </button>
 
               <button
                 onClick={() => setActivePage('parade_state')}
-                className="w-full p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-xs text-slate-200 transition-colors"
+                className={`w-full p-2.5 rounded-lg border flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                  isLight
+                    ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                    : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   <span className="font-medium">Update Daily Parade Status</span>
                 </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                <ArrowRight className={`w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
               </button>
 
               <button
                 onClick={() => setActivePage('rsm_dashboard')}
-                className="w-full p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-xs text-slate-200 transition-colors"
+                className={`w-full p-2.5 rounded-lg border flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                  isLight
+                    ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                    : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <ShieldAlert className="w-4 h-4 text-purple-400" />
+                  <ShieldAlert className="w-4 h-4 text-purple-500" />
                   <span className="font-medium">RSM Guard & Duty Roster</span>
                 </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                <ArrowRight className={`w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
               </button>
 
               <button
                 onClick={() => setActivePage('co_dashboard')}
-                className="w-full p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-xs text-slate-200 transition-colors"
+                className={`w-full p-2.5 rounded-lg border flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                  isLight
+                    ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                    : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <Sparkles className="w-4 h-4 text-amber-500" />
                   <span className="font-medium">CO Executive Readiness Brief</span>
                 </div>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                <ArrowRight className={`w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
               </button>
             </div>
           </div>
 
           {/* Recent Parade Activity Logs (Admin Only) */}
           {currentUser.role === 'Admin' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl space-y-3">
+            <div className={`rounded-xl p-4 shadow-xl space-y-3 border transition-colors ${
+              isLight
+                ? 'bg-white border-slate-200 text-slate-900 shadow-md'
+                : 'bg-slate-900 border-slate-800 text-white shadow-xl'
+            }`}>
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-blue-400" />
+                <h3 className={`text-xs font-bold uppercase tracking-wider font-mono flex items-center gap-1.5 ${
+                  isLight ? 'text-slate-700' : 'text-slate-400'
+                }`}>
+                  <Clock className="w-3.5 h-3.5 text-blue-500" />
                   <span>Unit Activity & Audit Log</span>
                 </h3>
                 <button
                   onClick={() => setActivePage('admin_panel')}
-                  className="text-[11px] text-rose-400 hover:underline"
+                  className="text-[11px] text-rose-500 hover:underline cursor-pointer"
                 >
                   View All
                 </button>
@@ -963,16 +1095,18 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                 {auditLogs.slice(0, 4).map((log) => (
                   <div
                     key={log.id}
-                    className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1"
+                    className={`p-2.5 rounded-lg border space-y-1 ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800/80'
+                    }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-[11px]">{log.action}</span>
-                      <span className="text-[9px] font-mono text-slate-400">
+                      <span className={`font-bold text-[11px] ${isLight ? 'text-slate-900' : 'text-white'}`}>{log.action}</span>
+                      <span className={`text-[9px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                         {log.timestamp.slice(11, 16)} HRS
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 line-clamp-2">{log.details}</p>
-                    <div className="text-[9px] text-rose-400 font-mono">By: {log.performedBy}</div>
+                    <p className={`text-[11px] line-clamp-2 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>{log.details}</p>
+                    <div className="text-[9px] text-rose-500 font-mono">By: {log.performedBy}</div>
                   </div>
                 ))}
               </div>
@@ -985,19 +1119,23 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
       {/* Interactive Troop Nominal Roll Display (Shows Selected Battery Troops automatically) - Hidden for CO and Offr */}
       {!isCoOrOffr && (
         <div ref={troopsSectionRef} className="space-y-4 pt-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border transition-colors ${
+          isLight ? 'bg-white border-slate-200 text-slate-900 shadow-sm' : 'bg-slate-950 border-slate-800 text-white'
+        }`}>
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
                 {selectedBattery === 'All' ? 'Full Regimental Roll' : `${selectedBattery} Sub-Unit Nominal`}
               </span>
-              <span className="text-xs font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+              <span className={`text-xs font-mono px-2 py-0.5 rounded ${
+                isLight ? 'text-slate-600 bg-slate-100 border border-slate-200' : 'text-slate-400 bg-slate-800'
+              }`}>
                 {selectedBattery === 'All'
                   ? `${personnelList.length} Personnel Total`
                   : `${btyTroopsCount(selectedBattery)} Troops in ${selectedBattery}`}
               </span>
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-white font-sans">
+            <h2 className={`text-base sm:text-lg font-bold font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {selectedBattery === 'All'
                 ? 'All 10 Med Regt Troops Nominal Roll'
                 : `${selectedBattery} Personnel Nominal Roll & Active Parade State`}
@@ -1011,9 +1149,11 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                 setSelectedBattery('All');
                 setSelectedBatteryFilter('All');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all whitespace-nowrap cursor-pointer ${
                 selectedBattery === 'All'
                   ? 'bg-rose-600 text-white font-bold shadow'
+                  : isLight
+                  ? 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200'
                   : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
               }`}
             >
@@ -1025,9 +1165,11 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                 <button
                   key={item.bty}
                   onClick={() => handleSelectBatteryBox(item.bty)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all whitespace-nowrap cursor-pointer ${
                     isSelected
                       ? 'bg-rose-600 text-white font-bold shadow'
+                      : isLight
+                      ? 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200'
                       : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   }`}
                 >
@@ -1042,10 +1184,14 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                   setSelectedBatteryFilter(selectedBattery);
                   setActivePage('battery_dashboard');
                 }}
-                className="ml-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono font-semibold border border-slate-700 flex items-center gap-1 whitespace-nowrap"
+                className={`ml-2 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                }`}
               >
                 <span>Full Bty Console</span>
-                <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
+                <ChevronRight className="w-3.5 h-3.5 text-rose-500" />
               </button>
             )}
           </div>

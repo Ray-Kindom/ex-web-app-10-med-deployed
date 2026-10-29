@@ -46,7 +46,9 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
     isGuest,
     setOutOfUnitModalOpen,
     setActiveOutOfUnitCategory,
+    theme,
   } = useApp();
+  const isLight = theme === 'light';
 
   const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM', 'EME JCO'].includes(currentUser.role);
   const assignedBty: Battery =
@@ -258,15 +260,15 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   return (
     <div className="space-y-5">
       {/* Battery Header: ONLY Battery Name (e.g. "P Bty" or user's respective battery name) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-800/80'}`}>
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight font-sans">
+          <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
             {activeBattery}
           </h1>
 
           {/* Sub-unit battery selector for privileged users (Admin, CO, RSM, Offr) */}
           {!isBsm && (
-            <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 p-1 rounded-xl">
+            <div className={`flex items-center gap-1 border p-1 rounded-xl ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-900/90 border-slate-800'}`}>
               {batteries.map((b) => {
                 const isSelected = activeBattery === b.id;
                 return (
@@ -279,6 +281,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40 font-bold'
+                        : isLight
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                     }`}
                   >
@@ -381,14 +385,18 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
 
       {/* Inline Drilldown List right underneath the StatCard boxes (No popup window!) */}
       {selectedStatFilter && (
-        <div className="rounded-2xl bg-slate-900/95 border border-slate-700/80 p-4 sm:p-5 shadow-2xl space-y-4 animate-in fade-in slide-in-from-top-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+        <div className={`rounded-2xl border p-4 sm:p-5 shadow-2xl space-y-4 animate-in fade-in slide-in-from-top-2 ${
+          isLight ? 'bg-white border-slate-200 shadow-slate-200/50' : 'bg-slate-900/95 border-slate-700/80'
+        }`}>
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b gap-2 ${
+            isLight ? 'border-slate-200' : 'border-slate-800'
+          }`}>
             <div>
-              <h3 className="text-base font-bold text-white font-sans">
+              <h3 className={`text-base font-bold font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {selectedStatFilter.title}
               </h3>
               <div className="flex items-center gap-3 mt-1">
-                <p className="text-xs text-slate-400 font-mono">
+                <p className={`text-xs font-mono ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                   মোট: {modalPersonnel.length} জন সৈনিক
                 </p>
                 {selectedStatFilter.status === 'Leave' && (
@@ -398,6 +406,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
                         leaveSubFilter === 'All'
                           ? 'bg-purple-600 text-white shadow-sm font-bold'
+                          : isLight
+                          ? 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'
                           : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
                       }`}
                     >
@@ -408,6 +418,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
                         leaveSubFilter === 'P/Lve'
                           ? 'bg-purple-600 text-white shadow-sm font-bold'
+                          : isLight
+                          ? 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'
                           : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
                       }`}
                     >
@@ -418,6 +430,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${
                         leaveSubFilter === 'C/Lve'
                           ? 'bg-cyan-600 text-white shadow-sm font-bold'
+                          : isLight
+                          ? 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'
                           : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
                       }`}
                     >
@@ -427,7 +441,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                 )}
                 {selectedStatFilter.status === 'Course/Trg' && (
                   <div className="flex items-center gap-1 overflow-x-auto">
-                    <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">ব্যাটারী:</span>
+                    <span className={`text-[11px] font-mono hidden sm:inline ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>ব্যাটারী:</span>
                     {(['All Bty', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
                       <button
                         key={b}
@@ -438,6 +452,8 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                         className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
                           activeBattery === b
                             ? 'bg-rose-600 text-white shadow-sm font-bold'
+                            : isLight
+                            ? 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200'
                             : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
                         }`}
                       >
@@ -450,23 +466,31 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
             </div>
             <button
               onClick={() => setSelectedStatFilter(null)}
-              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white self-start sm:self-center cursor-pointer"
+              className={`p-1.5 rounded-lg self-start sm:self-center cursor-pointer transition-colors ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+              }`}
               title="তালিকা বন্ধ করুন"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-800/80 pr-1">
+          <div className={`max-h-[420px] overflow-y-auto divide-y pr-1 ${isLight ? 'divide-slate-200' : 'divide-slate-800/80'}`}>
             {sortedModalPersonnel.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500 font-mono">
+              <div className={`py-8 text-center text-xs font-mono ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                 এই ক্যাটাগরিতে বর্তমানে কোনো সৈনিক নেই। (No personnel in this category.)
               </div>
             ) : selectedStatFilter.status === 'Course/Trg' ? (
               /* SIMPLE & MODERN COURSE TABLE */
-              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-inner">
+              <div className={`overflow-x-auto rounded-xl border shadow-inner ${
+                isLight ? 'border-slate-200 bg-slate-50/70' : 'border-slate-800 bg-slate-950/60'
+              }`}>
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="text-[11px] font-mono uppercase bg-slate-950 text-slate-400 border-b border-slate-800 sticky top-0 z-10 shadow-sm">
+                  <thead className={`text-[11px] font-mono uppercase sticky top-0 z-10 shadow-sm border-b ${
+                    isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'
+                  }`}>
                     <tr>
                       <th className="py-2.5 px-3">নাম্বার (Number)</th>
                       <th className="py-2.5 px-3">পদবি ও নাম (Rank & Name)</th>
@@ -477,7 +501,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                       <th className="py-2.5 px-3">শেষের তারিখ (End Date)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                  <tbody className={`divide-y ${isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'}`}>
                     {sortedModalPersonnel.map((p) => {
                       const courseDetails = parseMilitaryCourseInfo(p);
                       const cleanName = p.name.toLowerCase().startsWith(p.rk.toLowerCase())
@@ -485,9 +509,9 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                         : p.name;
 
                       return (
-                        <tr key={p.id} className="hover:bg-slate-800/50 transition-colors">
+                        <tr key={p.id} className={`transition-colors ${isLight ? 'hover:bg-slate-100/70' : 'hover:bg-slate-800/50'}`}>
                           {/* 1. Number */}
-                          <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                          <td className={`py-2.5 px-3 font-mono font-bold whitespace-nowrap ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
                             {p.snkNo}
                           </td>
 
@@ -498,26 +522,30 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onViewDossier(p)}
-                                className="font-semibold text-white whitespace-nowrap hover:text-emerald-400 hover:underline cursor-pointer text-left transition-colors"
+                                className={`font-semibold whitespace-nowrap hover:underline cursor-pointer text-left transition-colors ${
+                                  isLight ? 'text-slate-900 hover:text-emerald-700' : 'text-white hover:text-emerald-400'
+                                }`}
                                 title="ক্লিক করে ডসিয়ার দেখুন"
                               >
                                 {cleanName || p.name}
                               </button>
-                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                                isLight ? 'bg-white text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'
+                              }`}>
                                 {p.battery}
                               </span>
                             </div>
                           </td>
 
-                          {/* 3. Course Name - Direct English Only, no "Course:" prefix, no location */}
-                          <td className="py-2.5 px-3 font-medium text-cyan-300 whitespace-nowrap font-sans">
+                          {/* 3. Course Name */}
+                          <td className={`py-2.5 px-3 font-medium whitespace-nowrap font-sans ${isLight ? 'text-cyan-800' : 'text-cyan-300'}`}>
                             {courseDetails.courseName}
                           </td>
 
-                          {/* 4. Place - ONLY where this course is taking place */}
-                          <td className="py-2.5 px-3 text-slate-300">
+                          {/* 4. Place */}
+                          <td className={`py-2.5 px-3 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                             <div className="flex items-center gap-1.5 text-xs">
-                              <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <MapPin className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-amber-600' : 'text-amber-400'}`} />
                               <span className="truncate max-w-[220px] font-medium" title={courseDetails.place}>
                                 {courseDetails.place}
                               </span>
@@ -525,22 +553,22 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                           </td>
 
                           {/* 5. Duration (Week) */}
-                          <td className="py-2.5 px-3 font-mono text-center text-amber-300 font-bold whitespace-nowrap">
+                          <td className={`py-2.5 px-3 font-mono text-center font-bold whitespace-nowrap ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
                             {courseDetails.durationWeek}
                           </td>
 
                           {/* 6. Start Date */}
-                          <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap text-[11px]">
+                          <td className={`py-2.5 px-3 font-mono whitespace-nowrap text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                             <div className="flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <Calendar className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-emerald-600' : 'text-emerald-500'}`} />
                               <span>{courseDetails.startDate}</span>
                             </div>
                           </td>
 
                           {/* 7. End Date */}
-                          <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap text-[11px]">
+                          <td className={`py-2.5 px-3 font-mono whitespace-nowrap text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                             <div className="flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                              <Calendar className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-rose-600' : 'text-rose-400'}`} />
                               <span>{courseDetails.endDate}</span>
                             </div>
                           </td>
@@ -555,48 +583,56 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                 <div
                   key={p.id}
                   onClick={() => onViewDossier(p)}
-                  className="py-2.5 px-2 flex items-center justify-between hover:bg-slate-800/60 rounded-lg cursor-pointer transition-colors"
+                  className={`py-2.5 px-2 flex items-center justify-between rounded-lg cursor-pointer transition-colors ${
+                    isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800/60'
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-mono font-bold text-amber-300 shrink-0">
+                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-mono font-bold shrink-0 ${
+                      isLight ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-slate-800 border-slate-700 text-amber-300'
+                    }`}>
                       {p.rk}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
+                      <div className={`text-xs font-bold flex items-center gap-2 flex-wrap ${isLight ? 'text-slate-900' : 'text-white'}`}>
                         <span className="truncate">{p.name}</span>
                         {(p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || p.leaveType === 'P/Lve') && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 shrink-0">
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded border shrink-0 ${
+                            isLight ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                          }`}>
                             P/Lve
                           </span>
                         )}
                         {(p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve' || p.leaveType === 'C/Lve') && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shrink-0">
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded border shrink-0 ${
+                            isLight ? 'bg-cyan-100 text-cyan-900 border-cyan-300' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                          }`}>
                             C/Lve
                           </span>
                         )}
                       </div>
-                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
-                        <span className="text-amber-400 font-semibold">{p.snkNo}</span>
+                      <div className={`text-[10px] font-mono flex items-center gap-1.5 flex-wrap mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                        <span className={`font-semibold ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{p.snkNo}</span>
                         <span>•</span>
-                        <span className="text-amber-300/90 font-medium">{p.battery}</span>
+                        <span className={`font-medium ${isLight ? 'text-amber-800' : 'text-amber-300/90'}`}>{p.battery}</span>
                         <span>•</span>
                         <span>{p.trade}</span>
                         {p.outOfUnitLocation || p.location ? (
                           <>
                             <span>•</span>
-                            <span className="text-emerald-400">{p.outOfUnitLocation || p.location}</span>
+                            <span className={isLight ? 'text-emerald-700 font-semibold' : 'text-emerald-400'}>{p.outOfUnitLocation || p.location}</span>
                           </>
                         ) : null}
                         {p.durationDays ? (
                           <>
                             <span>•</span>
-                            <span className="text-slate-300">মোট {p.durationDays} দিন</span>
+                            <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>মোট {p.durationDays} দিন</span>
                           </>
                         ) : null}
                         {p.remainingDays !== undefined ? (
                           <>
                             <span>•</span>
-                            <span className={p.remainingDays > 0 ? 'text-amber-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+                            <span className={p.remainingDays > 0 ? (isLight ? 'text-amber-800 font-semibold' : 'text-amber-400 font-semibold') : (isLight ? 'text-emerald-800 font-semibold' : 'text-emerald-400 font-semibold')}>
                               অবশিষ্ট {p.remainingDays} দিন
                             </span>
                           </>
@@ -604,7 +640,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                         {p.statusDetails && !p.durationDays && (
                           <>
                             <span>•</span>
-                            <span className="text-rose-400">{p.statusDetails}</span>
+                            <span className={isLight ? 'text-rose-700 font-semibold' : 'text-rose-400'}>{p.statusDetails}</span>
                           </>
                         )}
                       </div>
@@ -614,15 +650,15 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                   <div className="text-right shrink-0 ml-2">
                     <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold ${
                       p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve'
-                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                        ? isLight ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                         : p.status === 'C/Lve' || p.outOfUnitCategory === 'C/Lve'
-                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                        ? isLight ? 'bg-cyan-100 text-cyan-900 border-cyan-300' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                        : isLight ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'
                     }`}>
                       {p.status}
                     </span>
                     {(p.endDate || p.outOfUnitEndDate || p.leaveTo) && (
-                      <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                      <div className={`text-[9px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                         যোগদান: {p.endDate || p.outOfUnitEndDate || p.leaveTo}
                       </div>
                     )}

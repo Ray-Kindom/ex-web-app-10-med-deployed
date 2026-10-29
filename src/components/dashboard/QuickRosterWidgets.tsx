@@ -333,7 +333,8 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
   onRosterToggled,
   externalActiveView,
 }) => {
-  const { personnelList, usersList, dutyRoster, paradeDutyAssignments, selectedParadeDate } = useApp();
+  const { personnelList, usersList, dutyRoster, paradeDutyAssignments, selectedParadeDate, theme } = useApp();
+  const isLight = theme === 'light';
 
   const [activeRosterView, setActiveRosterView] = useState<'appointments' | 'rp' | null>(null);
 
@@ -752,32 +753,42 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
           onClick={() => toggleView('appointments')}
           className={`relative rounded-2xl p-4 sm:p-5 transition-all duration-200 cursor-pointer shadow-lg group select-none border ${
             activeRosterView === 'appointments'
-              ? 'bg-gradient-to-br from-amber-950/60 via-slate-900 to-slate-950 border-amber-500/80 ring-2 ring-amber-500/40 shadow-amber-950/30'
-              : 'bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/15 border-slate-700/80 hover:border-amber-500/50 hover:bg-slate-850'
+              ? isLight
+                ? 'bg-amber-50/90 border-amber-500 ring-2 ring-amber-500/40 shadow-amber-900/10'
+                : 'bg-gradient-to-br from-amber-950/60 via-slate-900 to-slate-950 border-amber-500/80 ring-2 ring-amber-500/40 shadow-amber-950/30'
+              : isLight
+                ? 'bg-white hover:bg-slate-50/90 border-slate-200 hover:border-amber-400 shadow-sm'
+                : 'bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/15 border-slate-700/80 hover:border-amber-500/50 hover:bg-slate-850'
           }`}
         >
           {/* Top Bar: Icon, Title, Counter Badge */}
-          <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className={`flex items-start justify-between gap-3 pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border transition-colors ${
                   activeRosterView === 'appointments'
                     ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/30'
-                    : 'bg-amber-500/15 border-amber-500/30 text-amber-400 group-hover:bg-amber-500/25'
+                    : isLight
+                      ? 'bg-amber-50 border-amber-200 text-amber-700 group-hover:bg-amber-100'
+                      : 'bg-amber-500/15 border-amber-500/30 text-amber-400 group-hover:bg-amber-500/25'
                 }`}
               >
                 <Award className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight font-sans">
+                  <h3 className={`text-sm sm:text-base font-bold tracking-tight font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     Appointment Holders
                   </h3>
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                    isLight
+                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  }`}>
                     {appointmentHolders.length} Active
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   নিয়োগপ্রাপ্ত কর্মকর্তা ও পদাধিকারী (CO, Staff, BCs, RSM, BSMs)
                 </p>
               </div>
@@ -788,7 +799,9 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                 className={`text-[11px] font-mono font-semibold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
                   activeRosterView === 'appointments'
                     ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
-                    : 'bg-slate-800 text-amber-300 border-slate-700 group-hover:border-amber-500/40'
+                    : isLight
+                      ? 'bg-slate-100 text-amber-900 border-slate-200 group-hover:border-amber-400'
+                      : 'bg-slate-800 text-amber-300 border-slate-700 group-hover:border-amber-500/40'
                 }`}
               >
                 <span>{activeRosterView === 'appointments' ? 'বন্ধ করুন' : 'তালিকা দেখুন'}</span>
@@ -806,16 +819,26 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
             {appointmentHolders.slice(0, 3).map((item, idx) => (
               <div
                 key={item.id || idx}
-                className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/80 group-hover:border-slate-700/80 transition-colors"
+                className={`flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  isLight
+                    ? 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
+                    : 'bg-slate-950/60 border-slate-800/80 group-hover:border-slate-700/80'
+                }`}
               >
                 <div className="flex items-center gap-2 truncate">
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                    isLight
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  }`}>
                     {item.appointment.split('—')[0].replace('Commanding Officer (CO)', 'CO').replace('Second-in-Command (2IC)', '2IC').replace('Adjutant (Adjt)', 'Adjt').replace('Regimental Sergeant Major (RSM)', 'RSM').trim()}
                   </span>
-                  <span className="font-semibold text-slate-200 truncate">{item.name}</span>
+                  <span className={`font-semibold truncate ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{item.name}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                    isLight ? 'text-slate-600 bg-slate-200 border border-slate-300' : 'text-slate-400 bg-slate-800'
+                  }`}>
                     {item.battery}
                   </span>
                 </div>
@@ -824,12 +847,14 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
           </div>
 
           {/* Bottom Cue */}
-          <div className="mt-2.5 pt-2 border-t border-slate-800/70 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span className="flex items-center gap-1 text-amber-400/90">
+          <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[11px] font-mono ${
+            isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800/70 text-slate-400'
+          }`}>
+            <span className={`flex items-center gap-1 ${isLight ? 'text-amber-700 font-semibold' : 'text-amber-400/90'}`}>
               <Crown className="w-3 h-3" />
               <span>+ {Math.max(0, appointmentHolders.length - 3)} আরো পদাধিকারী তালিকাভুক্ত</span>
             </span>
-            <span className="text-slate-500 group-hover:text-amber-300 transition-colors">
+            <span className={isLight ? 'text-slate-600 group-hover:text-amber-700 font-medium transition-colors' : 'text-slate-500 group-hover:text-amber-300 transition-colors'}>
               Click to view all →
             </span>
           </div>
@@ -842,32 +867,42 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
           onClick={() => toggleView('rp')}
           className={`relative rounded-2xl p-4 sm:p-5 transition-all duration-200 cursor-pointer shadow-lg group select-none border ${
             activeRosterView === 'rp'
-              ? 'bg-gradient-to-br from-indigo-950/60 via-slate-900 to-slate-950 border-indigo-500/80 ring-2 ring-indigo-500/40 shadow-indigo-950/30'
-              : 'bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/15 border-slate-700/80 hover:border-indigo-500/50 hover:bg-slate-850'
+              ? isLight
+                ? 'bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/40 shadow-indigo-900/10'
+                : 'bg-gradient-to-br from-indigo-950/60 via-slate-900 to-slate-950 border-indigo-500/80 ring-2 ring-indigo-500/40 shadow-indigo-950/30'
+              : isLight
+                ? 'bg-white hover:bg-slate-50/90 border-slate-200 hover:border-indigo-400 shadow-sm'
+                : 'bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/15 border-slate-700/80 hover:border-indigo-500/50 hover:bg-slate-850'
           }`}
         >
           {/* Top Bar: Icon, Title, Counter Badge */}
-          <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className={`flex items-start justify-between gap-3 pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border transition-colors ${
                   activeRosterView === 'rp'
-                    ? 'bg-indigo-500 text-white border-indigo-400 shadow-md shadow-indigo-500/30'
-                    : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 group-hover:bg-indigo-500/25'
+                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-500/30'
+                    : isLight
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700 group-hover:bg-indigo-100'
+                      : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 group-hover:bg-indigo-500/25'
                 }`}
               >
                 <ShieldAlert className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight font-sans">
+                  <h3 className={`text-sm sm:text-base font-bold tracking-tight font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     Regimental Police (RP)
                   </h3>
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                    isLight
+                      ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                      : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                  }`}>
                     {rpPersonnelList.length} Personnel
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   রেজিমেন্টাল পুলিশ (মেইন গেইট, কোয়ার্টার গার্ড ও শৃংখলা সেন্ট্রি)
                 </p>
               </div>
@@ -877,8 +912,10 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
               <span
                 className={`text-[11px] font-mono font-semibold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
                   activeRosterView === 'rp'
-                    ? 'bg-indigo-500 text-white border-indigo-400 font-bold'
-                    : 'bg-slate-800 text-indigo-300 border-slate-700 group-hover:border-indigo-500/40'
+                    ? 'bg-indigo-600 text-white border-indigo-400 font-bold'
+                    : isLight
+                      ? 'bg-slate-100 text-indigo-900 border-slate-200 group-hover:border-indigo-400'
+                      : 'bg-slate-800 text-indigo-300 border-slate-700 group-hover:border-indigo-500/40'
                 }`}
               >
                 <span>{activeRosterView === 'rp' ? 'বন্ধ করুন' : 'তালিকা দেখুন'}</span>
@@ -896,19 +933,29 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
             {rpPersonnelList.slice(0, 3).map((item, idx) => (
               <div
                 key={item.id || idx}
-                className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/80 group-hover:border-slate-700/80 transition-colors"
+                className={`flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  isLight
+                    ? 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
+                    : 'bg-slate-950/60 border-slate-800/80 group-hover:border-slate-700/80'
+                }`}
               >
                 <div className="flex items-center gap-2 truncate">
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                    isLight
+                      ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                      : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                  }`}>
                     {item.rk}
                   </span>
-                  <span className="font-semibold text-slate-200 truncate">{item.name}</span>
-                  <span className="text-[10px] text-slate-400 hidden sm:inline truncate">
+                  <span className={`font-semibold truncate ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{item.name}</span>
+                  <span className={`text-[10px] hidden sm:inline truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                     ({item.post.split('—')[0].trim()})
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                    isLight ? 'text-slate-600 bg-slate-200 border border-slate-300' : 'text-slate-400 bg-slate-800'
+                  }`}>
                     {item.battery}
                   </span>
                 </div>
@@ -917,12 +964,14 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
           </div>
 
           {/* Bottom Cue */}
-          <div className="mt-2.5 pt-2 border-t border-slate-800/70 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span className="flex items-center gap-1 text-indigo-400/90">
+          <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[11px] font-mono ${
+            isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800/70 text-slate-400'
+          }`}>
+            <span className={`flex items-center gap-1 ${isLight ? 'text-indigo-700 font-semibold' : 'text-indigo-400/90'}`}>
               <ShieldCheck className="w-3 h-3" />
               <span>+ {Math.max(0, rpPersonnelList.length - 3)} আরো আরপি সদস্য সক্রিয়</span>
             </span>
-            <span className="text-slate-500 group-hover:text-indigo-300 transition-colors">
+            <span className={isLight ? 'text-slate-600 group-hover:text-indigo-700 font-medium transition-colors' : 'text-slate-500 group-hover:text-indigo-300 transition-colors'}>
               Click to view all →
             </span>
           </div>
@@ -935,16 +984,26 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
       {activeRosterView && (
         <div
           ref={panelRef}
-          className="rounded-2xl bg-slate-900/95 border border-slate-700/80 p-4 sm:p-5 shadow-2xl backdrop-blur-md space-y-4 transition-all duration-300 animate-in fade-in slide-in-from-top-2"
+          className={`rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4 transition-all duration-300 animate-in fade-in slide-in-from-top-2 border ${
+            isLight
+              ? 'bg-white border-slate-200 shadow-slate-200/50'
+              : 'bg-slate-900/95 border-slate-700/80 backdrop-blur-md'
+          }`}
         >
           {/* Header of Detail Panel */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b ${
+            isLight ? 'border-slate-200' : 'border-slate-800'
+          }`}>
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border shrink-0 ${
                   activeRosterView === 'appointments'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                    ? isLight
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : isLight
+                      ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                      : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
                 }`}
               >
                 {activeRosterView === 'appointments' ? (
@@ -955,7 +1014,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-base sm:text-lg font-bold text-white font-sans tracking-tight">
+                  <h3 className={`text-base sm:text-lg font-bold font-sans tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     {activeRosterView === 'appointments'
                       ? 'Appointment Holders Directory'
                       : 'Regimental Police (RP) Active Roster'}
@@ -963,8 +1022,12 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                   <span
                     className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${
                       activeRosterView === 'appointments'
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                        : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                        ? isLight
+                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        : isLight
+                          ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                          : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
                     }`}
                   >
                     {activeRosterView === 'appointments'
@@ -972,7 +1035,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       : `${filteredRP.length} জন আরপি সদস্য`}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   {activeRosterView === 'appointments'
                     ? '১০ মিডিয়াম রেজিমেন্ট আর্টিলারি — কমান্ড, ব্যাটারী কমান্ডার, স্টাফ ও সিনিয়র জেসিও নিয়োগ তালিকা'
                     : '১০ মিডিয়াম রেজিমেন্ট আর্টিলারি — মেইন গেইট, কোয়ার্টার গার্ড ও রেজিমেন্টাল শৃংখলা রক্ষাকারী বাহিনী'}
@@ -983,7 +1046,9 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
             {/* Panel Controls: Battery Pills, Search, Close */}
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               {/* Battery Filter Pills */}
-              <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800 text-xs">
+              <div className={`flex items-center gap-1 p-1 rounded-xl border text-xs ${
+                isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950/80 border-slate-800'
+              }`}>
                 {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
                   <button
                     key={b}
@@ -992,8 +1057,10 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       btyFilter === b
                         ? activeRosterView === 'appointments'
                           ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                          : 'bg-indigo-500 text-white font-bold shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
+                          : 'bg-indigo-600 text-white font-bold shadow-sm'
+                        : isLight
+                          ? 'text-slate-600 hover:text-slate-900'
+                          : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     {b === 'All' ? 'সব' : b.replace(' Bty', '')}
@@ -1003,20 +1070,28 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
 
               {/* Search */}
               <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="খুঁজুন (নাম / নং / পদবী)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-2.5 py-1 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 w-36 sm:w-44"
+                  className={`pl-8 pr-2.5 py-1 text-xs rounded-xl border focus:outline-none w-36 sm:w-44 ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-amber-500'
+                      : 'bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:border-amber-500'
+                  }`}
                 />
               </div>
 
               {/* Close Button */}
               <button
                 onClick={() => toggleView(activeRosterView)}
-                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                className={`p-1.5 rounded-xl transition-colors cursor-pointer shrink-0 ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+                }`}
                 title="তালিকা বন্ধ করুন"
               >
                 <X className="w-4 h-4" />
@@ -1080,14 +1155,14 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
             /* ================= APPOINTMENTS TABLE ================= */
             filteredAppointments.length === 0 ? (
               <div className="py-8 text-center space-y-1.5">
-                <p className="text-sm text-slate-400 font-medium">কোনো পদাধিকারী পাওয়া যায়নি</p>
-                <p className="text-xs text-slate-500">ফিল্টার অথবা অনুসন্ধান পরিবর্তন করুন</p>
+                <p className={`text-sm font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>কোনো পদাধিকারী পাওয়া যায়নি</p>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>ফিল্টার অথবা অনুসন্ধান পরিবর্তন করুন</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
+              <div className={`overflow-x-auto rounded-xl border ${isLight ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-slate-950/50'}`}>
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-900/80 text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+                    <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${isLight ? 'border-slate-200 bg-slate-100/90 text-slate-700' : 'border-slate-800 bg-slate-900/80 text-slate-400'}`}>
                       <th className="py-2.5 px-3 w-10 text-center">#</th>
                       <th className="py-2.5 px-3">সেনা নং / BA No</th>
                       <th className="py-2.5 px-3">র‍্যাংক ও নাম</th>
@@ -1097,21 +1172,21 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       <th className="py-2.5 px-3">যোগাযোগ</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                  <tbody className={`divide-y ${isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'}`}>
                     {filteredAppointments.map((item, idx) => {
                       const person = item.personnel;
                       return (
                         <tr
                           key={item.id || idx}
-                          className="hover:bg-slate-800/40 transition-colors group"
+                          className={`transition-colors group ${isLight ? 'hover:bg-slate-50/80' : 'hover:bg-slate-800/40'}`}
                         >
                           {/* SL */}
-                          <td className="py-2.5 px-3 text-center text-slate-500 font-mono text-[11px]">
+                          <td className={`py-2.5 px-3 text-center font-mono text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                             {idx + 1}
                           </td>
 
                           {/* Army / BA No */}
-                          <td className="py-2.5 px-3 font-mono font-bold text-amber-300">
+                          <td className={`py-2.5 px-3 font-mono font-bold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
                             {item.snkNo}
                           </td>
 
@@ -1123,13 +1198,13 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => onViewDossier(person)}
-                                  className="font-semibold text-white hover:text-amber-300 hover:underline cursor-pointer text-left transition-colors"
+                                  className={`font-semibold cursor-pointer text-left transition-colors hover:underline ${isLight ? 'text-slate-900 hover:text-amber-700' : 'text-white hover:text-amber-300'}`}
                                   title="ক্লিক করে ডসিয়ার দেখুন"
                                 >
                                   {item.name}
                                 </button>
                               ) : (
-                                <span className="font-semibold text-white">{item.name}</span>
+                                <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{item.name}</span>
                               )}
                             </div>
                           </td>
@@ -1137,17 +1212,25 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           {/* Appointment Title */}
                           <td className="py-2.5 px-3">
                             <div className="space-y-0.5">
-                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-medium text-xs">
-                                <Award className="w-3 h-3 text-amber-400" />
+                              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border font-medium text-xs ${
+                                isLight
+                                  ? 'bg-amber-50 border-amber-300 text-amber-800'
+                                  : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                              }`}>
+                                <Award className={`w-3 h-3 ${isLight ? 'text-amber-600' : 'text-amber-400'}`} />
                                 <span>{item.appointment}</span>
                               </div>
-                              <div className="text-[10px] text-slate-400 pl-1">{item.appointmentBn}</div>
+                              <div className={`text-[10px] pl-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{item.appointmentBn}</div>
                             </div>
                           </td>
 
                           {/* Battery */}
                           <td className="py-2.5 px-3">
-                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-mono border ${
+                              isLight
+                                ? 'bg-slate-100 text-slate-800 border-slate-300'
+                                : 'bg-slate-800 text-slate-300 border-slate-700'
+                            }`}>
                               {item.battery}
                             </span>
                           </td>
@@ -1158,14 +1241,14 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           </td>
 
                           {/* Contact */}
-                          <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
+                          <td className="py-2.5 px-3 font-mono text-[11px]">
                             {item.phone ? (
-                              <div className="flex items-center gap-1 text-slate-300">
-                                <Phone className="w-3 h-3 text-emerald-400" />
+                              <div className={`flex items-center gap-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                                <Phone className="w-3 h-3 text-emerald-500" />
                                 <span>{item.phone}</span>
                               </div>
                             ) : (
-                              <span className="text-slate-600">—</span>
+                              <span className={isLight ? 'text-slate-400' : 'text-slate-600'}>—</span>
                             )}
                           </td>
                         </tr>
@@ -1179,14 +1262,14 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
             /* ================= REGIMENTAL POLICE TABLE ================= */
             filteredRP.length === 0 ? (
               <div className="py-8 text-center space-y-1.5">
-                <p className="text-sm text-slate-400 font-medium">কোনো আরপি সদস্য পাওয়া যায়নি</p>
-                <p className="text-xs text-slate-500">ফিল্টার অথবা অনুসন্ধান পরিবর্তন করুন</p>
+                <p className={`text-sm font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>কোনো আরপি সদস্য পাওয়া যায়নি</p>
+                <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>ফিল্টার অথবা অনুসন্ধান পরিবর্তন করুন</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
+              <div className={`overflow-x-auto rounded-xl border ${isLight ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-slate-950/50'}`}>
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-900/80 text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+                    <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${isLight ? 'border-slate-200 bg-slate-100/90 text-slate-700' : 'border-slate-800 bg-slate-900/80 text-slate-400'}`}>
                       <th className="py-2.5 px-3 w-10 text-center">#</th>
                       <th className="py-2.5 px-3">সেনা নং</th>
                       <th className="py-2.5 px-3">র‍্যাংক ও নাম</th>
@@ -1197,21 +1280,21 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       <th className="py-2.5 px-3">স্টেটাস</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                  <tbody className={`divide-y ${isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'}`}>
                     {filteredRP.map((item, idx) => {
                       const person = item.personnel;
                       return (
                         <tr
                           key={item.id || idx}
-                          className="hover:bg-slate-800/40 transition-colors group"
+                          className={`transition-colors group ${isLight ? 'hover:bg-slate-50/80' : 'hover:bg-slate-800/40'}`}
                         >
                           {/* SL */}
-                          <td className="py-2.5 px-3 text-center text-slate-500 font-mono text-[11px]">
+                          <td className={`py-2.5 px-3 text-center font-mono text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                             {idx + 1}
                           </td>
 
                           {/* Snk No */}
-                          <td className="py-2.5 px-3 font-mono font-bold text-indigo-300">
+                          <td className={`py-2.5 px-3 font-mono font-bold ${isLight ? 'text-indigo-700' : 'text-indigo-300'}`}>
                             {item.snkNo}
                           </td>
 
@@ -1223,13 +1306,13 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => onViewDossier(person)}
-                                  className="font-semibold text-white hover:text-indigo-300 hover:underline cursor-pointer text-left transition-colors"
+                                  className={`font-semibold cursor-pointer text-left transition-colors hover:underline ${isLight ? 'text-slate-900 hover:text-indigo-700' : 'text-white hover:text-indigo-300'}`}
                                   title="ক্লিক করে ডসিয়ার দেখুন"
                                 >
                                   {item.name}
                                 </button>
                               ) : (
-                                <span className="font-semibold text-white">{item.name}</span>
+                                <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>{item.name}</span>
                               )}
                             </div>
                           </td>
@@ -1237,33 +1320,45 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           {/* RP Post */}
                           <td className="py-2.5 px-3">
                             <div className="space-y-0.5">
-                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-medium text-xs">
-                                <Shield className="w-3 h-3 text-indigo-400" />
+                              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border font-medium text-xs ${
+                                isLight
+                                  ? 'bg-indigo-50 border-indigo-300 text-indigo-800'
+                                  : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'
+                              }`}>
+                                <Shield className={`w-3 h-3 ${isLight ? 'text-indigo-600' : 'text-indigo-400'}`} />
                                 <span>{item.post}</span>
                               </div>
-                              <div className="text-[10px] text-slate-400 pl-1">{item.postBn}</div>
+                              <div className={`text-[10px] pl-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{item.postBn}</div>
                             </div>
                           </td>
 
                           {/* Battery */}
                           <td className="py-2.5 px-3">
-                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-mono border ${
+                              isLight
+                                ? 'bg-slate-100 text-slate-800 border-slate-300'
+                                : 'bg-slate-800 text-slate-300 border-slate-700'
+                            }`}>
                               {item.battery}
                             </span>
                           </td>
 
                           {/* Shift */}
                           <td className="py-2.5 px-3 font-mono text-[11px]">
-                            <span className="inline-flex items-center gap-1 text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                              <Clock className="w-3 h-3 text-indigo-400" />
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${
+                              isLight
+                                ? 'text-slate-800 bg-slate-100 border-slate-300'
+                                : 'text-slate-300 bg-slate-900 border-slate-800'
+                            }`}>
+                              <Clock className={`w-3 h-3 ${isLight ? 'text-indigo-600' : 'text-indigo-400'}`} />
                               <span>{item.shift}</span>
                             </span>
                           </td>
 
                           {/* Location */}
-                          <td className="py-2.5 px-3 text-slate-400 text-[11px]">
+                          <td className={`py-2.5 px-3 text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                             <div className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                              <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
                               <span className="truncate max-w-[150px]">{item.location}</span>
                             </div>
                           </td>

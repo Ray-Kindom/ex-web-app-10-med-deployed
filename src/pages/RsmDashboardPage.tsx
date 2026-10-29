@@ -40,7 +40,9 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
     setBatteryParadeStatus,
     dailyParadePoints,
     isGuest,
+    theme,
   } = useApp();
+  const isLight = theme === 'light';
 
   const totals = getRegimentalTotals();
 
@@ -84,18 +86,32 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
   return (
     <div className="space-y-6">
       {/* RSM Command Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 shadow-xl space-y-4">
+      <div className={`p-6 rounded-2xl border shadow-xl space-y-4 ${
+        isLight
+          ? 'bg-gradient-to-r from-purple-50/70 via-white to-purple-50/70 border-purple-200'
+          : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
+      }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+              <span className={`text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
+                isLight
+                  ? 'text-purple-800 bg-purple-100 border-purple-300'
+                  : 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+              }`}>
                 Regimental Sergeant Major (RSM) Console
               </span>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                isLight
+                  ? 'text-emerald-700 bg-emerald-100 border-emerald-300'
+                  : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+              }`}>
                 DISCIPLINE & PARADE STATE
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight font-sans mt-1">
+            <h1 className={`text-2xl font-bold tracking-tight font-sans mt-1 ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>
               RSM Consolidated Muster & Parade State Dashboard
             </h1>
           </div>
@@ -104,7 +120,7 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
             {onOpenAddModal && !isGuest && (
               <button
                 onClick={onOpenAddModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-950/40 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-950/20 transition-colors cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Enlist Soldier</span>
@@ -113,7 +129,7 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
             {!isGuest && (
               <button
                 onClick={() => setDutyModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-950/40 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-950/20 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Detail Guard Shift</span>
@@ -123,8 +139,10 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
         </div>
 
         {/* Battery Confirmation & Last Update Bar for RSM */}
-        <div className="pt-3 border-t border-slate-800/80">
-          <div className="text-[11px] font-mono text-slate-400 mb-2 uppercase font-semibold">
+        <div className={`pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800/80'}`}>
+          <div className={`text-[11px] font-mono mb-2 uppercase font-semibold ${
+            isLight ? 'text-slate-600' : 'text-slate-400'
+          }`}>
             Battery Parade State Submissions & Confirmation Status:
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
@@ -137,14 +155,20 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
               return (
                 <div
                   key={bty}
-                  className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between gap-2"
+                  className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                    isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-slate-900/90 border-slate-800'
+                  }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-white font-mono">{bty}</span>
+                    <span className={`font-bold text-xs font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{bty}</span>
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
                         isConfirmed
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          ? isLight
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : isLight
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
                           : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                       }`}
                     >
@@ -152,9 +176,11 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
                     </span>
                   </div>
 
-                  <div className="text-[11px] text-slate-400 font-mono flex items-center justify-between">
-                    <span>Present: <strong className="text-emerald-400">{presentCount}</strong>/{btyPersonnel.length}</span>
-                    <span className="text-[10px] text-slate-500">Updt: {bStat.lastUpdated}</span>
+                  <div className={`text-[11px] font-mono flex items-center justify-between ${
+                    isLight ? 'text-slate-600' : 'text-slate-400'
+                  }`}>
+                    <span>Present: <strong className={isLight ? 'text-emerald-700' : 'text-emerald-400'}>{presentCount}</strong>/{btyPersonnel.length}</span>
+                    <span className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>Updt: {bStat.lastUpdated}</span>
                   </div>
 
                   <button
@@ -167,10 +193,14 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
                     }}
                     className={`w-full py-1 rounded-lg text-xs font-bold transition-all border ${
                       isGuest
-                        ? 'bg-slate-800/60 text-slate-500 border-slate-800 cursor-not-allowed'
+                        ? isLight
+                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                          : 'bg-slate-800/60 text-slate-500 border-slate-800 cursor-not-allowed'
                         : isConfirmed
-                        ? 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700 cursor-pointer'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-950/40 cursor-pointer'
+                        ? isLight
+                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 cursor-pointer'
+                          : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700 cursor-pointer'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-xs cursor-pointer'
                     }`}
                   >
                     {isGuest ? 'View Only' : isConfirmed ? 'Revoke Confirmation' : 'Approve & Confirm'}
@@ -219,44 +249,58 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
         {/* Active Guard Detail Cards */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-              <Shield className="w-4 h-4 text-purple-400" />
+            <h2 className={`text-sm font-bold uppercase font-mono tracking-wider flex items-center gap-2 ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>
+              <Shield className="w-4 h-4 text-purple-500" />
               <span>Active Guard Details & Mounting Shifts</span>
             </h2>
-            <span className="text-xs text-slate-400 font-mono">{dutyRoster.length} Posts Guarded</span>
+            <span className={`text-xs font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              {dutyRoster.length} Posts Guarded
+            </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {dutyRoster.map((duty) => (
               <div
                 key={duty.id}
-                className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5 shadow-lg"
+                className={`p-4 rounded-xl border space-y-2.5 shadow-sm ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-white font-sans">{duty.dutyType}</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                  <span className={`font-bold text-sm font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>{duty.dutyType}</span>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold border ${
+                    isLight
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}>
                     {duty.status}
                   </span>
                 </div>
 
-                <div className="text-xs text-slate-400 font-mono space-y-1">
-                  <div>Location: <span className="text-slate-200">{duty.location}</span></div>
-                  <div>Shift: <span className="text-slate-200">{duty.shift}</span></div>
+                <div className={`text-xs font-mono space-y-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  <div>Location: <span className={isLight ? 'text-slate-850 font-medium' : 'text-slate-200'}>{duty.location}</span></div>
+                  <div>Shift: <span className={isLight ? 'text-slate-850 font-medium' : 'text-slate-200'}>{duty.shift}</span></div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-800">
-                  <div className="text-[10px] text-slate-500 uppercase font-mono mb-1">
+                <div className={`pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                  <div className={`text-[10px] uppercase font-mono mb-1 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                     Detailed Personnel:
                   </div>
                   {duty.assignedPersonnel.map((p) => (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between text-xs py-1 px-2 rounded bg-slate-950 border border-slate-800 font-mono"
+                      className={`flex items-center justify-between text-xs py-1 px-2 rounded border font-mono ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-800'
+                          : 'bg-slate-950 border-slate-800 text-slate-200'
+                      }`}
                     >
-                      <span className="font-bold text-slate-200">
+                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                         {p.rank} {p.name}
                       </span>
-                      <span className="text-rose-400 font-bold text-[11px]">{p.battery}</span>
+                      <span className={`font-bold text-[11px] ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{p.battery}</span>
                     </div>
                   ))}
                 </div>
@@ -267,29 +311,39 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
 
         {/* RSM Daily Directives & Morning Inspection Notes */}
         <div className="space-y-4">
-          <h2 className="text-sm font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-            <FileText className="w-4 h-4 text-amber-400" />
+          <h2 className={`text-sm font-bold uppercase font-mono tracking-wider flex items-center gap-2 ${
+            isLight ? 'text-slate-900' : 'text-white'
+          }`}>
+            <FileText className="w-4 h-4 text-amber-500" />
             <span>RSM Routine & Instructions</span>
           </h2>
 
-          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3 text-xs">
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-              <div className="font-bold text-amber-300">1. Barracks & Lines Inspection</div>
-              <p className="text-slate-400">
+          <div className={`p-4 rounded-xl border space-y-3 text-xs ${
+            isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
+          }`}>
+            <div className={`p-3 rounded-lg border space-y-1 ${
+              isLight ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-950 border-slate-800'
+            }`}>
+              <div className={`font-bold ${isLight ? 'text-amber-900' : 'text-amber-300'}`}>1. Barracks & Lines Inspection</div>
+              <p className={isLight ? 'text-slate-600' : 'text-slate-400'}>
                 0600 HRS inspection of HQ, P, Q, R battery lines completed. Cleanliness standard SATISFACTORY.
               </p>
             </div>
 
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-              <div className="font-bold text-blue-300">2. Cookhouse & Ration State</div>
-              <p className="text-slate-400">
+            <div className={`p-3 rounded-lg border space-y-1 ${
+              isLight ? 'bg-blue-50/50 border-blue-200' : 'bg-slate-950 border-slate-800'
+            }`}>
+              <div className={`font-bold ${isLight ? 'text-blue-900' : 'text-blue-300'}`}>2. Cookhouse & Ration State</div>
+              <p className={isLight ? 'text-slate-600' : 'text-slate-400'}>
                 Unit Cookhouse I/C inspected by Duty NCO. Rations verified for {totals.totalPosted} posted strength.
               </p>
             </div>
 
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-              <div className="font-bold text-rose-300">3. Gun Park Security</div>
-              <p className="text-slate-400">
+            <div className={`p-3 rounded-lg border space-y-1 ${
+              isLight ? 'bg-rose-50/50 border-rose-200' : 'bg-slate-950 border-slate-800'
+            }`}>
+              <div className={`font-bold ${isLight ? 'text-rose-900' : 'text-rose-300'}`}>3. Gun Park Security</div>
+              <p className={isLight ? 'text-slate-600' : 'text-slate-400'}>
                 Medium Artillery Gun Park locks and Kote verification confirmed with Battery Duty Officers.
               </p>
             </div>
@@ -302,8 +356,10 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
 
       {/* Detailed Roll for On-Duty Soldiers */}
       <div className="space-y-3">
-        <h2 className="text-sm font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-          <Users className="w-4 h-4 text-blue-400" />
+        <h2 className={`text-sm font-bold uppercase font-mono tracking-wider flex items-center gap-2 ${
+          isLight ? 'text-slate-900' : 'text-white'
+        }`}>
+          <Users className="w-4 h-4 text-blue-500" />
           <span>Regimental Duty & Guard Personnel Nominated ({guardsPersonnel.length})</span>
         </h2>
 
@@ -318,19 +374,23 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
 
       {/* Duty Assignment Modal */}
       {dutyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4 text-xs">
-            <h3 className="text-base font-bold text-white font-sans">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className={`relative w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 text-xs ${
+            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
+          }`}>
+            <h3 className={`text-base font-bold font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
               Detail Guard Assignment
             </h3>
 
             <form onSubmit={handleAddDuty} className="space-y-3">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Guard Post / Duty</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Guard Post / Duty</label>
                 <select
                   value={newDutyType}
                   onChange={(e) => setNewDutyType(e.target.value as any)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"
+                  className={`w-full rounded-lg p-2 border focus:outline-none focus:border-purple-500 ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-700 text-white'
+                  }`}
                 >
                   <option value="Quarter Guard">Quarter Guard</option>
                   <option value="Regimental Police">Regimental Police</option>
@@ -342,21 +402,25 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Location</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Location</label>
                 <input
                   type="text"
                   value={newLocation}
                   onChange={(e) => setNewLocation(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"
+                  className={`w-full rounded-lg p-2 border focus:outline-none focus:border-purple-500 ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-700 text-white'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Shift Duration</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Shift Duration</label>
                 <select
                   value={newShift}
                   onChange={(e) => setNewShift(e.target.value as any)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"
+                  className={`w-full rounded-lg p-2 border focus:outline-none focus:border-purple-500 ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-700 text-white'
+                  }`}
                 >
                   <option value="24 Hours">24 Hours</option>
                   <option value="Day">Day Shift</option>
@@ -365,11 +429,13 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Nominate Soldier</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Nominate Soldier</label>
                 <select
                   value={selectedSoldierId}
                   onChange={(e) => setSelectedSoldierId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono"
+                  className={`w-full rounded-lg p-2 font-mono border focus:outline-none focus:border-purple-500 ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-700 text-white'
+                  }`}
                 >
                   {personnelList.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -379,17 +445,19 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
                 </select>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
+              <div className={`pt-3 border-t flex justify-end gap-2 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
                 <button
                   type="button"
                   onClick={() => setDutyModalOpen(false)}
-                  className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg"
+                  className={`px-3 py-1.5 rounded-lg cursor-pointer ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg"
+                  className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg cursor-pointer shadow-sm"
                 >
                   Save Duty Roster
                 </button>

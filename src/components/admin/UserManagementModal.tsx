@@ -106,7 +106,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   onSaveUser,
   editUser,
 }) => {
-  const { personnelList, usersList, ranksList, subUnitsList } = useApp();
+  const { personnelList, usersList, ranksList, subUnitsList, theme } = useApp();
+  const isLight = theme === 'light';
 
   const dynamicRanks = React.useMemo(() => {
     if (ranksList && Array.isArray(ranksList) && ranksList.length > 0) {
@@ -371,17 +372,25 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden my-8">
+      <div className={`relative w-full max-w-xl ${
+        isLight ? 'bg-white border-slate-200 text-slate-900 shadow-2xl' : 'bg-slate-900 border-slate-700/80 text-white shadow-2xl'
+      } border rounded-2xl overflow-hidden my-8`}>
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 flex items-center justify-between">
+        <div className={`p-5 border-b ${
+          isLight ? 'bg-slate-50 border-slate-200' : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
+        } flex items-center justify-between`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-600/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+            <div className={`w-10 h-10 rounded-xl ${
+              isLight ? 'bg-rose-100 border-rose-200 text-rose-600' : 'bg-rose-600/20 border-rose-500/30 text-rose-400'
+            } border flex items-center justify-center`}>
               {editUser ? <Edit className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+              <h2 className={`text-lg font-bold ${isLight ? 'text-slate-900' : 'text-white'} tracking-tight flex items-center gap-2`}>
                 <span>{editUser ? 'Edit Regimental User Account' : 'Create New User Account'}</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-amber-400 border border-slate-700">
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                  isLight ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-800 text-amber-400 border-slate-700'
+                } border`}>
                   ADMIN ONLY
                 </span>
               </h2>
@@ -389,20 +398,22 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className={`p-2 rounded-lg ${
+              isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-600' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+            } transition-colors cursor-pointer`}
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Auto-Search and Fill Bar from Nominal Roll */}
-        <div className="p-4 bg-slate-950 border-b border-slate-800/80 space-y-2">
+        <div className={`p-4 ${isLight ? 'bg-slate-50/80 border-slate-200' : 'bg-slate-950 border-slate-800/80'} border-b space-y-2`}>
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+            <label className={`text-xs font-bold ${isLight ? 'text-rose-700' : 'text-rose-400'} flex items-center gap-1.5`}>
               <Search className="w-3.5 h-3.5" />
               <span>Search Personnel to Auto-populate (Snk No / BA No / Name)</span>
             </label>
-            <span className="text-[10px] text-slate-400 font-mono">
+            <span className={`text-[10px] ${isLight ? 'text-slate-600' : 'text-slate-400'} font-mono`}>
               Auto-fills Rank, Name & Trade
             </span>
           </div>
@@ -413,12 +424,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Type Soldier No (e.g. 1243723), BA No (e.g. BA-7592), or Name..."
-              className="w-full bg-slate-900 border border-rose-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 font-mono"
+              className={`w-full ${
+                isLight ? 'bg-white border-rose-300 text-slate-900 placeholder-slate-400 focus:border-rose-500' : 'bg-slate-900 border-rose-500/40 text-white placeholder-slate-500 focus:border-rose-400'
+              } border rounded-xl px-3 py-2 text-xs focus:outline-none font-mono shadow-sm`}
             />
 
             {/* Dropdown Results */}
             {matchingPersonnel.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-20 max-h-48 overflow-y-auto divide-y divide-slate-800">
+              <div className={`absolute left-0 right-0 top-full mt-1 ${
+                isLight ? 'bg-white border-slate-200 divide-slate-100 text-slate-900 shadow-xl' : 'bg-slate-900 border-slate-700 divide-slate-800 text-white shadow-2xl'
+              } border rounded-xl z-20 max-h-48 overflow-y-auto divide-y`}>
                 {matchingPersonnel.map((p) => {
                   const isOffr = isOfficerRank(p.rk);
                   return (
@@ -426,16 +441,20 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       key={p.id}
                       type="button"
                       onClick={() => handleSelectPersonnel(p)}
-                      className="w-full p-2.5 text-left text-xs hover:bg-slate-800 flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                      className={`w-full p-2.5 text-left text-xs ${
+                        isLight ? 'hover:bg-slate-50 text-slate-900' : 'hover:bg-slate-800 text-white'
+                      } flex items-center justify-between gap-2 transition-colors cursor-pointer`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-amber-400">{p.snkNo}</span>
-                        <span className="font-bold text-white">{p.rk} {p.name}</span>
-                        <span className="text-[10px] text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 font-mono">
+                        <span className={`font-mono font-bold ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{p.snkNo}</span>
+                        <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{p.rk} {p.name}</span>
+                        <span className={`text-[10px] ${
+                          isLight ? 'text-slate-600 bg-slate-100 border-slate-200' : 'text-slate-400 bg-slate-950 border-slate-800'
+                        } px-1.5 py-0.5 rounded border font-mono`}>
                           {p.battery}
                         </span>
                       </div>
-                      <div className="text-[10px] font-mono text-cyan-300">
+                      <div className={`text-[10px] font-mono ${isLight ? 'text-sky-700' : 'text-cyan-300'}`}>
                         {isOffr ? 'Officer (No Trade)' : `Trade: ${p.trade}`}
                       </div>
                     </button>
@@ -446,7 +465,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           </div>
 
           {searchFeedback && (
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+            <div className={`flex items-center gap-1.5 text-[11px] ${
+              isLight ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+            } border px-2.5 py-1 rounded-lg`}>
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               <span>{searchFeedback}</span>
             </div>
@@ -456,7 +477,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* User Photo Upload Section */}
-          <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-950 border border-slate-800">
+          <div className={`flex items-center gap-4 p-3 rounded-xl ${
+            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+          } border`}>
             {avatar ? (
               <div className="relative group">
                 <img
@@ -467,23 +490,27 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setAvatar(undefined)}
-                  className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full p-1 hover:bg-rose-500"
+                  className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full p-1 hover:bg-rose-500 cursor-pointer"
                   title="Remove Photo"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
               </div>
             ) : (
-              <div className="w-14 h-14 rounded-full bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center text-slate-500">
+              <div className={`w-14 h-14 rounded-full ${
+                isLight ? 'bg-slate-100 border-slate-300 text-slate-400' : 'bg-slate-900 border-slate-700 text-slate-500'
+              } border border-dashed flex items-center justify-center`}>
                 <Camera className="w-6 h-6" />
               </div>
             )}
             <div className="flex-1">
-              <label className="block text-xs font-bold text-slate-200 mb-1">
+              <label className={`block text-xs font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'} mb-1`}>
                 User Profile Photo
               </label>
-              <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium cursor-pointer border border-slate-700 transition-colors">
-                <Upload className="w-3.5 h-3.5 text-rose-400" />
+              <label className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+                isLight ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              } text-xs font-medium cursor-pointer border transition-colors shadow-sm`}>
+                <Upload className="w-3.5 h-3.5 text-rose-500" />
                 <span>{avatar ? 'Change Picture' : 'Upload Picture'}</span>
                 <input
                   type="file"
@@ -498,32 +525,36 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           {/* Row 1: Name & Rank */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className={`block text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'} mb-1`}>
                 Full Official Name *
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <User className={`w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-500'} absolute left-3 top-1/2 -translate-y-1/2`} />
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Capt Iftekhar Mahmud Abir / SWO Nasir"
-                  className={`w-full bg-slate-950 border ${
-                    errors.name ? 'border-rose-500' : 'border-slate-700'
-                  } rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500`}
+                  className={`w-full ${
+                    isLight ? 'bg-white text-slate-900 placeholder-slate-400' : 'bg-slate-950 text-white placeholder-slate-500'
+                  } border ${
+                    errors.name ? 'border-rose-500' : isLight ? 'border-slate-300' : 'border-slate-700'
+                  } rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-rose-500 shadow-sm`}
                 />
               </div>
-              {errors.name && <p className="text-[10px] text-rose-400 mt-1">{errors.name}</p>}
+              {errors.name && <p className="text-[10px] text-rose-500 mt-1">{errors.name}</p>}
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className={`block text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'} mb-1`}>
                 Military Rank *
               </label>
               <select
                 value={rank}
                 onChange={(e) => handleRankChange(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500 font-mono"
+                className={`w-full ${
+                  isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-slate-950 text-white border-slate-700'
+                } border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-rose-500 font-mono shadow-sm`}
               >
                 {dynamicRanks.map((r) => (
                   <option key={r.rank} value={r.rank}>
@@ -537,13 +568,15 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           {/* Row 2: Role & Service ID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className={`block text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'} mb-1`}>
                 System Role *
               </label>
               <select
                 value={role}
                 onChange={(e) => handleRoleChange(e.target.value as Role)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500 font-mono"
+                className={`w-full ${
+                  isLight ? 'bg-white text-slate-900 border-slate-300' : 'bg-slate-950 text-white border-slate-700'
+                } border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-rose-500 font-mono shadow-sm`}
               >
                 {ROLES_CONFIG.map((r) => (
                   <option key={r.role} value={r.role}>
@@ -554,7 +587,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className={`block text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'} mb-1`}>
                 Service / BA / Snk No
               </label>
               <input
@@ -562,20 +595,28 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 value={snkNo}
                 onChange={(e) => setSnkNo(e.target.value)}
                 placeholder="e.g. BA-7592 or 1243723"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
+                className={`w-full ${
+                  isLight ? 'bg-white text-slate-900 border-slate-300 placeholder-slate-400' : 'bg-slate-950 text-white border-slate-700 placeholder-slate-500'
+                } border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-rose-500 font-mono shadow-sm`}
               />
             </div>
           </div>
 
           {/* Trade Info Notice (Explicitly No Trade for Officers) */}
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-            <span className="text-slate-400 font-medium">Trade Status:</span>
+          <div className={`p-3 rounded-xl ${
+            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+          } border flex items-center justify-between text-xs`}>
+            <span className={`${isLight ? 'text-slate-600' : 'text-slate-400'} font-medium`}>Trade Status:</span>
             {isOfficerRank(rank) ? (
-              <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+              <span className={`text-[11px] font-mono ${
+                isLight ? 'text-emerald-700 bg-emerald-100 border-emerald-300' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+              } px-2 py-0.5 rounded border font-bold`}>
                 Commissioned Officer • No Trade Applicable
               </span>
             ) : (
-              <span className="text-[11px] font-mono text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+              <span className={`text-[11px] font-mono ${
+                isLight ? 'text-sky-700 bg-sky-100 border-sky-300' : 'text-cyan-300 bg-cyan-500/10 border-cyan-500/20'
+              } px-2 py-0.5 rounded border`}>
                 {selectedTradeInfo || 'Trade Assigned via Nominal Roll'}
               </span>
             )}
@@ -583,36 +624,40 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
           {/* Row 3: Access Level Description */}
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className={`block text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'} mb-1`}>
               Access Level / Security Clearance
             </label>
             <div className="relative">
-              <Shield className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Shield className={`w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-500'} absolute left-3 top-1/2 -translate-y-1/2`} />
               <input
                 type="text"
                 value={accessLevel}
                 onChange={(e) => setAccessLevel(e.target.value)}
                 placeholder="e.g. Regimental Officer Access & Battery Review"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                className={`w-full ${
+                  isLight ? 'bg-white text-slate-900 border-slate-300 placeholder-slate-400' : 'bg-slate-950 text-white border-slate-700 placeholder-slate-500'
+                } border rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-rose-500 shadow-sm`}
               />
             </div>
           </div>
 
           {/* Row 4: Username & Password with Uniqueness Check and View Toggle */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-xl ${
+            isLight ? 'bg-slate-50/80 border-slate-200' : 'bg-slate-950/60 border-slate-800'
+          } border`}>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-300">
+                <label className={`block text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                   Login Username *
                 </label>
                 {cleanUsername && !duplicateUser && (
-                  <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-emerald-600' : 'text-emerald-400'} flex items-center gap-1`}>
                     <Check className="w-3 h-3" /> Unique
                   </span>
                 )}
               </div>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <KeyRound className={`w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-500'} absolute left-3 top-1/2 -translate-y-1/2`} />
                 <input
                   type="text"
                   value={username}
@@ -623,28 +668,32 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     }
                   }}
                   placeholder="e.g. offr_abir"
-                  className={`w-full bg-slate-900 border ${
-                    errors.username || duplicateUser ? 'border-rose-500 text-rose-300' : 'border-slate-700 text-white'
-                  } rounded-xl pl-9 pr-3 py-2 text-xs placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono`}
+                  className={`w-full ${
+                    isLight ? 'bg-white' : 'bg-slate-900'
+                  } border ${
+                    errors.username || duplicateUser
+                      ? 'border-rose-500 text-rose-500'
+                      : isLight ? 'border-slate-300 text-slate-900' : 'border-slate-700 text-white'
+                  } rounded-xl pl-9 pr-3 py-2 text-xs placeholder-slate-400 focus:outline-none focus:border-rose-500 font-mono shadow-sm`}
                 />
               </div>
               {duplicateUser && (
-                <p className="text-[10px] text-rose-400 mt-1 flex items-center gap-1 font-mono">
+                <p className="text-[10px] text-rose-500 mt-1 flex items-center gap-1 font-mono">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
                   <span>Username already in use by {duplicateUser.name}</span>
                 </p>
               )}
               {errors.username && !duplicateUser && (
-                <p className="text-[10px] text-rose-400 mt-1">{errors.username}</p>
+                <p className="text-[10px] text-rose-500 mt-1">{errors.username}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
+              <label className={`block text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'} mb-1`}>
                 Password / Passkey {editUser ? '(Leave empty to keep current)' : '*'}
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Lock className={`w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-500'} absolute left-3 top-1/2 -translate-y-1/2`} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -655,62 +704,74 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     }
                   }}
                   placeholder={editUser ? '••••••••' : 'Enter passkey'}
-                  className={`w-full bg-slate-900 border ${
-                    errors.password ? 'border-rose-500' : 'border-slate-700'
-                  } rounded-xl pl-9 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono`}
+                  className={`w-full ${
+                    isLight ? 'bg-white text-slate-900 placeholder-slate-400 border-slate-300' : 'bg-slate-900 text-white placeholder-slate-500 border-slate-700'
+                  } border ${
+                    errors.password ? 'border-rose-500' : ''
+                  } rounded-xl pl-9 pr-10 py-2 text-xs focus:outline-none focus:border-rose-500 font-mono shadow-sm`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors cursor-pointer p-0.5"
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 ${
+                    isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'
+                  } transition-colors cursor-pointer p-0.5`}
                   title={showPassword ? 'Hide password' : 'View password'}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-4 h-4 text-amber-500" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-[10px] text-rose-400 mt-1">{errors.password}</p>
+                <p className="text-[10px] text-rose-500 mt-1">{errors.password}</p>
               )}
             </div>
           </div>
 
           {/* Row 4.5: Google Account Email (Gmail) for 1-Click Authorized Sign-In */}
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+          <div className={`p-3.5 rounded-xl ${
+            isLight ? 'bg-emerald-50/70 border-emerald-200' : 'bg-slate-950/70 border-slate-800'
+          } border space-y-1.5`}>
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+              <label className={`block text-xs font-bold ${isLight ? 'text-emerald-900' : 'text-slate-200'} flex items-center gap-1.5`}>
+                <Cloud className={`w-3.5 h-3.5 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
                 <span>Authorized Google Account (Gmail)</span>
               </label>
-              <span className="text-[10px] text-emerald-400 font-mono">1-Click Google Sign-In</span>
+              <span className={`text-[10px] ${isLight ? 'text-emerald-700 font-semibold' : 'text-emerald-400'} font-mono`}>1-Click Google Sign-In</span>
             </div>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Mail className={`w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-500'} absolute left-3 top-1/2 -translate-y-1/2`} />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="e.g. officer.10med@gmail.com (Optional)"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
+                className={`w-full ${
+                  isLight ? 'bg-white border-emerald-300 text-slate-900 placeholder-slate-400' : 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'
+                } border rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono shadow-sm`}
               />
             </div>
-            <p className="text-[10px] text-slate-400 leading-relaxed">
+            <p className={`text-[10px] ${isLight ? 'text-slate-600' : 'text-slate-400'} leading-relaxed`}>
               এখানে জিমেইল যুক্ত রাখলে কর্মকর্তা সরাসরি "Sign in with Google" দিয়ে অনুমোদিত হয়ে লগইন করতে পারবেন।
             </p>
           </div>
 
           {/* Row 5: Assigned Battery Access (Multi-Battery Assignment) */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+          <div className={`p-4 rounded-xl ${
+            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+          } border space-y-2.5`}>
             <div className="flex items-center justify-between">
               <div>
-                <label className="block text-xs font-bold text-white flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-rose-400" />
+                <label className={`block text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'} flex items-center gap-1.5`}>
+                  <Building2 className="w-3.5 h-3.5 text-rose-500" />
                   <span>Assigned Battery Permissions (Multi-Battery Access)</span>
                 </label>
               </div>
               <button
                 type="button"
                 onClick={handleSelectAllBatteries}
-                className="text-[11px] font-mono text-rose-400 hover:underline px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 cursor-pointer"
+                className={`text-[11px] font-mono ${
+                  isLight ? 'text-rose-700 bg-rose-100 border-rose-200 hover:bg-rose-200' : 'text-rose-400 bg-rose-500/10 border-rose-500/20 hover:bg-rose-500/20'
+                } hover:underline px-2 py-0.5 rounded border cursor-pointer`}
               >
                 {assignedBatteries.length === AVAILABLE_BATTERIES.length
                   ? 'Deselect All'
@@ -728,8 +789,12 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     onClick={() => handleToggleBattery(bty)}
                     className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-mono transition-all cursor-pointer ${
                       isChecked
-                        ? 'bg-rose-950/40 border-rose-500/60 text-white font-bold ring-1 ring-rose-500/40'
-                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+                        ? isLight
+                          ? 'bg-rose-50 border-rose-400 text-rose-900 font-bold ring-1 ring-rose-400'
+                          : 'bg-rose-950/40 border-rose-500/60 text-white font-bold ring-1 ring-rose-500/40'
+                        : isLight
+                          ? 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-850'
                     }`}
                   >
                     <span>{bty}</span>
@@ -737,7 +802,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                       className={`w-4 h-4 rounded flex items-center justify-center border ${
                         isChecked
                           ? 'bg-rose-600 border-rose-500 text-white'
-                          : 'border-slate-700 bg-slate-950'
+                          : isLight ? 'border-slate-300 bg-slate-100' : 'border-slate-700 bg-slate-950'
                       }`}
                     >
                       {isChecked && <Check className="w-3 h-3" />}
@@ -747,16 +812,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               })}
             </div>
             {errors.batteries && (
-              <p className="text-[10px] text-rose-400 mt-1">{errors.batteries}</p>
+              <p className="text-[10px] text-rose-500 mt-1">{errors.batteries}</p>
             )}
           </div>
 
           {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className={`flex items-center justify-end gap-3 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+              className={`px-4 py-2 rounded-xl ${
+                isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+              } text-xs font-semibold transition-colors cursor-pointer`}
             >
               Cancel
             </button>
@@ -765,7 +832,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               disabled={!!duplicateUser}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-lg transition-colors cursor-pointer ${
                 duplicateUser
-                  ? 'bg-slate-700 opacity-60 cursor-not-allowed'
+                  ? 'bg-slate-500 opacity-60 cursor-not-allowed'
                   : 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/40'
               }`}
             >

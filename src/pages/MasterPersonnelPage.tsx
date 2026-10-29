@@ -39,7 +39,8 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
   onViewDossier,
   onOpenAddModal,
 }) => {
-  const { personnelList, currentUser, isGuest, showNotification, ranksList } = useApp();
+  const { personnelList, currentUser, isGuest, showNotification, ranksList, theme } = useApp();
+  const isLight = theme === 'light';
 
   const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
   const assignedBattery: Battery =
@@ -251,14 +252,18 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 shadow-xl">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border shadow-xl ${
+        isLight
+          ? 'bg-gradient-to-r from-slate-50 via-white to-slate-50 border-slate-200'
+          : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
+      }`}>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span
               className={`text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
                 viewMode === 'CIVILIAN'
-                  ? 'text-purple-400 bg-purple-500/10 border-purple-500/20'
-                  : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                  ? isLight ? 'text-purple-700 bg-purple-50 border-purple-200' : 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+                  : isLight ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
               }`}
             >
               {viewMode === 'REGT'
@@ -267,11 +272,13 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 ? 'Civilian Staff Nominal Roll'
                 : `${activeBatteryTab} Nominal Roll`}
             </span>
-            <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+              isLight ? 'text-slate-600 bg-slate-200' : 'text-slate-400 bg-slate-800'
+            }`}>
               {displayedPersonnel.length} {viewMode === 'CIVILIAN' ? 'Staff' : 'Personnel'}
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          <h1 className={`text-xl sm:text-2xl font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
             {viewMode === 'REGT'
               ? 'Regt Nominal'
               : viewMode === 'CIVILIAN'
@@ -294,7 +301,9 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
       </div>
 
       {/* Primary Toggle: "Regt Nominal" vs "Bty Nominal" vs "Civilian Staff" */}
-      <div className="p-2 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className={`p-2 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+        isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-800'
+      }`}>
         <div className="flex items-center gap-2 flex-wrap">
           {!isBsm && (
             <button
@@ -302,6 +311,8 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 viewMode === 'REGT'
                   ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40 border border-rose-500'
+                  : isLight
+                  ? 'bg-white text-slate-700 hover:text-slate-950 border border-slate-200'
                   : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
               }`}
             >
@@ -315,6 +326,8 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               viewMode === 'BTY'
                 ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40 border border-rose-500'
+                : isLight
+                ? 'bg-white text-slate-700 hover:text-slate-950 border border-slate-200'
                 : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
             }`}
           >
@@ -328,6 +341,8 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 viewMode === 'CIVILIAN'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-950/40 border border-purple-500'
+                  : isLight
+                  ? 'bg-white text-purple-700 hover:text-purple-900 border border-purple-200'
                   : 'bg-slate-950 text-purple-400 hover:text-purple-300 border border-purple-900/40'
               }`}
             >
@@ -350,13 +365,19 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                      : isLight
+                      ? 'bg-white text-slate-700 hover:text-slate-950 border border-slate-200'
                       : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
                   }`}
                 >
                   <span>{bty}</span>
                   <span
                     className={`text-[10px] px-1.5 rounded ${
-                      isSelected ? 'bg-black/20 text-black' : 'bg-slate-800 text-slate-400'
+                      isSelected
+                        ? 'bg-black/20 text-black'
+                        : isLight
+                        ? 'bg-slate-200 text-slate-700'
+                        : 'bg-slate-800 text-slate-400'
                     }`}
                   >
                     {count}
@@ -378,18 +399,22 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               onClick={() => setSelectedCivilianTrade('ALL')}
               className={`p-3.5 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCivilianTrade === 'ALL'
-                  ? 'bg-purple-950/80 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-950/50'
+                  ? isLight
+                    ? 'bg-purple-100 border-purple-500 ring-2 ring-purple-400 shadow-md'
+                    : 'bg-purple-950/80 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-950/50'
+                  : isLight
+                  ? 'bg-white border-purple-200 hover:border-purple-300 hover:bg-purple-50/40 shadow-sm'
                   : 'bg-slate-900 border-purple-500/30 hover:border-purple-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold text-purple-300">
+              <div className={`flex items-center justify-between text-xs font-bold ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
                 <span>All Civilian</span>
-                <Users className="w-3.5 h-3.5 text-purple-400" />
+                <Users className="w-3.5 h-3.5 text-purple-500" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
+              <div className={`text-xl sm:text-2xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianTotalCount}
               </div>
-              <div className="text-[10px] text-purple-400/80 font-mono mt-0.5">সব বেসামরিক</div>
+              <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-purple-700' : 'text-purple-400/80'}`}>সব বেসামরিক</div>
             </button>
 
             {/* Dupi (Laundry) */}
@@ -398,18 +423,22 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               onClick={() => setSelectedCivilianTrade((prev) => (prev === 'Dupi' ? 'ALL' : 'Dupi'))}
               className={`p-3.5 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCivilianTrade === 'Dupi'
-                  ? 'bg-cyan-950/80 border-cyan-500 ring-2 ring-cyan-500/50 shadow-lg shadow-cyan-950/50'
+                  ? isLight
+                    ? 'bg-cyan-100 border-cyan-500 ring-2 ring-cyan-400 shadow-md'
+                    : 'bg-cyan-950/80 border-cyan-500 ring-2 ring-cyan-500/50 shadow-lg shadow-cyan-950/50'
+                  : isLight
+                  ? 'bg-white border-cyan-200 hover:border-cyan-300 hover:bg-cyan-50/40 shadow-sm'
                   : 'bg-slate-900 border-cyan-500/30 hover:border-cyan-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold text-cyan-300">
+              <div className={`flex items-center justify-between text-xs font-bold ${isLight ? 'text-cyan-800' : 'text-cyan-300'}`}>
                 <span>Dupi (ধোপা)</span>
-                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
+              <div className={`text-xl sm:text-2xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianDupiCount}
               </div>
-              <div className="text-[10px] text-cyan-400/80 font-mono mt-0.5">1 Contractor, 5 Dupi</div>
+              <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-cyan-700' : 'text-cyan-400/80'}`}>1 Contractor, 5 Dupi</div>
             </button>
 
             {/* Barber */}
@@ -418,18 +447,22 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               onClick={() => setSelectedCivilianTrade((prev) => (prev === 'Barber' ? 'ALL' : 'Barber'))}
               className={`p-3.5 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCivilianTrade === 'Barber'
-                  ? 'bg-amber-950/80 border-amber-500 ring-2 ring-amber-500/50 shadow-lg shadow-amber-950/50'
+                  ? isLight
+                    ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-400 shadow-md'
+                    : 'bg-amber-950/80 border-amber-500 ring-2 ring-amber-500/50 shadow-lg shadow-amber-950/50'
+                  : isLight
+                  ? 'bg-white border-amber-200 hover:border-amber-300 hover:bg-amber-50/40 shadow-sm'
                   : 'bg-slate-900 border-amber-500/30 hover:border-amber-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+              <div className={`flex items-center justify-between text-xs font-bold ${isLight ? 'text-amber-800' : 'text-amber-300'}`}>
                 <span>Barber (নাপিত)</span>
-                <Scissors className="w-3.5 h-3.5 text-amber-400" />
+                <Scissors className="w-3.5 h-3.5 text-amber-500" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
+              <div className={`text-xl sm:text-2xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianBarberCount}
               </div>
-              <div className="text-[10px] text-amber-400/80 font-mono mt-0.5">1 Contractor, 5 Barber</div>
+              <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-amber-700' : 'text-amber-400/80'}`}>1 Contractor, 5 Barber</div>
             </button>
 
             {/* Tailor */}
@@ -438,18 +471,22 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               onClick={() => setSelectedCivilianTrade((prev) => (prev === 'Tailor' ? 'ALL' : 'Tailor'))}
               className={`p-3.5 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCivilianTrade === 'Tailor'
-                  ? 'bg-emerald-950/80 border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg shadow-emerald-950/50'
+                  ? isLight
+                    ? 'bg-emerald-100 border-emerald-500 ring-2 ring-emerald-400 shadow-md'
+                    : 'bg-emerald-950/80 border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg shadow-emerald-950/50'
+                  : isLight
+                  ? 'bg-white border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/40 shadow-sm'
                   : 'bg-slate-900 border-emerald-500/30 hover:border-emerald-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-300">
+              <div className={`flex items-center justify-between text-xs font-bold ${isLight ? 'text-emerald-800' : 'text-emerald-300'}`}>
                 <span>Tailor (দর্জি)</span>
-                <Shirt className="w-3.5 h-3.5 text-emerald-400" />
+                <Shirt className="w-3.5 h-3.5 text-emerald-500" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
+              <div className={`text-xl sm:text-2xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianTailorCount}
               </div>
-              <div className="text-[10px] text-emerald-400/80 font-mono mt-0.5">1 Contractor, 2 Tailor</div>
+              <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-emerald-700' : 'text-emerald-400/80'}`}>1 Contractor, 2 Tailor</div>
             </button>
 
             {/* Carpenter */}
@@ -458,18 +495,22 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               onClick={() => setSelectedCivilianTrade((prev) => (prev === 'Carpenter' ? 'ALL' : 'Carpenter'))}
               className={`p-3.5 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCivilianTrade === 'Carpenter'
-                  ? 'bg-rose-950/80 border-rose-500 ring-2 ring-rose-500/50 shadow-lg shadow-rose-950/50'
+                  ? isLight
+                    ? 'bg-rose-100 border-rose-500 ring-2 ring-rose-400 shadow-md'
+                    : 'bg-rose-950/80 border-rose-500 ring-2 ring-rose-500/50 shadow-lg shadow-rose-950/50'
+                  : isLight
+                  ? 'bg-white border-rose-200 hover:border-rose-300 hover:bg-rose-50/40 shadow-sm'
                   : 'bg-slate-900 border-rose-500/30 hover:border-rose-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold text-rose-300">
+              <div className={`flex items-center justify-between text-xs font-bold ${isLight ? 'text-rose-800' : 'text-rose-300'}`}>
                 <span>Carpenter</span>
-                <Wrench className="w-3.5 h-3.5 text-rose-400" />
+                <Wrench className="w-3.5 h-3.5 text-rose-500" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
+              <div className={`text-xl sm:text-2xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianCarpenterCount}
               </div>
-              <div className="text-[10px] text-rose-400/80 font-mono mt-0.5">কাঠমিস্ত্রি</div>
+              <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-rose-700' : 'text-rose-400/80'}`}>কাঠমিস্ত্রি</div>
             </button>
 
             {/* Mali */}
@@ -478,18 +519,22 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               onClick={() => setSelectedCivilianTrade((prev) => (prev === 'Mali' ? 'ALL' : 'Mali'))}
               className={`p-3.5 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCivilianTrade === 'Mali'
-                  ? 'bg-lime-950/80 border-lime-500 ring-2 ring-lime-500/50 shadow-lg shadow-lime-950/50'
+                  ? isLight
+                    ? 'bg-lime-100 border-lime-500 ring-2 ring-lime-400 shadow-md'
+                    : 'bg-lime-950/80 border-lime-500 ring-2 ring-lime-500/50 shadow-lg shadow-lime-950/50'
+                  : isLight
+                  ? 'bg-white border-lime-200 hover:border-lime-300 hover:bg-lime-50/40 shadow-sm'
                   : 'bg-slate-900 border-lime-500/30 hover:border-lime-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold text-lime-300">
+              <div className={`flex items-center justify-between text-xs font-bold ${isLight ? 'text-lime-800' : 'text-lime-300'}`}>
                 <span>Mali (মালী)</span>
-                <Sprout className="w-3.5 h-3.5 text-lime-400" />
+                <Sprout className="w-3.5 h-3.5 text-lime-600" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
+              <div className={`text-xl sm:text-2xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianMaliCount}
               </div>
-              <div className="text-[10px] text-lime-400/80 font-mono mt-0.5">বাগান পরিচর্যাকারী</div>
+              <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-lime-700' : 'text-lime-400/80'}`}>বাগান পরিচর্যাকারী</div>
             </button>
 
             {/* Auto Driver */}
@@ -498,27 +543,33 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               onClick={() => setSelectedCivilianTrade((prev) => (prev === 'Driver' ? 'ALL' : 'Driver'))}
               className={`p-3.5 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCivilianTrade === 'Driver'
-                  ? 'bg-indigo-950/80 border-indigo-500 ring-2 ring-indigo-500/50 shadow-lg shadow-indigo-950/50'
+                  ? isLight
+                    ? 'bg-indigo-100 border-indigo-500 ring-2 ring-indigo-400 shadow-md'
+                    : 'bg-indigo-950/80 border-indigo-500 ring-2 ring-indigo-500/50 shadow-lg shadow-indigo-950/50'
+                  : isLight
+                  ? 'bg-white border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50/40 shadow-sm'
                   : 'bg-slate-900 border-indigo-500/30 hover:border-indigo-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center justify-between text-xs font-bold text-indigo-300">
+              <div className={`flex items-center justify-between text-xs font-bold ${isLight ? 'text-indigo-800' : 'text-indigo-300'}`}>
                 <span>Auto Driver</span>
-                <Car className="w-3.5 h-3.5 text-indigo-400" />
+                <Car className="w-3.5 h-3.5 text-indigo-500" />
               </div>
-              <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
+              <div className={`text-xl sm:text-2xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianDriverCount}
               </div>
-              <div className="text-[10px] text-indigo-400/80 font-mono mt-0.5">অটো চালক</div>
+              <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-indigo-700' : 'text-indigo-400/80'}`}>অটো চালক</div>
             </button>
           </div>
 
           {/* Trade Filter Indicator */}
           {selectedCivilianTrade !== 'ALL' && (
-            <div className="flex items-center justify-between px-3.5 py-2 rounded-lg bg-slate-900/90 border border-purple-900/50 text-xs">
-              <span className="text-slate-300">
+            <div className={`flex items-center justify-between px-3.5 py-2 rounded-lg border text-xs ${
+              isLight ? 'bg-white border-purple-200 shadow-sm' : 'bg-slate-900/90 border-purple-900/50'
+            }`}>
+              <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
                 Filtered by Trade:{' '}
-                <strong className="text-purple-300 font-mono font-bold">
+                <strong className={`font-mono font-bold ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
                   {selectedCivilianTrade}
                 </strong>{' '}
                 ({displayedPersonnel.length} staff)
@@ -526,7 +577,9 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedCivilianTrade('ALL')}
-                className="text-purple-400 hover:text-purple-300 font-semibold underline cursor-pointer"
+                className={`font-semibold underline cursor-pointer ${
+                  isLight ? 'text-purple-700 hover:text-purple-900' : 'text-purple-400 hover:text-purple-300'
+                }`}
               >
                 Show All Civilians
               </button>
@@ -553,14 +606,18 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
             }}
             className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
               selectedCategory === 'OFFICER'
-                ? 'bg-rose-950/60 border-rose-500 ring-2 ring-rose-500/50 shadow-lg shadow-rose-950/50'
+                ? isLight
+                  ? 'bg-rose-100 border-rose-500 ring-2 ring-rose-400 shadow-md'
+                  : 'bg-rose-950/60 border-rose-500 ring-2 ring-rose-500/50 shadow-lg shadow-rose-950/50'
+                : isLight
+                ? 'bg-white border-slate-200 hover:border-rose-300 hover:bg-rose-50/30 shadow-sm'
                 : 'bg-slate-900 border-rose-500/30 hover:border-rose-500/60 hover:bg-slate-850'
             }`}
           >
-            <div className="text-sm sm:text-base font-bold text-rose-300">
+            <div className={`text-sm sm:text-base font-bold ${isLight ? 'text-rose-800' : 'text-rose-300'}`}>
               Offr
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+            <div className={`text-2xl sm:text-3xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {officerCount}
             </div>
           </button>
@@ -574,14 +631,18 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
             }}
             className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
               selectedCategory === 'JCO'
-                ? 'bg-amber-950/60 border-amber-500 ring-2 ring-amber-500/50 shadow-lg shadow-amber-950/50'
+                ? isLight
+                  ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-400 shadow-md'
+                  : 'bg-amber-950/60 border-amber-500 ring-2 ring-amber-500/50 shadow-lg shadow-amber-950/50'
+                : isLight
+                ? 'bg-white border-slate-200 hover:border-amber-300 hover:bg-amber-50/30 shadow-sm'
                 : 'bg-slate-900 border-amber-500/30 hover:border-amber-500/60 hover:bg-slate-850'
             }`}
           >
-            <div className="text-sm sm:text-base font-bold text-amber-300">
+            <div className={`text-sm sm:text-base font-bold ${isLight ? 'text-amber-800' : 'text-amber-300'}`}>
               JCO
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+            <div className={`text-2xl sm:text-3xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {jcoCount}
             </div>
           </button>
@@ -595,14 +656,18 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
             }}
             className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
               selectedCategory === 'OR'
-                ? 'bg-blue-950/60 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-950/50'
+                ? isLight
+                  ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-400 shadow-md'
+                  : 'bg-blue-950/60 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-950/50'
+                : isLight
+                ? 'bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 shadow-sm'
                 : 'bg-slate-900 border-blue-500/30 hover:border-blue-500/60 hover:bg-slate-850'
             }`}
           >
-            <div className="text-sm sm:text-base font-bold text-blue-300">
+            <div className={`text-sm sm:text-base font-bold ${isLight ? 'text-blue-800' : 'text-blue-300'}`}>
               OR
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+            <div className={`text-2xl sm:text-3xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {orCount}
             </div>
           </button>
@@ -617,14 +682,18 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               }}
               className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCategory === 'NCE'
-                  ? 'bg-orange-950/60 border-orange-500 ring-2 ring-orange-500/50 shadow-lg shadow-orange-950/50'
+                  ? isLight
+                    ? 'bg-orange-100 border-orange-500 ring-2 ring-orange-400 shadow-md'
+                    : 'bg-orange-950/60 border-orange-500 ring-2 ring-orange-500/50 shadow-lg shadow-orange-950/50'
+                  : isLight
+                  ? 'bg-white border-slate-200 hover:border-orange-300 hover:bg-orange-50/30 shadow-sm'
                   : 'bg-slate-900 border-orange-500/30 hover:border-orange-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="text-sm sm:text-base font-bold text-orange-300">
+              <div className={`text-sm sm:text-base font-bold ${isLight ? 'text-orange-800' : 'text-orange-300'}`}>
                 NC(E)
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+              <div className={`text-2xl sm:text-3xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {nceCount}
               </div>
             </button>
@@ -640,14 +709,18 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               }}
               className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCategory === 'NCU'
-                  ? 'bg-teal-950/60 border-teal-500 ring-2 ring-teal-500/50 shadow-lg shadow-teal-950/50'
+                  ? isLight
+                    ? 'bg-teal-100 border-teal-500 ring-2 ring-teal-400 shadow-md'
+                    : 'bg-teal-950/60 border-teal-500 ring-2 ring-teal-500/50 shadow-lg shadow-teal-950/50'
+                  : isLight
+                  ? 'bg-white border-slate-200 hover:border-teal-300 hover:bg-teal-50/30 shadow-sm'
                   : 'bg-slate-900 border-teal-500/30 hover:border-teal-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="text-sm sm:text-base font-bold text-teal-300">
+              <div className={`text-sm sm:text-base font-bold ${isLight ? 'text-teal-800' : 'text-teal-300'}`}>
                 NC(U)
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+              <div className={`text-2xl sm:text-3xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {ncuCount}
               </div>
             </button>
@@ -663,14 +736,18 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               }}
               className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCategory === 'CIVILIAN'
-                  ? 'bg-purple-950/60 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-950/50'
+                  ? isLight
+                    ? 'bg-purple-100 border-purple-500 ring-2 ring-purple-400 shadow-md'
+                    : 'bg-purple-950/60 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-950/50'
+                  : isLight
+                  ? 'bg-white border-slate-200 hover:border-purple-300 hover:bg-purple-50/30 shadow-sm'
                   : 'bg-slate-900 border-purple-500/30 hover:border-purple-500/60 hover:bg-slate-850'
               }`}
             >
-              <div className="text-sm sm:text-base font-bold text-purple-300">
+              <div className={`text-sm sm:text-base font-bold ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
                 Civilian
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+              <div className={`text-2xl sm:text-3xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {civilianCount}
               </div>
             </button>
@@ -687,21 +764,25 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
               }}
               className={`p-4 rounded-xl text-left transition-all cursor-pointer border ${
                 selectedCategory === 'OTHERS' || selectedCategory === 'NCE' || selectedCategory === 'NCU' || selectedCategory === 'RCO'
-                  ? 'bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg shadow-emerald-950/50'
+                  ? isLight
+                    ? 'bg-emerald-100 border-emerald-500 ring-2 ring-emerald-400 shadow-md'
+                    : 'bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg shadow-emerald-950/50'
+                  : isLight
+                  ? 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 shadow-sm'
                   : 'bg-slate-900 border-emerald-500/30 hover:border-emerald-500/60 hover:bg-slate-850'
               }`}
             >
               <div className="flex items-center justify-between">
-                <div className="text-sm sm:text-base font-bold text-emerald-300">
+                <div className={`text-sm sm:text-base font-bold ${isLight ? 'text-emerald-800' : 'text-emerald-300'}`}>
                   Others
                 </div>
                 <ChevronDown
-                  className={`w-4 h-4 text-emerald-400 transition-transform duration-200 ${
+                  className={`w-4 h-4 text-emerald-500 transition-transform duration-200 ${
                     isOthersExpanded ? 'rotate-180' : ''
                   }`}
                 />
               </div>
-              <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-1">
+              <div className={`text-2xl sm:text-3xl font-black font-mono mt-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {othersCount}
               </div>
             </button>
@@ -711,9 +792,13 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
 
       {/* Others Sub-Categories (NC(E), NC(U), RCO) for HQ Battery - STRICTLY EXCLUDES CIVILIAN */}
       {viewMode === 'BTY' && activeBatteryTab === 'HQ Bty' && isOthersExpanded && (
-        <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 shadow-md">
+        <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 shadow-md ${
+          isLight ? 'bg-white border-emerald-300' : 'bg-slate-900 border-emerald-500/40'
+        }`}>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
+            <span className={`text-xs font-mono font-bold uppercase tracking-wider ${
+              isLight ? 'text-emerald-800' : 'text-emerald-400'
+            }`}>
               Others Category:
             </span>
             <div className="flex items-center gap-2 flex-wrap">
@@ -723,11 +808,13 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 border transition-all cursor-pointer ${
                   selectedCategory === 'NCE'
                     ? 'bg-orange-600 text-white border-orange-400 shadow-md ring-1 ring-orange-300'
+                    : isLight
+                    ? 'bg-slate-100 text-orange-800 border-orange-300 hover:bg-orange-50'
                     : 'bg-slate-950 text-orange-300 border-orange-500/40 hover:bg-orange-950/30'
                 }`}
               >
                 <span>NC(E)</span>
-                <span className="bg-black/40 px-1.5 py-0.5 rounded text-[11px] font-mono">
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-mono ${isLight ? 'bg-orange-200 text-orange-900' : 'bg-black/40 text-white'}`}>
                   {nceCount}
                 </span>
               </button>
@@ -737,11 +824,13 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 border transition-all cursor-pointer ${
                   selectedCategory === 'NCU'
                     ? 'bg-teal-600 text-white border-teal-400 shadow-md ring-1 ring-teal-300'
+                    : isLight
+                    ? 'bg-slate-100 text-teal-800 border-teal-300 hover:bg-teal-50'
                     : 'bg-slate-950 text-teal-300 border-teal-500/40 hover:bg-teal-950/30'
                 }`}
               >
                 <span>NC(U)</span>
-                <span className="bg-black/40 px-1.5 py-0.5 rounded text-[11px] font-mono">
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-mono ${isLight ? 'bg-teal-200 text-teal-900' : 'bg-black/40 text-white'}`}>
                   {ncuCount}
                 </span>
               </button>
@@ -751,11 +840,13 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-2 border transition-all cursor-pointer ${
                   selectedCategory === 'RCO'
                     ? 'bg-cyan-600 text-white border-cyan-400 shadow-md ring-1 ring-cyan-300'
+                    : isLight
+                    ? 'bg-slate-100 text-cyan-800 border-cyan-300 hover:bg-cyan-50'
                     : 'bg-slate-950 text-cyan-300 border-cyan-500/40 hover:bg-cyan-950/30'
                 }`}
               >
                 <span>RCO (আরসিও)</span>
-                <span className="bg-black/40 px-1.5 py-0.5 rounded text-[11px] font-mono">
+                <span className={`px-1.5 py-0.5 rounded text-[11px] font-mono ${isLight ? 'bg-cyan-200 text-cyan-900' : 'bg-black/40 text-white'}`}>
                   {rcoCount}
                 </span>
               </button>
@@ -765,6 +856,8 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
                   selectedCategory === 'OTHERS'
                     ? 'bg-emerald-600 text-white border-emerald-400 shadow-md'
+                    : isLight
+                    ? 'bg-slate-100 text-emerald-800 border-emerald-300 hover:bg-emerald-50'
                     : 'bg-slate-950 text-emerald-300 border-emerald-500/40 hover:bg-emerald-950/30'
                 }`}
               >
@@ -779,7 +872,9 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
                 setSelectedCategory('ALL');
                 setIsOthersExpanded(false);
               }}
-              className="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+              className={`text-xs px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700'
+              }`}
             >
               Show All
             </button>
@@ -789,10 +884,12 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
 
       {/* Active Filter Indicator if user clicked a card in REGT / BTY mode */}
       {viewMode !== 'CIVILIAN' && selectedCategory !== 'ALL' && !isOthersExpanded && (
-        <div className="flex items-center justify-between px-3.5 py-2 rounded-lg bg-slate-900/90 border border-slate-800 text-xs">
-          <span className="text-slate-300">
+        <div className={`flex items-center justify-between px-3.5 py-2 rounded-lg border text-xs ${
+          isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/90 border-slate-800'
+        }`}>
+          <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>
             Filtered by:{' '}
-            <strong className="text-white font-mono font-bold">
+            <strong className={`font-mono font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
               {selectedCategory === 'OFFICER'
                 ? 'Officer'
                 : selectedCategory === 'JCO'
@@ -814,7 +911,9 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
           <button
             type="button"
             onClick={() => setSelectedCategory('ALL')}
-            className="text-rose-400 hover:text-rose-300 font-semibold underline cursor-pointer"
+            className={`font-semibold underline cursor-pointer ${
+              isLight ? 'text-rose-600 hover:text-rose-800' : 'text-rose-400 hover:text-rose-300'
+            }`}
           >
             Show All
           </button>

@@ -71,8 +71,10 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
     confirmBatteryParadeRecord,
     finalizeParadeType,
     getRegimentalTotals,
+    theme,
   } = useApp();
 
+  const isLight = theme === 'light';
   const activeDate = date || selectedParadeDate;
 
   // Strict view-only access for Guests, Officers and CO - they must NOT have any Add, Edit, Delete, Update, or Modify option
@@ -532,42 +534,56 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
       <div
         className={
           isFullScreen
-            ? 'relative w-full h-full bg-slate-950 flex flex-col overflow-hidden'
+            ? isLight
+              ? 'relative w-full h-full bg-slate-100 text-slate-900 flex flex-col overflow-hidden'
+              : 'relative w-full h-full bg-slate-950 flex flex-col overflow-hidden'
+            : isLight
+            ? 'relative w-full max-w-7xl bg-white border border-slate-300 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]'
             : 'relative w-full max-w-7xl bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]'
         }
       >
         {/* Header */}
-        <div className="px-4 sm:px-6 py-3 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+        <div
+          className={`px-4 sm:px-6 py-3 border-b flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 ${
+            isLight
+              ? 'bg-white border-slate-200'
+              : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
+          }`}
+        >
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition-all cursor-pointer shadow-sm group"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-sm group ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-300'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border-slate-700'
+              }`}
               title="Close & return to Dashboard (ড্যাশবোর্ডে ফিরুন)"
             >
-              <ArrowLeft className="w-4 h-4 text-rose-400 group-hover:-translate-x-0.5 transition-transform" />
+              <ArrowLeft className="w-4 h-4 text-rose-500 group-hover:-translate-x-0.5 transition-transform" />
               <span className="hidden sm:inline">Back / ফেরত যান</span>
               <span className="sm:hidden">Back</span>
             </button>
 
-            <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 shrink-0">
+            <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 shrink-0">
               <Layers className="w-5 h-5" />
             </div>
 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
+                <h3 className={`text-base sm:text-lg font-bold tracking-wide ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   {sessionType} Parade State
                 </h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                   {isBsm ? `${activeTab} View` : 'Regimental Full Overview'}
                 </span>
                 {isFullScreen && (
-                  <span className="hidden sm:inline px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="hidden sm:inline px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                     FULL SCREEN
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400 font-mono hidden sm:block">
+              <p className={`text-[11px] font-mono hidden sm:block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 10 Medium Regiment Artillery — Comprehensive Parade &amp; PT Inspection Sheet
               </p>
             </div>
@@ -575,9 +591,13 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {/* Date Selector Inside Session Sheet */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700/80 shadow-inner">
-              <Clock className="w-3.5 h-3.5 text-rose-400" />
-              <span className="text-xs text-slate-400 font-mono font-bold">Date:</span>
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border shadow-inner ${
+                isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-700/80 text-white'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-rose-500" />
+              <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Date:</span>
               <input
                 type="date"
                 value={activeDate}
@@ -587,7 +607,9 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                     showNotification(`Date changed to ${e.target.value}`);
                   }
                 }}
-                className="bg-transparent text-white font-mono font-bold text-xs focus:outline-none cursor-pointer"
+                className={`bg-transparent font-mono font-bold text-xs focus:outline-none cursor-pointer ${
+                  isLight ? 'text-slate-900' : 'text-white'
+                }`}
               />
             </div>
 
@@ -608,10 +630,14 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
             {/* Download State Button */}
             <button
               onClick={handleDownloadState}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all cursor-pointer shadow-sm hover:border-emerald-500/50"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-emerald-500/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-emerald-500/50'
+              }`}
               title="Download Parade State Excel Sheet"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <Download className="w-3.5 h-3.5 text-emerald-500" />
               <span className="hidden sm:inline">Download State</span>
               <span className="sm:hidden">Excel</span>
             </button>
@@ -625,10 +651,14 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   window.print();
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all cursor-pointer shadow-sm hover:border-blue-500/50"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 hover:border-blue-500/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-blue-500/50'
+              }`}
               title="Print Parade State Sheet"
             >
-              <Printer className="w-3.5 h-3.5 text-blue-400" />
+              <Printer className="w-3.5 h-3.5 text-blue-500" />
               <span className="hidden sm:inline">Print State</span>
               <span className="sm:hidden">Print</span>
             </button>
@@ -636,7 +666,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
             {/* Fullscreen Toggle Button */}
             <button
               onClick={() => setIsFullScreen(!isFullScreen)}
-              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700"
+              className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+              }`}
               title={isFullScreen ? 'Exit Full Screen (Window Mode)' : 'Enter Full Screen'}
             >
               {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -645,7 +679,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-white transition-colors cursor-pointer ml-1 border border-slate-700"
+              className={`p-1.5 rounded-xl border transition-colors cursor-pointer ml-1 ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 border-slate-300'
+                  : 'bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-white border-slate-700'
+              }`}
               title="Close (Esc)"
             >
               <X className="w-5 h-5" />
@@ -683,72 +721,126 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
         {(() => {
           const regtTotals = getRegimentalTotals();
           return (
-            <div className="px-6 py-2.5 bg-slate-900/95 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800">
+            <div
+              className={`px-6 py-2.5 border-b grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/95 border-slate-800'
+              }`}
+            >
+              <div
+                className={`p-2 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-950/80 border-slate-800'
+                }`}
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-mono text-slate-400 block">Auth / Posted</span>
+                  <span className={`text-[10px] uppercase font-mono block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Auth / Posted
+                  </span>
                 </div>
                 <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-base font-bold font-mono text-white">{regtTotals.auth}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">/ {regtTotals.totalPosted}</span>
+                  <span className={`text-base font-bold font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {regtTotals.auth}
+                  </span>
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    / {regtTotals.totalPosted}
+                  </span>
                 </div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-rose-500/20">
-                <span className="text-[10px] uppercase font-mono text-rose-400 block">Out (Msn+Att)</span>
+              <div
+                className={`p-2 rounded-xl border ${
+                  isLight ? 'bg-rose-50/60 border-rose-200 shadow-sm' : 'bg-slate-950/80 border-rose-500/20'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono text-rose-500 block font-semibold">
+                  Out (Msn+Att)
+                </span>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-base font-bold font-mono text-rose-300">{regtTotals.outOfUnit}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className={`text-base font-bold font-mono ${isLight ? 'text-rose-700' : 'text-rose-300'}`}>
+                    {regtTotals.outOfUnit}
+                  </span>
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                     (M:{regtTotals.totalMsn}, A:{regtTotals.totalAttached})
                   </span>
                 </div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-amber-500/20">
-                <span className="text-[10px] uppercase font-mono text-amber-400 block">Held</span>
+              <div
+                className={`p-2 rounded-xl border ${
+                  isLight ? 'bg-amber-50/60 border-amber-200 shadow-sm' : 'bg-slate-950/80 border-amber-500/20'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono text-amber-600 block font-semibold">Held</span>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-base font-bold font-mono text-amber-300">{regtTotals.held}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className={`text-base font-bold font-mono ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                    {regtTotals.held}
+                  </span>
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                     (Posted - Out)
                   </span>
                 </div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-purple-500/20">
-                <span className="text-[10px] uppercase font-mono text-purple-400 block">Total Out</span>
+              <div
+                className={`p-2 rounded-xl border ${
+                  isLight ? 'bg-purple-50/60 border-purple-200 shadow-sm' : 'bg-slate-950/80 border-purple-500/20'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono text-purple-600 block font-semibold">Total Out</span>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-base font-bold font-mono text-purple-300">{regtTotals.totalOut}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className={`text-base font-bold font-mono ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>
+                    {regtTotals.totalOut}
+                  </span>
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                     (Lve+Crs+CMH)
                   </span>
                 </div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-cyan-500/20">
-                <span className="text-[10px] uppercase font-mono text-cyan-400 block">Present in Unit</span>
+              <div
+                className={`p-2 rounded-xl border ${
+                  isLight ? 'bg-cyan-50/60 border-cyan-200 shadow-sm' : 'bg-slate-950/80 border-cyan-500/20'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono text-cyan-600 block font-semibold">Present in Unit</span>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-base font-bold font-mono text-cyan-300">{regtTotals.presentInUnit}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className={`text-base font-bold font-mono ${isLight ? 'text-cyan-700' : 'text-cyan-300'}`}>
+                    {regtTotals.presentInUnit}
+                  </span>
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                     (Held - Out)
                   </span>
                 </div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-amber-500/20">
-                <span className="text-[10px] uppercase font-mono text-amber-400 block">Off Parade</span>
+              <div
+                className={`p-2 rounded-xl border ${
+                  isLight ? 'bg-amber-50/60 border-amber-200 shadow-sm' : 'bg-slate-950/80 border-amber-500/20'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono text-amber-600 block font-semibold">Off Parade</span>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-base font-bold font-mono text-amber-300">{regtTotals.offParade}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className={`text-base font-bold font-mono ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>
+                    {regtTotals.offParade}
+                  </span>
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                     (Duty: {regtTotals.totalDuty})
                   </span>
                 </div>
               </div>
 
-              <div className="p-2 rounded-xl bg-slate-950/80 border border-emerald-500/30 bg-emerald-950/10">
-                <span className="text-[10px] uppercase font-mono text-emerald-400 block font-bold">On Parade</span>
+              <div
+                className={`p-2 rounded-xl border ${
+                  isLight
+                    ? 'bg-emerald-50/80 border-emerald-300 shadow-sm'
+                    : 'bg-slate-950/80 border-emerald-500/30 bg-emerald-950/10'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-mono text-emerald-600 block font-bold">On Parade</span>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-base font-extrabold font-mono text-emerald-300">{regtTotals.onParade}</span>
-                  <span className="text-[10px] text-emerald-400/80 font-mono">
+                  <span className={`text-base font-extrabold font-mono ${isLight ? 'text-emerald-700' : 'text-emerald-300'}`}>
+                    {regtTotals.onParade}
+                  </span>
+                  <span className={`text-[10px] font-mono ${isLight ? 'text-emerald-600' : 'text-emerald-400/80'}`}>
                     ({regtTotals.onParadePercentage}%)
                   </span>
                 </div>
@@ -758,11 +850,19 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
         })()}
 
         {/* Tab Selection & PT Filter Control Bar */}
-        <div className="px-4 sm:px-6 py-2.5 bg-slate-950/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div
+          className={`px-4 sm:px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950/90 border-slate-800'
+          }`}
+        >
           {/* View Mode & Battery Tabs */}
           <div className="flex items-center gap-2 flex-wrap">
             {(isRsmOrAdmin || isReadOnly) && (
-              <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-700/80 text-xs font-mono font-bold">
+              <div
+                className={`flex items-center p-1 rounded-xl border text-xs font-mono font-bold ${
+                  isLight ? 'bg-white border-slate-300 shadow-sm' : 'bg-slate-900 border-slate-700/80'
+                }`}
+              >
                 <button
                   onClick={() => {
                     setRsmViewMode('Summary');
@@ -771,6 +871,8 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                     rsmViewMode === 'Summary'
                       ? 'bg-rose-600 text-white shadow'
+                      : isLight
+                      ? 'text-slate-600 hover:text-slate-900'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -784,6 +886,8 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                     rsmViewMode === 'Detail'
                       ? 'bg-rose-600 text-white shadow'
+                      : isLight
+                      ? 'text-slate-600 hover:text-slate-900'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -805,7 +909,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                       onClick={() => setActiveTab(bty)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                         activeTab === bty
-                          ? 'bg-gradient-to-r from-slate-800 to-slate-700 text-white border border-slate-600 shadow-md'
+                          ? isLight
+                            ? 'bg-rose-600 text-white shadow-md'
+                            : 'bg-gradient-to-r from-slate-800 to-slate-700 text-white border border-slate-600 shadow-md'
+                          : isLight
+                          ? 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300 shadow-sm'
                           : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
                       }`}
                     >
@@ -821,19 +929,23 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
           <div className="flex items-center gap-2 flex-1 max-w-xl justify-end flex-wrap">
             {/* Search Input */}
             <div className="relative min-w-[200px] sm:min-w-[240px] flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
               <input
                 type="text"
                 value={pointSearchQuery}
                 onChange={(e) => setPointSearchQuery(e.target.value)}
                 placeholder="Search PT / Point (e.g. GPT, On Parade, Sick)..."
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                className={`w-full rounded-xl pl-8 pr-7 py-1.5 text-xs focus:outline-none focus:border-rose-500 border ${
+                  isLight
+                    ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 shadow-sm'
+                    : 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'
+                }`}
               />
               {pointSearchQuery && (
                 <button
                   type="button"
                   onClick={() => setPointSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className={`absolute right-2.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'}`}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -856,6 +968,8 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     ptCategoryFilter === chip.key
                       ? 'bg-rose-600 text-white shadow-sm'
+                      : isLight
+                      ? 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
                       : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   }`}
                 >
@@ -870,12 +984,14 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                 onClick={() => setShowRsmControls(!showRsmControls)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer whitespace-nowrap ${
                   showRsmControls
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40'
+                    : isLight
+                    ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                     : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
                 }`}
                 title="Toggle Battery Visibility Controls"
               >
-                <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                <Sliders className="w-3.5 h-3.5 text-amber-500" />
                 <span className="hidden sm:inline">Visibility</span>
               </button>
             )}
@@ -1072,37 +1188,51 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
             filterBattery={activeTab}
           />
 
-          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 shadow-inner">
+          <div
+            className={`overflow-x-auto rounded-xl border shadow-inner ${
+              isLight ? 'border-slate-200 bg-white' : 'border-slate-800 bg-slate-950/60'
+            }`}
+          >
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur-md shadow-sm">
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+              <thead
+                className={`sticky top-0 z-20 backdrop-blur-md shadow-sm ${
+                  isLight ? 'bg-slate-100/95' : 'bg-slate-900/95'
+                }`}
+              >
+                <tr
+                  className={`border-b font-semibold uppercase tracking-wider text-[11px] ${
+                    isLight ? 'border-slate-200 text-slate-700' : 'border-slate-800 text-slate-400'
+                  }`}
+                >
                   <th className="py-3 px-3 w-12 text-center">Sl</th>
                   <th className="py-3 px-4 min-w-[220px]">Duty Point / PT (প্যারেড পয়েন্ট)</th>
                   {activeTab === 'Consolidated' ? (
                     <>
-                      <th className="py-3 px-3 text-center bg-slate-950/40">P Bty</th>
-                      <th className="py-3 px-3 text-center bg-slate-950/40">Q Bty</th>
-                      <th className="py-3 px-3 text-center bg-slate-950/40">R Bty</th>
-                      <th className="py-3 px-3 text-center bg-slate-950/40">HQ Bty</th>
-                      <th className="py-3 px-3 text-center bg-slate-950/40">EME</th>
-                      <th className="py-3 px-3 text-center font-bold text-rose-400">Total Offr</th>
-                      <th className="py-3 px-3 text-center font-bold text-rose-400">Total JCO</th>
-                      <th className="py-3 px-3 text-center font-bold text-rose-400">Total OR</th>
-                      <th className="py-3 px-4 text-right font-bold text-white bg-slate-900">Total (যোগফল)</th>
+                      <th className={`py-3 px-3 text-center ${isLight ? 'bg-slate-200/50 text-slate-800' : 'bg-slate-950/40'}`}>P Bty</th>
+                      <th className={`py-3 px-3 text-center ${isLight ? 'bg-slate-200/50 text-slate-800' : 'bg-slate-950/40'}`}>Q Bty</th>
+                      <th className={`py-3 px-3 text-center ${isLight ? 'bg-slate-200/50 text-slate-800' : 'bg-slate-950/40'}`}>R Bty</th>
+                      <th className={`py-3 px-3 text-center ${isLight ? 'bg-slate-200/50 text-slate-800' : 'bg-slate-950/40'}`}>HQ Bty</th>
+                      <th className={`py-3 px-3 text-center ${isLight ? 'bg-slate-200/50 text-slate-800' : 'bg-slate-950/40'}`}>EME</th>
+                      <th className="py-3 px-3 text-center font-bold text-rose-500">Total Offr</th>
+                      <th className="py-3 px-3 text-center font-bold text-rose-500">Total JCO</th>
+                      <th className="py-3 px-3 text-center font-bold text-rose-500">Total OR</th>
+                      <th className={`py-3 px-4 text-right font-bold ${isLight ? 'text-slate-900 bg-slate-200/70' : 'text-white bg-slate-900'}`}>
+                        Total (যোগফল)
+                      </th>
                     </>
                   ) : (
                     <>
-                      <th className="py-3.5 px-4 text-center w-36 sm:w-44 text-slate-300 font-bold">Offr (অফিসার)</th>
-                      <th className="py-3.5 px-4 text-center w-36 sm:w-44 text-slate-300 font-bold">JCO (জেসিও)</th>
-                      <th className="py-3.5 px-4 text-center w-36 sm:w-44 text-slate-300 font-bold">OR (সৈনিক)</th>
-                      <th className="py-3.5 px-4 text-right font-bold text-rose-300 w-40 sm:w-48 bg-slate-900/80">
+                      <th className={`py-3.5 px-4 text-center w-36 sm:w-44 font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>Offr (অফিসার)</th>
+                      <th className={`py-3.5 px-4 text-center w-36 sm:w-44 font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>JCO (জেসিও)</th>
+                      <th className={`py-3.5 px-4 text-center w-36 sm:w-44 font-bold ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>OR (সৈনিক)</th>
+                      <th className={`py-3.5 px-4 text-right font-bold w-40 sm:w-48 ${isLight ? 'text-rose-600 bg-slate-200/60' : 'text-rose-300 bg-slate-900/80'}`}>
                         Total / যোগফল
                       </th>
                     </>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className={`divide-y ${isLight ? 'divide-slate-200' : 'divide-slate-800/60'}`}>
                 {visiblePoints.map((pt, idx) => {
                   const upperName = pt.name.toUpperCase();
                   const isMainParade =
@@ -1128,50 +1258,64 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                         key={pt.id}
                         className={`transition-colors ${
                           isMainParade
-                            ? 'bg-emerald-950/25 hover:bg-emerald-950/35 border-l-4 border-l-emerald-500'
+                            ? isLight
+                              ? 'bg-emerald-50 hover:bg-emerald-100/60 border-l-4 border-l-emerald-600'
+                              : 'bg-emerald-950/25 hover:bg-emerald-950/35 border-l-4 border-l-emerald-500'
+                            : isLight
+                            ? 'hover:bg-slate-50'
                             : 'hover:bg-slate-900/60'
                         }`}
                       >
                         <td className="py-3 px-3 text-center text-slate-500 font-mono text-sm">
                           {idx + 1}
                         </td>
-                        <td className="py-3 px-4 font-bold text-slate-200">
+                        <td className="py-3 px-4 font-bold">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className={isMainParade ? 'text-emerald-300 font-black text-sm sm:text-base' : 'text-sm text-slate-200'}>
+                            <span
+                              className={
+                                isMainParade
+                                  ? isLight
+                                    ? 'text-emerald-800 font-black text-sm sm:text-base'
+                                    : 'text-emerald-300 font-black text-sm sm:text-base'
+                                  : isLight
+                                  ? 'text-sm font-semibold text-slate-900'
+                                  : 'text-sm text-slate-200'
+                              }
+                            >
                               {pt.name}
                             </span>
                             {isMainParade && (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 uppercase tracking-wider">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 uppercase tracking-wider">
                                 MAIN PT
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-800 bg-slate-100/50' : 'text-slate-300 bg-slate-950/20'}`}>
                           {p.offr + p.jco + p.or}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-800 bg-slate-100/50' : 'text-slate-300 bg-slate-950/20'}`}>
                           {q.offr + q.jco + q.or}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-800 bg-slate-100/50' : 'text-slate-300 bg-slate-950/20'}`}>
                           {r.offr + r.jco + r.or}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-800 bg-slate-100/50' : 'text-slate-300 bg-slate-950/20'}`}>
                           {hq.offr + hq.jco + hq.or}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-300 bg-slate-950/20 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-800 bg-slate-100/50' : 'text-slate-300 bg-slate-950/20'}`}>
                           {eme.offr + eme.jco + eme.or}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-300 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono font-bold text-sm ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
                           {ptTotalOffr}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-300 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono font-bold text-sm ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
                           {ptTotalJco}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-300 text-sm">
+                        <td className={`py-3 px-3 text-center font-mono font-bold text-sm ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
                           {ptTotalOr}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-black text-white text-base bg-slate-900/40">
+                        <td className={`py-3 px-4 text-right font-mono font-black text-base ${isLight ? 'text-slate-900 bg-slate-100/80' : 'text-white bg-slate-900/40'}`}>
                           {ptGrand}
                         </td>
                       </tr>
@@ -1191,33 +1335,49 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                       key={pt.id}
                       className={`transition-colors ${
                         isLockedByRsm
-                          ? 'bg-amber-950/10'
+                          ? isLight
+                            ? 'bg-amber-50/70'
+                            : 'bg-amber-950/10'
                           : isMainParade
-                          ? 'bg-emerald-950/25 hover:bg-emerald-950/35 border-l-4 border-l-emerald-500'
+                          ? isLight
+                            ? 'bg-emerald-50 hover:bg-emerald-100/60 border-l-4 border-l-emerald-600'
+                            : 'bg-emerald-950/25 hover:bg-emerald-950/35 border-l-4 border-l-emerald-500'
+                          : isLight
+                          ? 'hover:bg-slate-50'
                           : 'hover:bg-slate-900/60'
                       }`}
                     >
                       <td className="py-3 px-3 text-center text-slate-500 font-mono text-sm font-semibold">
                         {idx + 1}
                       </td>
-                      <td className="py-3 px-4 font-bold text-slate-200">
+                      <td className="py-3 px-4 font-bold">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={isMainParade ? 'text-emerald-300 font-black text-sm sm:text-base' : 'text-sm font-bold text-slate-200'}>
+                          <span
+                            className={
+                              isMainParade
+                                ? isLight
+                                  ? 'text-emerald-800 font-black text-sm sm:text-base'
+                                  : 'text-emerald-300 font-black text-sm sm:text-base'
+                                : isLight
+                                ? 'text-sm font-bold text-slate-900'
+                                : 'text-sm font-bold text-slate-200'
+                            }
+                          >
                             {pt.name}
                           </span>
                           {isMainParade && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 uppercase tracking-wider">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 uppercase tracking-wider">
                               MAIN PT
                             </span>
                           )}
                           {isLockedByRsm && (
-                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1">
                               <span>🔒 RSM Fixed</span>
                               {lastTime && <span>({lastTime})</span>}
                             </span>
                           )}
                           {!isLockedByRsm && lastTime && (
-                            <span className="text-[9px] font-mono text-slate-500">
+                            <span className="text-[9px] font-mono text-slate-400">
                               Updt: {lastTime}
                             </span>
                           )}
@@ -1225,7 +1385,9 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         {isReadOnly ? (
-                          <span className="inline-block min-w-16 py-2 px-3 font-mono font-black text-slate-100 text-base bg-slate-950/80 rounded-xl border border-slate-800 shadow-inner">
+                          <span className={`inline-block min-w-16 py-2 px-3 font-mono font-black text-base rounded-xl border shadow-inner ${
+                            isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-950/80 text-slate-100 border-slate-800'
+                          }`}>
                             {currentCounts.offr}
                           </span>
                         ) : (
@@ -1240,7 +1402,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                             }
                             className={`w-28 sm:w-36 border-2 rounded-xl py-2 px-3 text-center font-mono font-black text-base sm:text-lg transition-all shadow-inner focus:outline-none ${
                               isInputDisabled
-                                ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed'
+                                ? isLight
+                                  ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed'
+                                  : 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed'
+                                : isLight
+                                ? 'bg-white border-slate-300 text-slate-900 hover:border-slate-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30'
                                 : 'bg-slate-950 border-slate-700 text-white hover:border-slate-500 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/40'
                             }`}
                           />
@@ -1248,7 +1414,9 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         {isReadOnly ? (
-                          <span className="inline-block min-w-16 py-2 px-3 font-mono font-black text-slate-100 text-base bg-slate-950/80 rounded-xl border border-slate-800 shadow-inner">
+                          <span className={`inline-block min-w-16 py-2 px-3 font-mono font-black text-base rounded-xl border shadow-inner ${
+                            isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-950/80 text-slate-100 border-slate-800'
+                          }`}>
                             {currentCounts.jco}
                           </span>
                         ) : (
@@ -1263,7 +1431,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                             }
                             className={`w-28 sm:w-36 border-2 rounded-xl py-2 px-3 text-center font-mono font-black text-base sm:text-lg transition-all shadow-inner focus:outline-none ${
                               isInputDisabled
-                                ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed'
+                                ? isLight
+                                  ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed'
+                                  : 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed'
+                                : isLight
+                                ? 'bg-white border-slate-300 text-slate-900 hover:border-slate-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30'
                                 : 'bg-slate-950 border-slate-700 text-white hover:border-slate-500 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/40'
                             }`}
                           />
@@ -1271,7 +1443,9 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         {isReadOnly ? (
-                          <span className="inline-block min-w-16 py-2 px-3 font-mono font-black text-slate-100 text-base bg-slate-950/80 rounded-xl border border-slate-800 shadow-inner">
+                          <span className={`inline-block min-w-16 py-2 px-3 font-mono font-black text-base rounded-xl border shadow-inner ${
+                            isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-950/80 text-slate-100 border-slate-800'
+                          }`}>
                             {currentCounts.or}
                           </span>
                         ) : (
@@ -1286,13 +1460,19 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                             }
                             className={`w-28 sm:w-36 border-2 rounded-xl py-2 px-3 text-center font-mono font-black text-base sm:text-lg transition-all shadow-inner focus:outline-none ${
                               isInputDisabled
-                                ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed'
+                                ? isLight
+                                  ? 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed'
+                                  : 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed'
+                                : isLight
+                                ? 'bg-white border-slate-300 text-slate-900 hover:border-slate-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/30'
                                 : 'bg-slate-950 border-slate-700 text-white hover:border-slate-500 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/40'
                             }`}
                           />
                         )}
                       </td>
-                      <td className="py-2.5 px-4 text-right font-mono font-black text-rose-400 text-lg sm:text-xl bg-slate-900/70">
+                      <td className={`py-2.5 px-4 text-right font-mono font-black text-lg sm:text-xl ${
+                        isLight ? 'text-rose-600 bg-rose-50/50' : 'text-rose-400 bg-slate-900/70'
+                      }`}>
                         {rowTotal}
                       </td>
                     </tr>
@@ -1312,7 +1492,7 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                           setPointSearchQuery('');
                           setPtCategoryFilter('All');
                         }}
-                        className="ml-2 text-rose-400 underline font-bold cursor-pointer"
+                        className="ml-2 text-rose-500 underline font-bold cursor-pointer"
                       >
                         Reset Filter
                       </button>
@@ -1320,43 +1500,47 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   </tr>
                 )}
               </tbody>
-              <tfoot className="sticky bottom-0 z-20 bg-slate-950 border-t-2 border-slate-700 shadow-2xl">
-                <tr className="bg-slate-950 font-bold text-white text-xs">
-                  <td colSpan={2} className="py-3.5 px-4 text-rose-400 uppercase tracking-wider">
+              <tfoot
+                className={`sticky bottom-0 z-20 border-t-2 shadow-2xl ${
+                  isLight ? 'bg-slate-100 border-slate-300' : 'bg-slate-950 border-slate-700'
+                }`}
+              >
+                <tr className={`font-bold text-xs ${isLight ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'}`}>
+                  <td colSpan={2} className="py-3.5 px-4 text-rose-500 uppercase tracking-wider font-extrabold">
                     {activeTab === 'Consolidated'
                       ? 'Regimental Grand Total (সর্বমোট প্যারেড স্টেট)'
                       : `${activeTab} Total (সর্বমোট)`}
                   </td>
                   {activeTab === 'Consolidated' ? (
                     <>
-                      <td colSpan={5} className="py-3.5 px-3 text-center text-slate-400 font-mono">
+                      <td colSpan={5} className={`py-3.5 px-3 text-center font-mono ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                         Consolidated
                       </td>
-                      <td className="py-3.5 px-3 text-center font-mono text-white text-sm">
+                      <td className={`py-3.5 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-900 font-bold' : 'text-white'}`}>
                         {totals.grandOffr}
                       </td>
-                      <td className="py-3.5 px-3 text-center font-mono text-white text-sm">
+                      <td className={`py-3.5 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-900 font-bold' : 'text-white'}`}>
                         {totals.grandJco}
                       </td>
-                      <td className="py-3.5 px-3 text-center font-mono text-white text-sm">
+                      <td className={`py-3.5 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-900 font-bold' : 'text-white'}`}>
                         {totals.grandOr}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-rose-400 font-extrabold text-base bg-rose-500/10">
+                      <td className={`py-3.5 px-4 text-right font-mono font-extrabold text-base ${isLight ? 'text-rose-700 bg-rose-100' : 'text-rose-400 bg-rose-500/10'}`}>
                         {totals.grandTotal}
                       </td>
                     </>
                   ) : (
                     <>
-                      <td className="py-3.5 px-3 text-center font-mono text-white text-sm">
+                      <td className={`py-3.5 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-900 font-bold' : 'text-white'}`}>
                         {totals.grandOffr}
                       </td>
-                      <td className="py-3.5 px-3 text-center font-mono text-white text-sm">
+                      <td className={`py-3.5 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-900 font-bold' : 'text-white'}`}>
                         {totals.grandJco}
                       </td>
-                      <td className="py-3.5 px-3 text-center font-mono text-white text-sm">
+                      <td className={`py-3.5 px-3 text-center font-mono text-sm ${isLight ? 'text-slate-900 font-bold' : 'text-white'}`}>
                         {totals.grandOr}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-rose-400 font-extrabold text-base bg-rose-500/10">
+                      <td className={`py-3.5 px-4 text-right font-mono font-extrabold text-base ${isLight ? 'text-rose-700 bg-rose-100' : 'text-rose-400 bg-rose-500/10'}`}>
                         {totals.grandTotal}
                       </td>
                     </>
@@ -1368,15 +1552,19 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+        <div
+          className={`px-6 py-3 border-t flex flex-wrap items-center justify-between gap-3 text-xs ${
+            isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-slate-950 border-slate-800 text-slate-400'
+          }`}
+        >
           <div className="flex items-center gap-2">
             {isReadOnly ? (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 font-mono font-semibold text-[11px]">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 font-mono font-semibold text-[11px]">
                 <Eye className="w-3.5 h-3.5" />
                 <span>View-Only Access (Officer / CO Mode)</span>
               </span>
             ) : (
-              <span className="text-slate-500 font-mono text-[11px]">
+              <span className={`font-mono text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                 * Modifications auto-sync across regimental parade records
               </span>
             )}
@@ -1386,7 +1574,11 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
             {/* Download Parade State Option */}
             <button
               onClick={handleDownloadState}
-              className="px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white font-bold text-xs transition-all border border-emerald-500/40 cursor-pointer flex items-center gap-1.5 shadow-sm"
+              className={`px-4 py-2 rounded-xl font-bold text-xs transition-all border cursor-pointer flex items-center gap-1.5 shadow-sm ${
+                isLight
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-500/40'
+              }`}
               title="Download Parade State Excel"
             >
               <Download className="w-4 h-4" />
@@ -1397,10 +1589,14 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
             {onOpenPrintModal && (
               <button
                 onClick={onOpenPrintModal}
-                className="px-3.5 py-2 rounded-xl bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs transition-all border border-slate-700 cursor-pointer flex items-center gap-1.5"
+                className={`px-3.5 py-2 rounded-xl font-bold text-xs transition-all border cursor-pointer flex items-center gap-1.5 ${
+                  isLight
+                    ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                    : 'bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700'
+                }`}
                 title="Print Official Parade Sheet"
               >
-                <Printer className="w-3.5 h-3.5 text-blue-400" />
+                <Printer className="w-3.5 h-3.5 text-blue-500" />
                 <span>Print / Official Sheet</span>
               </button>
             )}
@@ -1411,7 +1607,9 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
                   onClick={() => setIsEditing(!isEditing)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                     isEditing
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                      ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                      : isLight
+                      ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                       : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
                   }`}
                 >

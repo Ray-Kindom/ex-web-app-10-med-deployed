@@ -74,7 +74,10 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     ranksList,
     tradesList,
     subUnitsList,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   const safePersonnel = useMemo(() => (Array.isArray(personnel) ? personnel.filter(Boolean) : []), [personnel]);
   const safeRanks = useMemo(() => (Array.isArray(ranksList) ? ranksList.filter(Boolean) : []), [ranksList]);
@@ -490,21 +493,29 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     selectedStatus !== 'All';
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+    <div className={`rounded-2xl border shadow-xl overflow-hidden transition-colors duration-200 ${
+      isLight ? 'bg-white border-slate-200 text-slate-900 shadow-md' : 'bg-slate-900 border-slate-800 text-white'
+    }`}>
       {/* Header Bar */}
-      <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/90">
+      <div className={`p-4 sm:p-5 border-b transition-colors ${
+        isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/90 border-slate-800'
+      }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Title & Count */}
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg font-bold text-white font-sans tracking-tight">
+              <h2 className={`text-lg font-bold font-sans tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {title || 'Nominal'}
               </h2>
-              <span className="bg-rose-600/20 text-rose-300 border border-rose-500/40 text-xs font-mono font-bold px-2 py-0.5 rounded-full">
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
+                isLight ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-rose-600/20 text-rose-300 border-rose-500/40'
+              }`}>
                 {filteredPersonnel.length} / {personnel.length}
               </span>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-mono">
-                <Shield className="w-3 h-3 text-emerald-400" />
+              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-mono ${
+                isLight ? 'bg-emerald-50 text-emerald-800 border-emerald-200 font-semibold' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              }`}>
+                <Shield className="w-3 h-3 text-emerald-500" />
                 <span>Seniority: Offr → JCO → NCO → OR</span>
               </div>
             </div>
@@ -515,7 +526,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
             {hasActiveFilters && (
               <button
                 onClick={handleResetFilters}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                  isLight
+                    ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-sm'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
               >
                 <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
                 <span>Reset Filters</span>
@@ -527,36 +542,50 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               <button
                 id="download-nominal-dropdown-btn"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 shadow-md transition-colors"
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border shadow-md transition-colors cursor-pointer ${
+                  isLight
+                    ? 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 shadow-sm'
+                    : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700 shadow-md'
+                }`}
               >
-                <Download className="w-3.5 h-3.5 text-rose-400" />
+                <Download className="w-3.5 h-3.5 text-rose-500" />
                 <span>Download Nominal</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-40 text-slate-200">
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono border-b border-slate-800">
+                <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-2xl py-1.5 z-40 border ${
+                  isLight
+                    ? 'bg-white border-slate-200 text-slate-800 divide-y divide-slate-100'
+                    : 'bg-slate-900 border-slate-700 text-slate-200 divide-y divide-slate-800'
+                }`}>
+                  <div className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider font-mono border-b ${
+                    isLight ? 'text-slate-500 border-slate-100' : 'text-slate-400 border-slate-800'
+                  }`}>
                     Export Filtered Nominal Roll
                   </div>
                   <button
                     onClick={handlePrintFilteredNominal}
-                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-slate-800 hover:text-white transition-colors"
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                      isLight ? 'hover:bg-slate-50 text-slate-800' : 'hover:bg-slate-800 hover:text-white'
+                    }`}
                   >
-                    <Printer className="w-4 h-4 text-rose-400" />
+                    <Printer className="w-4 h-4 text-rose-500" />
                     <div>
-                      <div className="font-semibold text-slate-100">Print / PDF Nominal</div>
-                      <div className="text-[10px] text-slate-400">Official formatted print layout</div>
+                      <div className={`font-semibold ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>Print / PDF Nominal</div>
+                      <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Official formatted print layout</div>
                     </div>
                   </button>
                   <button
                     onClick={handleWordExport}
-                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-slate-800 hover:text-white transition-colors"
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                      isLight ? 'hover:bg-slate-50 text-slate-800' : 'hover:bg-slate-800 hover:text-white'
+                    }`}
                   >
-                    <FileText className="w-4 h-4 text-blue-400" />
+                    <FileText className="w-4 h-4 text-blue-500" />
                     <div>
-                      <div className="font-semibold text-slate-100">Word Document (.doc)</div>
-                      <div className="text-[10px] text-slate-400">Editable Microsoft Word table</div>
+                      <div className={`font-semibold ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>Word Document (.doc)</div>
+                      <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Editable Microsoft Word table</div>
                     </div>
                   </button>
                 </div>
@@ -567,7 +596,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
             {currentUser.role === 'RSM' && !isGuest && onOpenAddModal && (
               <button
                 onClick={onOpenAddModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-900/40 transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-900/40 transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Enlist Soldier</span>
@@ -577,10 +606,12 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
         </div>
 
         {/* Filter Toolbar: Search, Rank, Trade, Blood Group, Battery, Status */}
-        <div className="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className={`mt-4 pt-4 border-t grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 ${
+          isLight ? 'border-slate-200' : 'border-slate-800/80'
+        }`}>
           {/* 1. Search Box */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
             <input
               type="text"
               value={activeSearch}
@@ -589,7 +620,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                 setSearchQuery(e.target.value);
               }}
               placeholder="Search No, Name..."
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-rose-500 font-sans"
+              className={`w-full rounded-lg pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-rose-500 font-sans transition-colors ${
+                isLight
+                  ? 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400 shadow-sm'
+                  : 'bg-slate-900 border border-slate-700/80 text-white placeholder-slate-400'
+              }`}
             />
           </div>
 
@@ -598,7 +633,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
             <select
               value={selectedRank}
               onChange={(e) => setSelectedRank(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer"
+              className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-rose-500 font-sans cursor-pointer transition-colors ${
+                isLight
+                  ? 'bg-white border border-slate-300 text-slate-900 shadow-sm'
+                  : 'bg-slate-900 border border-slate-700/80 text-white'
+              }`}
             >
               {rankFilterOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -613,7 +652,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
             <select
               value={selectedTrade}
               onChange={(e) => setSelectedTrade(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer"
+              className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-rose-500 font-sans cursor-pointer transition-colors ${
+                isLight
+                  ? 'bg-white border border-slate-300 text-slate-900 shadow-sm'
+                  : 'bg-slate-900 border border-slate-700/80 text-white'
+              }`}
             >
               {tradeFilterOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -628,7 +671,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
             <select
               value={selectedBlood}
               onChange={(e) => setSelectedBlood(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer font-mono"
+              className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-rose-500 font-sans cursor-pointer font-mono transition-colors ${
+                isLight
+                  ? 'bg-white border border-slate-300 text-slate-900 shadow-sm'
+                  : 'bg-slate-900 border border-slate-700/80 text-white'
+              }`}
             >
               {bloodFilterOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -644,7 +691,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               <select
                 value={selectedBattery}
                 onChange={(e) => setSelectedBattery(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer font-mono"
+                className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-rose-500 font-sans cursor-pointer font-mono transition-colors ${
+                  isLight
+                    ? 'bg-white border border-slate-300 text-slate-900 shadow-sm'
+                    : 'bg-slate-900 border border-slate-700/80 text-white'
+                }`}
               >
                 {batteryFilterOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -654,9 +705,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               </select>
             </div>
           ) : (
-            <div className="flex items-center px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-300">
-              <span className="text-slate-500 mr-1.5">Bty:</span>
-              <span className="font-bold text-rose-400">{fixedBattery}</span>
+            <div className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-mono border ${
+              isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300'
+            }`}>
+              <span className={`mr-1.5 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>Bty:</span>
+              <span className="font-bold text-rose-500">{fixedBattery}</span>
             </div>
           )}
 
@@ -665,7 +718,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500 font-sans cursor-pointer"
+              className={`w-full rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-rose-500 font-sans cursor-pointer transition-colors ${
+                isLight
+                  ? 'bg-white border border-slate-300 text-slate-900 shadow-sm'
+                  : 'bg-slate-900 border border-slate-700/80 text-white'
+              }`}
             >
               <option value="All">All Statuses (সব স্ট্যাটাস)</option>
               <option value="In Unit">In Unit (ইউনিটে উপস্থিতি)</option>
@@ -691,11 +748,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider font-mono text-[11px] border-b border-slate-800">
+            <tr className={`${isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'} uppercase tracking-wider font-mono text-[11px] border-b`}>
               <th className="py-3 px-3 w-12 text-center">SL</th>
               <th
                 onClick={() => toggleSort('snkNo')}
-                className="py-3 px-3 w-32 text-center cursor-pointer select-none hover:text-white transition-colors"
+                className={`py-3 px-3 w-32 text-center cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
                 title="Click to sort by Army / Soldier Number"
               >
                 <div className="flex items-center justify-center gap-1">
@@ -709,7 +766,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               </th>
               <th
                 onClick={() => toggleSort('seniority')}
-                className="py-3 px-3 w-28 text-center cursor-pointer select-none hover:text-white transition-colors"
+                className={`py-3 px-3 w-28 text-center cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
                 title="Default: Military Seniority (Officers -> JCOs -> NCOs -> Soldiers)"
               >
                 <div className="flex items-center justify-center gap-1">
@@ -724,7 +781,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               <th className="py-3 px-3 w-20 text-center">Trade</th>
               <th
                 onClick={() => toggleSort('name')}
-                className="py-3 px-4 min-w-[180px] cursor-pointer select-none hover:text-white transition-colors"
+                className={`py-3 px-4 min-w-[180px] cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
                 title="Click to sort alphabetically by Name"
               >
                 <div className="flex items-center gap-1">
@@ -738,7 +795,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               </th>
               <th
                 onClick={() => toggleSort('battery')}
-                className="py-3 px-3 w-24 text-center cursor-pointer select-none hover:text-white transition-colors"
+                className={`py-3 px-3 w-24 text-center cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
                 title="Click to sort by Battery"
               >
                 <div className="flex items-center justify-center gap-1">
@@ -752,7 +809,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               </th>
               <th
                 onClick={() => toggleSort('status')}
-                className="py-3 px-4 w-44 cursor-pointer select-none hover:text-white transition-colors"
+                className={`py-3 px-4 w-44 cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
                 title="Click to sort by Parade State"
               >
                 <div className="flex items-center gap-1">
@@ -769,13 +826,13 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               <th className="py-3 px-3 w-24 text-center">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/80">
+          <tbody className={isLight ? "divide-y divide-slate-200" : "divide-y divide-slate-800/80"}>
             {filteredPersonnel.length === 0 ? (
               <tr>
-                <td colSpan={10} className="py-12 text-center text-slate-400 bg-slate-900/50">
+                <td colSpan={10} className={`py-12 text-center ${isLight ? 'text-slate-500 bg-slate-50' : 'text-slate-400 bg-slate-900/50'}`}>
                   <div className="max-w-xs mx-auto space-y-2">
-                    <Filter className="w-8 h-8 text-slate-600 mx-auto" />
-                    <p className="font-semibold text-slate-300">No personnel match current criteria</p>
+                    <Filter className={`w-8 h-8 mx-auto ${isLight ? 'text-slate-400' : 'text-slate-600'}`} />
+                    <p className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>No personnel match current criteria</p>
                     <button
                       onClick={handleResetFilters}
                       className="mt-2 px-3 py-1.5 rounded-lg bg-rose-600 text-white font-semibold text-xs inline-block"
@@ -791,10 +848,10 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                   return (
                     <tr
                       key={person.id}
-                      className="bg-amber-950/40 border-y border-amber-500/60 shadow-inner"
+                      className={isLight ? "bg-amber-50 border-y border-amber-300 shadow-inner" : "bg-amber-950/40 border-y border-amber-500/60 shadow-inner"}
                     >
                       {/* 1. SL */}
-                      <td className="py-2 px-3 text-center font-mono text-slate-400 text-[11px]">
+                      <td className={`py-2 px-3 text-center font-mono text-[11px] ${isLight ? 'text-slate-600 font-semibold' : 'text-slate-400'}`}>
                         {index + 1}
                       </td>
 
@@ -809,7 +866,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             if (e.key === 'Escape') cancelInlineEdit();
                           }}
                           autoFocus
-                          className="w-full bg-slate-900 border border-amber-500 rounded px-1.5 py-1 text-center font-mono font-bold text-amber-300 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          className={`w-full border border-amber-500 rounded px-1.5 py-1 text-center font-mono font-bold text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                            isLight ? 'bg-white text-amber-800' : 'bg-slate-900 text-amber-300'
+                          }`}
                         />
                       </td>
 
@@ -822,7 +881,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             if (e.key === 'Enter') saveInlineEdit(person.id);
                             if (e.key === 'Escape') cancelInlineEdit();
                           }}
-                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                          className={`w-full border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer ${
+                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                          }`}
                         >
                           {rankOptions.map((r) => (
                             <option key={r} value={r}>
@@ -843,7 +904,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             if (e.key === 'Enter') saveInlineEdit(person.id);
                             if (e.key === 'Escape') cancelInlineEdit();
                           }}
-                          className="w-full bg-slate-900 border border-amber-500 rounded px-1.5 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          className={`w-full border border-amber-500 rounded px-1.5 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                          }`}
                         />
                         <datalist id="trade-options-inline">
                           {safeTrades.map((t) => (
@@ -862,7 +925,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             if (e.key === 'Enter') saveInlineEdit(person.id);
                             if (e.key === 'Escape') cancelInlineEdit();
                           }}
-                          className="w-full bg-slate-900 border border-amber-500 rounded px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          className={`w-full border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                          }`}
                         />
                       </td>
 
@@ -875,7 +940,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             if (e.key === 'Enter') saveInlineEdit(person.id);
                             if (e.key === 'Escape') cancelInlineEdit();
                           }}
-                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                          className={`w-full border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer ${
+                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                          }`}
                         >
                           {batteryOptions.map((b) => (
                             <option key={b} value={b}>
@@ -899,7 +966,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             if (e.key === 'Enter') saveInlineEdit(person.id);
                             if (e.key === 'Escape') cancelInlineEdit();
                           }}
-                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono font-bold text-rose-400 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                          className={`w-full border border-amber-500 rounded px-1 py-1 text-center font-mono font-bold text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer ${
+                            isLight ? 'bg-white text-rose-600' : 'bg-slate-900 text-rose-400'
+                          }`}
                         >
                           {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bg) => (
                             <option key={bg} value={bg}>
@@ -918,7 +987,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             if (e.key === 'Enter') saveInlineEdit(person.id);
                             if (e.key === 'Escape') cancelInlineEdit();
                           }}
-                          className="w-full bg-slate-900 border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                          className={`w-full border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer ${
+                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                          }`}
                         >
                           <option value="AYE">AYE</option>
                           <option value="BEE">BEE</option>
@@ -941,7 +1012,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             type="button"
                             onClick={cancelInlineEdit}
                             title="Cancel (বাতিল / Esc)"
-                            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all cursor-pointer"
+                            className={`p-1.5 rounded transition-all cursor-pointer ${
+                              isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            }`}
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -956,15 +1029,19 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                 return (
                   <tr
                     key={person.id}
-                    className="hover:bg-slate-850/70 transition-colors group cursor-default text-slate-200"
+                    className={`transition-colors group cursor-default ${
+                      isLight
+                        ? 'hover:bg-slate-100/80 text-slate-800'
+                        : 'hover:bg-slate-850/70 text-slate-200'
+                    }`}
                   >
                     {/* 1. SL */}
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">
+                    <td className={`py-2.5 px-3 text-center font-mono text-[11px] ${isLight ? 'text-slate-600 font-semibold' : 'text-slate-400'}`}>
                       {index + 1}
                     </td>
 
                     {/* 2. Army / Snk No */}
-                    <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-100 whitespace-nowrap">
+                    <td className={`py-2.5 px-3 text-center font-mono font-bold whitespace-nowrap ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
                       {person.snkNo}
                     </td>
 
@@ -973,11 +1050,19 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                       <span
                         className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] border ${
                           ['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(person.rk)
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            ? isLight
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                             : ['SWO', 'WO', 'MWO'].includes(person.rk)
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            ? isLight
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                             : ['Sgt', 'Cpl', 'Lcpl'].includes(person.rk)
-                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                            ? isLight
+                              ? 'bg-blue-100 text-blue-900 border-blue-300'
+                              : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                            : isLight
+                            ? 'bg-slate-100 text-slate-800 border-slate-300'
                             : 'bg-slate-800 text-slate-300 border-slate-700'
                         }`}
                       >
@@ -988,22 +1073,28 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                     {/* 4. Trade (Separate Column - Short form, Dash for Officers and NC(E)) */}
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
                       {['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt', 'NC(E)', 'NC (E)'].includes(person.rk) || isNCERank(person.rk, person.trade) || person.trade === '-' || !person.trade ? (
-                        <span className="font-mono text-slate-500 text-xs font-medium" title="No trade">
+                        <span className={`font-mono text-xs font-medium ${isLight ? 'text-slate-400' : 'text-slate-500'}`} title="No trade">
                           -
                         </span>
                       ) : (
-                        <span className="inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-slate-800 text-cyan-300 border border-slate-700">
+                        <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] border ${
+                          isLight
+                            ? 'bg-cyan-50 text-cyan-900 border-cyan-200'
+                            : 'bg-slate-800 text-cyan-300 border-slate-700'
+                        }`}>
                           {person.trade}
                         </span>
                       )}
                     </td>
 
                     {/* 5. Full Name */}
-                    <td className="py-2.5 px-4 font-semibold text-white whitespace-nowrap">
+                    <td className={`py-2.5 px-4 font-semibold whitespace-nowrap ${isLight ? 'text-slate-900' : 'text-white'}`}>
                       <button
                         type="button"
                         onClick={() => onViewDossier(person)}
-                        className="text-left hover:text-emerald-400 hover:underline transition-colors cursor-pointer"
+                        className={`text-left hover:underline transition-colors cursor-pointer ${
+                          isLight ? 'hover:text-emerald-700 text-slate-900' : 'hover:text-emerald-400 text-white'
+                        }`}
                         title="ক্লিক করে ডসিয়ার দেখুন (Click to view dossier)"
                       >
                         {person.name}
@@ -1013,11 +1104,19 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                     {/* 6. Battery */}
                     <td className="py-2.5 px-3 text-center font-mono text-xs whitespace-nowrap">
                       {isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? (
-                        <span className="px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/80 text-purple-300 font-semibold shadow-sm">
+                        <span className={`px-2 py-0.5 rounded font-semibold shadow-sm border ${
+                          isLight
+                            ? 'bg-purple-100 border-purple-300 text-purple-900'
+                            : 'bg-purple-950/70 border-purple-800/80 text-purple-300'
+                        }`}>
                           Civilian
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                        <span className={`px-2 py-0.5 rounded border ${
+                          isLight
+                            ? 'bg-slate-100 border-slate-300 text-slate-700 font-medium'
+                            : 'bg-slate-950 border-slate-800 text-slate-300'
+                        }`}>
                           {person.battery || '-'}
                         </span>
                       )}
@@ -1032,7 +1131,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             onChange={(e) =>
                               handleQuickStatusChange(person.id, e.target.value as ParadeStatus)
                             }
-                            className="bg-slate-950 border border-rose-500 text-white rounded px-2 py-1 text-xs focus:outline-none"
+                            className={`border border-rose-500 rounded px-2 py-1 text-xs focus:outline-none ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-950 text-white'
+                            }`}
                             autoFocus
                           >
                             {statusOptions.map((st) => (
@@ -1047,13 +1148,19 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                               setStatusModalPerson(person);
                             }}
                             title="Open Full Status & Location Dialog"
-                            className="p-1 rounded bg-rose-600/20 text-rose-300 hover:bg-rose-600/30 text-xs"
+                            className={`p-1 rounded text-xs ${
+                              isLight
+                                ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                                : 'bg-rose-600/20 text-rose-300 hover:bg-rose-600/30'
+                            }`}
                           >
                             Details
                           </button>
                           <button
                             onClick={() => setActiveEditingId(null)}
-                            className="text-slate-400 hover:text-white text-xs px-1"
+                            className={`text-xs px-1 ${
+                              isLight ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                            }`}
                           >
                             ✕
                           </button>
@@ -1088,7 +1195,11 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                             <button
                               onClick={() => setStatusModalPerson(person)}
                               title="Update Status, Dates & Location"
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-opacity cursor-pointer"
+                              className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity cursor-pointer ${
+                                isLight
+                                  ? 'hover:bg-slate-200 text-slate-500 hover:text-slate-900'
+                                  : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
                             >
                               <Edit2 className="w-3 h-3" />
                             </button>
@@ -1098,19 +1209,21 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                     </td>
 
                     {/* 8. Blood Group */}
-                    <td className="py-2.5 px-3 text-center font-mono font-bold text-rose-400 text-xs">
+                    <td className={`py-2.5 px-3 text-center font-mono font-bold text-xs ${
+                      isLight ? 'text-rose-600' : 'text-rose-400'
+                    }`}>
                       {person.bloodGroup || 'O+'}
                     </td>
 
                     {/* 9. Medical Cat */}
                     <td className="py-2.5 px-3 text-center font-mono text-[11px]">
                       <span
-                        className={`px-1.5 py-0.5 rounded ${
+                        className={`px-1.5 py-0.5 rounded font-semibold ${
                           person.medicalCategory === 'AYE'
-                            ? 'text-emerald-400 bg-emerald-500/10'
+                            ? isLight ? 'text-emerald-700 bg-emerald-100 border border-emerald-200' : 'text-emerald-400 bg-emerald-500/10'
                             : person.medicalCategory === 'BEE'
-                            ? 'text-amber-400 bg-amber-500/10'
-                            : 'text-rose-400 bg-rose-500/10'
+                            ? isLight ? 'text-amber-800 bg-amber-100 border border-amber-200' : 'text-amber-400 bg-amber-500/10'
+                            : isLight ? 'text-rose-700 bg-rose-100 border border-rose-200' : 'text-rose-400 bg-rose-500/10'
                         }`}
                       >
                         {person.medicalCategory || 'AYE'}
@@ -1124,20 +1237,28 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                           <button
                             type="button"
                             onClick={() => startInlineEdit(person)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-amber-950/60 text-slate-300 hover:text-amber-300 text-xs font-semibold border border-slate-700 hover:border-amber-500/50 transition-colors cursor-pointer"
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                              isLight
+                                ? 'bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-800 border-slate-300 hover:border-amber-400'
+                                : 'bg-slate-800 hover:bg-amber-950/60 text-slate-300 hover:text-amber-300 border-slate-700 hover:border-amber-500/50'
+                            }`}
                             title="Edit Personnel (সরাসরি টেবিলে এডিট)"
                           >
-                            <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                            <Edit2 className="w-3.5 h-3.5 text-amber-500" />
                             <span>Edit</span>
                           </button>
                         )}
                         {onDeletePerson && (
                           <button
                             onClick={() => onDeletePerson(person)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 text-xs font-semibold border border-slate-700 hover:border-rose-500/50 transition-colors cursor-pointer"
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                              isLight
+                                ? 'bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-800 border-slate-300 hover:border-rose-400'
+                                : 'bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 border-slate-700 hover:border-rose-500/50'
+                            }`}
                             title="Delete Personnel"
                           >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                           </button>
                         )}
                       </div>
@@ -1151,11 +1272,15 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       </div>
 
       {/* Footer summary bar */}
-      <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 font-mono">
+      <div className={`p-3 border-t flex items-center justify-between text-xs font-mono ${
+        isLight
+          ? 'bg-slate-50 border-slate-200 text-slate-600'
+          : 'bg-slate-950 border-slate-800 text-slate-400'
+      }`}>
         <div className="flex items-center gap-4">
           <span>Showing {filteredPersonnel.length} personnel</span>
           {hasActiveFilters && (
-            <span className="text-amber-400 font-semibold">• Filters Active</span>
+            <span className={isLight ? "text-amber-700 font-semibold" : "text-amber-400 font-semibold"}>• Filters Active</span>
           )}
         </div>
         <div className="flex items-center gap-3">

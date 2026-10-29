@@ -59,7 +59,9 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
     dailyParadePoints,
     setActivePage,
     getParadeDutyAssignments,
+    theme,
   } = useApp();
+  const isLight = theme === 'light';
 
   const [activeModalSession, setActiveModalSession] = useState<string | null>(null);
   const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
@@ -193,9 +195,11 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
     <div className="space-y-4">
       {/* Date Selector Only (No Box, No Quick Entry) */}
       <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap pb-1">
-        <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800 shadow-inner">
-          <Calendar className="w-4 h-4 text-slate-400 ml-1.5" />
-          <span className="text-xs font-mono text-slate-400 font-medium">Date:</span>
+        <div className={`flex items-center gap-1.5 p-1.5 rounded-xl border shadow-inner ${
+          isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+        }`}>
+          <Calendar className={`w-4 h-4 ml-1.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
+          <span className={`text-xs font-mono font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Date:</span>
           <button
             type="button"
             onClick={() => {
@@ -203,7 +207,9 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
               d.setDate(d.getDate() - 1);
               setSelectedParadeDate(d.toISOString().slice(0, 10));
             }}
-            className="px-2 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className={`px-2 py-1 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+              isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
             title="Previous Day"
           >
             ← Prev
@@ -212,14 +218,16 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
             type="date"
             value={selectedParadeDate}
             onChange={(e) => e.target.value && setSelectedParadeDate(e.target.value)}
-            className="bg-slate-900 text-white font-mono font-bold text-xs px-2.5 py-1 rounded-lg border border-slate-700/80 focus:outline-none focus:border-rose-500 cursor-pointer"
+            className={`font-mono font-bold text-xs px-2.5 py-1 rounded-lg border focus:outline-none focus:border-rose-500 cursor-pointer ${
+              isLight ? 'bg-slate-50 text-slate-900 border-slate-300' : 'bg-slate-900 text-white border-slate-700/80'
+            }`}
           />
           <button
             type="button"
             onClick={() => {
               setSelectedParadeDate(new Date().toISOString().slice(0, 10));
             }}
-            className="px-2 py-1 rounded-lg text-[11px] font-mono font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+            className="px-2 py-1 rounded-lg text-[11px] font-mono font-bold text-emerald-500 hover:bg-emerald-500/10 transition-colors cursor-pointer"
             title="Today"
           >
             Today
@@ -231,7 +239,9 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
               d.setDate(d.getDate() + 1);
               setSelectedParadeDate(d.toISOString().slice(0, 10));
             }}
-            className="px-2 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className={`px-2 py-1 rounded-lg text-xs font-mono transition-colors cursor-pointer ${
+              isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
             title="Next Day"
           >
             Next →
@@ -259,12 +269,18 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
               <div
                 key={type.id}
                 onClick={() => setActiveModalSession(type.name)}
-                className="relative overflow-hidden rounded-xl border border-slate-800/80 hover:border-emerald-500/60 bg-gradient-to-b from-slate-900/90 to-slate-950 p-3 sm:p-3.5 shadow-md shadow-slate-950/30 transition-all duration-200 cursor-pointer hover:-translate-y-0.5 group flex flex-col justify-between"
+                className={`relative overflow-hidden rounded-xl border p-3 sm:p-3.5 shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5 group flex flex-col justify-between ${
+                  isLight
+                    ? 'bg-white hover:border-emerald-500/80 border-slate-200 shadow-slate-200/50'
+                    : 'border-slate-800/80 hover:border-emerald-500/60 bg-gradient-to-b from-slate-900/90 to-slate-950 shadow-slate-950/30'
+                }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block truncate font-mono">
+                      <span className={`text-[11px] font-semibold uppercase tracking-wider block truncate font-mono ${
+                        isLight ? 'text-slate-600' : 'text-slate-400'
+                      }`}>
                         {type.name} Parade
                       </span>
                       {canDelete && (
@@ -277,7 +293,7 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
                             }
                           }}
                           title={`Delete ${type.name} Parade State`}
-                          className="text-slate-500 hover:text-rose-400 transition-colors p-0.5"
+                          className="text-slate-400 hover:text-rose-500 transition-colors p-0.5"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -285,27 +301,35 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
                     </div>
 
                     <div className="mt-1 flex items-baseline gap-1.5">
-                      <span className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-white">
+                      <span className={`text-xl sm:text-2xl font-bold font-mono tracking-tight ${
+                        isLight ? 'text-slate-900' : 'text-white'
+                      }`}>
                         {stats.count}
                       </span>
-                      <span className="text-[11px] font-semibold font-mono text-emerald-400">
+                      <span className={`text-[11px] font-semibold font-mono ${
+                        isLight ? 'text-emerald-700' : 'text-emerald-400'
+                      }`}>
                         On Parade
                       </span>
                     </div>
 
-                    <p className="mt-0.5 text-[11px] text-slate-400 font-mono truncate">
+                    <p className={`mt-0.5 text-[11px] font-mono truncate ${
+                      isLight ? 'text-slate-500' : 'text-slate-400'
+                    }`}>
                       {selectedParadeDate} • {badge.text}
                     </p>
                   </div>
 
-                  <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="p-2 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0 group-hover:scale-105 transition-transform">
                     {getParadeTypeIcon(type.name)}
                   </div>
                 </div>
 
-                <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                <div className={`mt-2 pt-1.5 border-t flex items-center justify-between text-[10px] font-mono ${
+                  isLight ? 'border-slate-100 text-slate-500' : 'border-slate-800/80 text-slate-500'
+                }`}>
                   <span>Edit: {stats.lastEditTime}</span>
-                  <span className="text-slate-400 font-semibold">{isBsm ? assignedBty : 'Regiment'}</span>
+                  <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>{isBsm ? assignedBty : 'Regiment'}</span>
                 </div>
               </div>
             );
@@ -321,15 +345,21 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
                 setIsTypeDropdownOpen(false);
                 setIsAddTypeModalOpen(true);
               }}
-              className="relative overflow-hidden rounded-xl border border-dashed border-slate-700/80 hover:border-purple-500/60 bg-gradient-to-b from-purple-950/10 to-slate-900/60 p-3 sm:p-3.5 shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5 flex flex-col justify-center items-center text-center group min-h-[90px]"
+              className={`relative overflow-hidden rounded-xl border border-dashed p-3 sm:p-3.5 shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5 flex flex-col justify-center items-center text-center group min-h-[90px] ${
+                isLight
+                  ? 'border-purple-300 hover:border-purple-500 bg-purple-50/50'
+                  : 'border-slate-700/80 hover:border-purple-500/60 bg-gradient-to-b from-purple-950/10 to-slate-900/60'
+              }`}
             >
-              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 mb-1 group-hover:scale-105 transition-transform">
+              <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-600 border border-purple-500/20 mb-1 group-hover:scale-105 transition-transform">
                 <Plus className="w-4 h-4" />
               </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-300 group-hover:text-purple-300 font-mono">
+              <span className={`text-[11px] font-semibold uppercase tracking-wider font-mono ${
+                isLight ? 'text-purple-900 group-hover:text-purple-950' : 'text-slate-300 group-hover:text-purple-300'
+              }`}>
                 + Add Parade State
               </span>
-              <span className="text-[10px] text-slate-500 font-mono mt-0.5">
+              <span className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-purple-700' : 'text-slate-500'}`}>
                 RSM / Admin
               </span>
             </div>
@@ -340,25 +370,33 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
       {/* Duty Detailing Section - Relocated to Dedicated Full Board for RSM between Parade State and Regt Nominal */}
       <div
         id="section-duty-detailing-navigator"
-        className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800/80 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        className={`p-3.5 sm:p-4 rounded-xl border shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+          isLight
+            ? 'bg-white border-slate-200 shadow-slate-200/50'
+            : 'bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border-slate-800/80'
+        }`}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
+          <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0">
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-xs sm:text-sm font-bold text-white font-sans">
+              <h3 className={`text-xs sm:text-sm font-bold font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 Duty Detailing Board
               </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                isLight ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+              }`}>
                 Dedicated Page
               </span>
-              <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+                isLight ? 'text-emerald-800 bg-emerald-50 border-emerald-200' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+              }`}>
                 {getParadeDutyAssignments(selectedParadeDate, selectedDutySession).length} Detailed ({selectedDutySession})
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">
+            <p className={`text-xs font-mono mt-0.5 truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
               Separate full board for RSM duty allocation (Unit Sy, Working Parties, Fixed Duty &amp; Others).
             </p>
           </div>

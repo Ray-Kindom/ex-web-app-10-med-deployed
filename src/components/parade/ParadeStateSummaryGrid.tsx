@@ -27,7 +27,10 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
     getRegimentalTotals,
     setOutOfUnitModalOpen,
     setActiveOutOfUnitCategory,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   const summaries = getBatterySummaries();
   const totals = getRegimentalTotals();
@@ -44,15 +47,21 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
   const handleAttached = () => handleOpenCategory('Att');
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-      <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950">
+    <div className={`rounded-xl overflow-hidden shadow-xl border transition-colors duration-200 ${
+      isLight ? 'bg-white border-slate-200 text-slate-900 shadow-md' : 'bg-slate-900 border-slate-800 text-white'
+    }`}>
+      <div className={`p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+        isLight
+          ? 'bg-gradient-to-r from-slate-50 via-white to-slate-50 border-slate-200'
+          : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
+      }`}>
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <h3 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
               <Layers className="w-4 h-4 text-rose-500" />
               <span>Bty Wise Parade State</span>
             </h3>
-            <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded">
+            <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded">
               0630 HRS MORNING STATE
             </span>
           </div>
@@ -62,14 +71,16 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider text-[10px] font-mono border-b border-slate-800">
+            <tr className={`uppercase tracking-wider text-[10px] font-mono border-b ${
+              isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'
+            }`}>
               <th className="p-3">Battery / Sub-Unit</th>
               <th className="p-3 text-center">Posted</th>
-              <th className="p-3 text-center bg-emerald-950/30 text-emerald-300">Present</th>
-              <th className="p-3 text-center bg-blue-950/30 text-blue-300">On Duty</th>
+              <th className={`p-3 text-center ${isLight ? 'bg-emerald-50 text-emerald-800 font-bold' : 'bg-emerald-950/30 text-emerald-300'}`}>Present</th>
+              <th className={`p-3 text-center ${isLight ? 'bg-blue-50 text-blue-800 font-bold' : 'bg-blue-950/30 text-blue-300'}`}>On Duty</th>
               <th
                 onClick={handleSick}
-                className="p-3 text-center text-amber-400 hover:bg-amber-950/30 cursor-pointer transition-colors"
+                className={`p-3 text-center cursor-pointer transition-colors ${isLight ? 'text-amber-700 hover:bg-amber-50' : 'text-amber-400 hover:bg-amber-950/30'}`}
                 title="Click to view CMH & Sic Nominal List"
               >
                 <div className="inline-flex items-center gap-1">
@@ -79,7 +90,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
               </th>
               <th
                 onClick={handleLeave}
-                className="p-3 text-center text-purple-400 hover:bg-purple-950/30 cursor-pointer transition-colors"
+                className={`p-3 text-center cursor-pointer transition-colors ${isLight ? 'text-purple-700 hover:bg-purple-50' : 'text-purple-400 hover:bg-purple-950/30'}`}
                 title="Click to view P/Lve & C/Lve Nominal List"
               >
                 <div className="inline-flex items-center gap-1">
@@ -89,7 +100,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
               </th>
               <th
                 onClick={handleCourse}
-                className="p-3 text-center text-cyan-400 hover:bg-cyan-950/30 cursor-pointer transition-colors"
+                className={`p-3 text-center cursor-pointer transition-colors ${isLight ? 'text-cyan-800 hover:bg-cyan-50' : 'text-cyan-400 hover:bg-cyan-950/30'}`}
                 title="Click to view Course Details Nominal List"
               >
                 <div className="inline-flex items-center gap-1">
@@ -99,7 +110,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
               </th>
               <th
                 onClick={handleComd}
-                className="p-3 text-center text-indigo-400 hover:bg-indigo-950/30 cursor-pointer transition-colors"
+                className={`p-3 text-center cursor-pointer transition-colors ${isLight ? 'text-indigo-700 hover:bg-indigo-50' : 'text-indigo-400 hover:bg-indigo-950/30'}`}
                 title="Click to view Command Duty (COMD) List"
               >
                 <div className="inline-flex items-center gap-1">
@@ -109,7 +120,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
               </th>
               <th
                 onClick={handleAttached}
-                className="p-3 text-center text-teal-400 hover:bg-teal-950/30 cursor-pointer transition-colors"
+                className={`p-3 text-center cursor-pointer transition-colors ${isLight ? 'text-teal-700 hover:bg-teal-50' : 'text-teal-400 hover:bg-teal-950/30'}`}
                 title="Click to view Attached Out List"
               >
                 <div className="inline-flex items-center gap-1">
@@ -117,12 +128,12 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                   <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                 </div>
               </th>
-              <th className="p-3 text-center text-rose-400">AWOL</th>
+              <th className={`p-3 text-center ${isLight ? 'text-rose-700 font-bold' : 'text-rose-400'}`}>AWOL</th>
               <th className="p-3 text-center font-bold">Effective %</th>
               <th className="p-3 text-right">Verification</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 font-sans">
+          <tbody className={`divide-y font-sans ${isLight ? 'divide-slate-200' : 'divide-slate-800/60'}`}>
             {summaries.map((summary) => {
               const isSelected = selectedBattery === summary.battery;
               const effective = summary.present + summary.onDuty;
@@ -132,33 +143,41 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                 <tr
                   key={summary.battery}
                   onClick={() => onSelectBattery && onSelectBattery(summary.battery)}
-                  className={`hover:bg-slate-800/60 transition-colors cursor-pointer ${
-                    isSelected ? 'bg-rose-950/30 font-semibold' : ''
+                  className={`transition-colors cursor-pointer ${
+                    isSelected
+                      ? isLight ? 'bg-rose-50 font-semibold' : 'bg-rose-950/30 font-semibold'
+                      : isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
                   }`}
                 >
                   <td className="p-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-xs text-rose-400">
+                      <div className={`w-7 h-7 rounded-lg border flex items-center justify-center font-mono font-bold text-xs ${
+                        isLight ? 'bg-slate-100 border-slate-200 text-rose-600' : 'bg-slate-800 border-slate-700 text-rose-400'
+                      }`}>
                         {summary.battery.slice(0, 1)}
                       </div>
                       <div>
-                        <span className="font-bold text-white block">{summary.battery}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">
+                        <span className={`font-bold block ${isLight ? 'text-slate-900' : 'text-white'}`}>{summary.battery}</span>
+                        <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                           {summary.submittedBy}
                         </span>
                       </div>
                     </div>
                   </td>
 
-                  <td className="p-3 text-center font-mono font-bold text-slate-200">
+                  <td className={`p-3 text-center font-mono font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                     {summary.posted}
                   </td>
 
-                  <td className="p-3 text-center font-mono font-bold text-emerald-400 bg-emerald-950/20">
+                  <td className={`p-3 text-center font-mono font-bold ${
+                    isLight ? 'text-emerald-700 bg-emerald-50' : 'text-emerald-400 bg-emerald-950/20'
+                  }`}>
                     {summary.present}
                   </td>
 
-                  <td className="p-3 text-center font-mono font-bold text-blue-400 bg-blue-950/20">
+                  <td className={`p-3 text-center font-mono font-bold ${
+                    isLight ? 'text-blue-700 bg-blue-50' : 'text-blue-400 bg-blue-950/20'
+                  }`}>
                     {summary.onDuty}
                   </td>
 
@@ -169,7 +188,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                         handleSick();
                       }
                     }}
-                    className={`p-3 text-center font-mono text-amber-400 ${
+                    className={`p-3 text-center font-mono ${isLight ? 'text-amber-700' : 'text-amber-400'} ${
                       summary.sick > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
@@ -183,7 +202,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                         handleLeave();
                       }
                     }}
-                    className={`p-3 text-center font-mono text-purple-400 ${
+                    className={`p-3 text-center font-mono ${isLight ? 'text-purple-700' : 'text-purple-400'} ${
                       summary.leave > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
@@ -197,7 +216,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                         handleCourse();
                       }
                     }}
-                    className={`p-3 text-center font-mono text-cyan-400 ${
+                    className={`p-3 text-center font-mono ${isLight ? 'text-cyan-800' : 'text-cyan-400'} ${
                       summary.course > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
@@ -211,7 +230,7 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                         handleComd();
                       }
                     }}
-                    className={`p-3 text-center font-mono text-indigo-400 ${
+                    className={`p-3 text-center font-mono ${isLight ? 'text-indigo-700' : 'text-indigo-400'} ${
                       summary.tempDuty > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
@@ -225,14 +244,14 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                         handleAttached();
                       }
                     }}
-                    className={`p-3 text-center font-mono text-teal-400 ${
+                    className={`p-3 text-center font-mono ${isLight ? 'text-teal-700' : 'text-teal-400'} ${
                       summary.attached > 0 ? 'hover:underline hover:font-bold cursor-pointer' : ''
                     }`}
                   >
                     {summary.attached > 0 ? summary.attached : '-'}
                   </td>
 
-                  <td className="p-3 text-center font-mono text-rose-400 font-bold">
+                  <td className={`p-3 text-center font-mono font-bold ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>
                     {summary.absent > 0 ? summary.absent : '0'}
                   </td>
 
@@ -240,10 +259,10 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                     <span
                       className={`px-2 py-0.5 rounded ${
                         pct >= 90
-                          ? 'bg-emerald-500/20 text-emerald-300'
+                          ? isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-500/20 text-emerald-300'
                           : pct >= 80
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-rose-500/20 text-rose-300'
+                          ? isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/20 text-amber-300'
+                          : isLight ? 'bg-rose-100 text-rose-800' : 'bg-rose-500/20 text-rose-300'
                       }`}
                     >
                       {pct}%
@@ -251,7 +270,11 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
                   </td>
 
                   <td className="p-3 text-right whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded border ${
+                      isLight
+                        ? 'text-emerald-800 bg-emerald-50 border-emerald-200 font-semibold'
+                        : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                    }`}>
                       <CheckCircle2 className="w-3 h-3" />
                       <span>{summary.submissionStatus}</span>
                     </span>
@@ -263,56 +286,76 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
 
           {/* Consolidated Regimental Total Footer */}
           <tfoot>
-            <tr className="bg-slate-950 font-bold text-slate-100 border-t-2 border-slate-700">
-              <td className="p-3 uppercase font-mono tracking-wider text-rose-400">
+            <tr className={`font-bold border-t-2 ${
+              isLight
+                ? 'bg-slate-100 text-slate-900 border-slate-300'
+                : 'bg-slate-950 text-slate-100 border-slate-700'
+            }`}>
+              <td className="p-3 uppercase font-mono tracking-wider text-rose-600 dark:text-rose-400">
                 10 Med Regt Total:
               </td>
-              <td className="p-3 text-center font-mono text-base text-white">
+              <td className={`p-3 text-center font-mono text-base ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 {totals.totalPosted}
               </td>
-              <td className="p-3 text-center font-mono text-base text-emerald-400 bg-emerald-950/40">
+              <td className={`p-3 text-center font-mono text-base ${
+                isLight ? 'text-emerald-800 bg-emerald-100/60 font-extrabold' : 'text-emerald-400 bg-emerald-950/40'
+              }`}>
                 {totals.totalPresent}
               </td>
-              <td className="p-3 text-center font-mono text-base text-blue-400 bg-blue-950/40">
+              <td className={`p-3 text-center font-mono text-base ${
+                isLight ? 'text-blue-800 bg-blue-100/60 font-extrabold' : 'text-blue-400 bg-blue-950/40'
+              }`}>
                 {totals.totalDuty}
               </td>
               <td
                 onClick={handleSick}
-                className="p-3 text-center font-mono text-amber-400 cursor-pointer hover:bg-amber-950/30"
+                className={`p-3 text-center font-mono cursor-pointer ${
+                  isLight ? 'text-amber-800 hover:bg-amber-100' : 'text-amber-400 hover:bg-amber-950/30'
+                }`}
               >
                 {totals.totalSick}
               </td>
               <td
                 onClick={handleLeave}
-                className="p-3 text-center font-mono text-purple-400 cursor-pointer hover:bg-purple-950/30"
+                className={`p-3 text-center font-mono cursor-pointer ${
+                  isLight ? 'text-purple-800 hover:bg-purple-100' : 'text-purple-400 hover:bg-purple-950/30'
+                }`}
               >
                 {totals.totalLeave}
               </td>
               <td
                 onClick={handleCourse}
-                className="p-3 text-center font-mono text-cyan-400 cursor-pointer hover:bg-cyan-950/30"
+                className={`p-3 text-center font-mono cursor-pointer ${
+                  isLight ? 'text-cyan-800 hover:bg-cyan-100' : 'text-cyan-400 hover:bg-cyan-950/30'
+                }`}
               >
                 {totals.totalCourse}
               </td>
               <td
                 onClick={handleComd}
-                className="p-3 text-center font-mono text-indigo-400 cursor-pointer hover:bg-indigo-950/30"
+                className={`p-3 text-center font-mono cursor-pointer ${
+                  isLight ? 'text-indigo-800 hover:bg-indigo-100' : 'text-indigo-400 hover:bg-indigo-950/30'
+                }`}
               >
                 {totals.totalTempDuty}
               </td>
               <td
                 onClick={handleAttached}
-                className="p-3 text-center font-mono text-teal-400 cursor-pointer hover:bg-teal-950/30"
+                className={`p-3 text-center font-mono cursor-pointer ${
+                  isLight ? 'text-teal-800 hover:bg-teal-100' : 'text-teal-400 hover:bg-teal-950/30'
+                }`}
               >
                 {totals.totalAttached}
               </td>
-              <td className="p-3 text-center font-mono text-rose-400">
+              <td className={`p-3 text-center font-mono ${isLight ? 'text-rose-700 font-extrabold' : 'text-rose-400'}`}>
                 {totals.totalAbsent}
               </td>
-              <td className="p-3 text-center font-mono text-base text-emerald-300 font-bold">
+              <td className={`p-3 text-center font-mono text-base font-bold ${
+                isLight ? 'text-emerald-700' : 'text-emerald-300'
+              }`}>
                 {totals.presentPercentage}%
               </td>
-              <td className="p-3 text-right text-[11px] font-mono text-slate-400">
+              <td className={`p-3 text-right text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 ADJT VERIFIED
               </td>
             </tr>

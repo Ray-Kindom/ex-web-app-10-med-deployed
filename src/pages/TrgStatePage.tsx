@@ -32,7 +32,8 @@ interface TrgStatePageProps {
 export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   onViewDossier,
 }) => {
-  const { personnelList, showNotification, isGuest } = useApp();
+  const { personnelList, showNotification, isGuest, theme } = useApp();
+  const isLight = theme === 'light';
 
   // Persistent training state records
   const [records, setRecords] = useState<TrgRecord[]>(() => {
@@ -217,16 +218,18 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   return (
     <div className="space-y-4 pb-12 animate-fadeIn">
       {/* 1. Header Bar: Minimal, Direct & Clean */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border p-4 rounded-xl shadow-sm ${
+        isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+      }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
             <Target className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white tracking-tight">
+            <h1 className={`text-lg font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
               Training State (প্রশিক্ষণ স্টেটাস)
             </h1>
-            <p className="text-xs text-slate-400">
+            <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               10 Medium Regiment Artillery — RET, IPFT, Grenade & Annual Firing
             </p>
           </div>
@@ -242,10 +245,14 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
           </button>
           <button
             onClick={() => window.print()}
-            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
             title="প্রিন্ট করুন"
           >
-            <Printer className="w-3.5 h-3.5 text-slate-400" />
+            <Printer className={`w-3.5 h-3.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`} />
             <span>প্রিন্ট</span>
           </button>
         </div>
@@ -264,40 +271,56 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               }}
               className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
                 isSelected
-                  ? 'bg-slate-800/90 border-emerald-500/80 shadow-sm ring-1 ring-emerald-500/30'
+                  ? isLight
+                    ? 'bg-emerald-50/80 border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
+                    : 'bg-slate-800/90 border-emerald-500/80 shadow-sm ring-1 ring-emerald-500/30'
+                  : isLight
+                  ? 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
               }`}
             >
               <div className="flex items-center justify-between">
                 <span
                   className={`text-xs font-bold uppercase tracking-wider ${
-                    isSelected ? 'text-emerald-400' : 'text-slate-300'
+                    isSelected
+                      ? isLight ? 'text-emerald-700' : 'text-emerald-400'
+                      : isLight ? 'text-slate-700' : 'text-slate-300'
                   }`}
                 >
                   {m.label}
                 </span>
-                <span className="font-mono tabular-nums text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                <span className={`font-mono tabular-nums text-xs font-semibold px-2 py-0.5 rounded border ${
+                  isLight
+                    ? 'bg-slate-100 text-slate-700 border-slate-200'
+                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                }`}>
                   {moduleCounts[m.id]}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1 truncate">{m.full}</p>
+              <p className={`text-[11px] mt-1 truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{m.full}</p>
             </button>
           );
         })}
       </div>
 
       {/* 3. Sleek Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-3 rounded-xl">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border p-3 rounded-xl ${
+        isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+      }`}>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Battery Selector */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+          <div className={`flex items-center gap-1 p-1 rounded-lg border text-xs ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+          }`}>
             {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
               <button
                 key={b}
                 onClick={() => setBtyFilter(b)}
                 className={`px-2 py-1 rounded font-medium transition-colors cursor-pointer ${
                   btyFilter === b
-                    ? 'bg-emerald-600 text-white font-semibold'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -318,7 +341,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 onClick={() => setGradeFilter(g.id)}
                 className={`px-2.5 py-1 rounded text-xs transition-colors cursor-pointer border ${
                   gradeFilter === g.id
-                    ? 'bg-slate-800 text-emerald-400 border-emerald-500/40 font-medium'
+                    ? isLight
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-400 font-semibold'
+                      : 'bg-slate-800 text-emerald-400 border-emerald-500/40 font-medium'
+                    : isLight
+                    ? 'bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900'
                     : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
                 }`}
               >
@@ -330,28 +357,38 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
         {/* Search Input */}
         <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
           <input
             type="text"
             placeholder="সেনা নং বা নাম লিখুন..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-full sm:w-56"
+            className={`pl-8 pr-3 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-emerald-500 w-full sm:w-56 ${
+              isLight
+                ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                : 'bg-slate-950 border-slate-800 text-slate-200 placeholder-slate-500'
+            }`}
           />
         </div>
       </div>
 
       {/* 4. Main Records Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+      <div className={`border rounded-xl overflow-hidden shadow-sm ${
+        isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+      }`}>
         {filteredRecords.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-xs">
+          <div className={`py-12 text-center text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
             কোনো প্রশিক্ষণ রেকর্ড পাওয়া যায়নি।
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/70 text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+                <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${
+                  isLight
+                    ? 'border-slate-200 bg-slate-100/90 text-slate-700'
+                    : 'border-slate-800 bg-slate-950/70 text-slate-400'
+                }`}>
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3">সেনা নং</th>
                   <th className="py-2.5 px-3">পদবি ও নাম</th>
@@ -362,7 +399,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                   <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-200">
+              <tbody className={`divide-y ${
+                isLight
+                  ? 'divide-slate-200 text-slate-800'
+                  : 'divide-slate-800/60 text-slate-200'
+              }`}>
                 {filteredRecords.map((item, idx) => {
                   const person = findPerson(item.snkNo) || {
                     id: item.id,
@@ -382,11 +423,20 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                     item.grade.includes('Distinction');
 
                   return (
-                    <tr key={item.id || idx} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 text-center text-slate-500 font-mono text-[11px]">
+                    <tr
+                      key={item.id || idx}
+                      className={`transition-colors ${
+                        isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <td className={`py-2.5 px-3 text-center font-mono text-[11px] ${
+                        isLight ? 'text-slate-400' : 'text-slate-500'
+                      }`}>
                         {idx + 1}
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">
+                      <td className={`py-2.5 px-3 font-mono font-bold ${
+                        isLight ? 'text-emerald-700' : 'text-emerald-400'
+                      }`}>
                         {item.snkNo}
                       </td>
                       <td className="py-2.5 px-3">
@@ -395,43 +445,51 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                           <button
                             type="button"
                             onClick={() => onViewDossier(person)}
-                            className="font-medium text-white hover:text-emerald-400 hover:underline cursor-pointer text-left transition-colors"
+                            className={`font-medium hover:text-emerald-500 hover:underline cursor-pointer text-left transition-colors ${
+                              isLight ? 'text-slate-900' : 'text-white'
+                            }`}
                             title="ক্লিক করে ডসিয়ার দেখুন"
                           >
                             {item.name}
                           </button>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-300">
+                      <td className={`py-2.5 px-3 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                         {item.battery}
                       </td>
                       <td className="py-2.5 px-3">
                         <span
                           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold ${
                             isDistinction
-                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              ? isLight
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              : isLight
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                               : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                           }`}
                         >
                           {isDistinction ? (
-                            <Award className="w-3 h-3 text-amber-400" />
+                            <Award className="w-3 h-3 text-amber-500" />
                           ) : (
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                           )}
                           <span>{item.grade}</span>
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-300">
+                      <td className={`py-2.5 px-3 font-mono text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                         <span title={item.scoreDetails}>{item.scoreDetails}</span>
                       </td>
-                      <td className="py-2.5 px-3 text-[11px] text-slate-400">
-                        <div className="flex items-center gap-1 font-mono text-slate-300">
+                      <td className={`py-2.5 px-3 text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                        <div className={`flex items-center gap-1 font-mono ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
                           <Calendar className="w-3 h-3 text-emerald-500 shrink-0" />
                           <span>{item.date}</span>
                         </div>
                         {item.location && (
-                          <div className="flex items-center gap-1 text-[10px] text-slate-400 truncate max-w-[180px]">
-                            <MapPin className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                          <div className={`flex items-center gap-1 text-[10px] truncate max-w-[180px] ${
+                            isLight ? 'text-slate-500' : 'text-slate-400'
+                          }`}>
+                            <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                             <span className="truncate">{item.location}</span>
                           </div>
                         )}
@@ -441,13 +499,17 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                           {!isGuest ? (
                             <button
                               onClick={() => handleDeleteRecord(item.id, item.name)}
-                              className="p-1.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
+                              className={`p-1.5 rounded transition-colors cursor-pointer ${
+                                isLight
+                                  ? 'hover:bg-rose-100 text-slate-400 hover:text-rose-600'
+                                  : 'hover:bg-rose-500/20 text-slate-500 hover:text-rose-400'
+                              }`}
                               title="মুছে ফেলুন"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           ) : (
-                            <span className="text-slate-600 text-xs">—</span>
+                            <span className={`text-xs ${isLight ? 'text-slate-400' : 'text-slate-600'}`}>—</span>
                           )}
                         </div>
                       </td>
@@ -462,16 +524,22 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
       {/* 5. Clean Add Record Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl shadow-xl p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Target className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className={`relative w-full max-w-md border rounded-xl shadow-xl p-5 space-y-4 ${
+            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              isLight ? 'border-slate-200' : 'border-slate-800'
+            }`}>
+              <h3 className={`text-sm font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                <Target className="w-4 h-4 text-emerald-500" />
                 <span>নতুন প্রশিক্ষণ রেকর্ড যুক্ত করুন</span>
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer"
+                className={`p-1 rounded cursor-pointer ${
+                  isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -480,7 +548,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
             <form onSubmit={handleSaveRecord} className="space-y-3 text-xs">
               {/* Module select */}
               <div>
-                <label className="block text-slate-300 font-medium mb-1">মডিউল</label>
+                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>মডিউল</label>
                 <div className="grid grid-cols-4 gap-1.5">
                   {(['RET', 'IPFT', 'Gren Firing', 'Firing'] as TrgModuleType[]).map((m) => (
                     <button
@@ -503,6 +571,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                       className={`py-1.5 rounded-lg font-medium border text-center transition-colors cursor-pointer ${
                         formModule === m
                           ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
+                          : isLight
+                          ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                           : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
                       }`}
                     >
@@ -514,11 +584,15 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
               {/* Soldier select */}
               <div>
-                <label className="block text-slate-300 font-medium mb-1">সৈনিক নির্বাচন</label>
+                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>সৈনিক নির্বাচন</label>
                 <select
                   value={selectedSoldierSnkNo}
                   onChange={(e) => setSelectedSoldierSnkNo(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                  className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900'
+                      : 'bg-slate-950 border-slate-800 text-white'
+                  }`}
                   required
                 >
                   {personnelList.map((p) => (
@@ -531,62 +605,82 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
               {/* Grade */}
               <div>
-                <label className="block text-slate-300 font-medium mb-1">ফলাফল / গ্রেড</label>
+                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>ফলাফল / গ্রেড</label>
                 <input
                   type="text"
                   value={formGrade}
                   onChange={(e) => setFormGrade(e.target.value)}
                   placeholder="e.g. 1st Class, Marksman, Qualified..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                  className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                  }`}
                   required
                 />
               </div>
 
               {/* Score / Performance */}
               <div>
-                <label className="block text-slate-300 font-medium mb-1">স্কোর ও পারফরম্যান্স বিবরণ</label>
+                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>স্কোর ও পারফরম্যান্স বিবরণ</label>
                 <input
                   type="text"
                   value={formScore}
                   onChange={(e) => setFormScore(e.target.value)}
                   placeholder="e.g. 1.6km: 5m 30s | Push-ups: 44"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                  className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                  }`}
                 />
               </div>
 
               {/* Date & Location */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">তারিখ</label>
+                  <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>তারিখ</label>
                   <input
                     type="date"
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                    className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900'
+                        : 'bg-slate-950 border-slate-800 text-white'
+                    }`}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">স্থান / ভেন্যু</label>
+                  <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>স্থান / ভেন্যু</label>
                   <input
                     type="text"
                     value={formLocation}
                     onChange={(e) => setFormLocation(e.target.value)}
                     placeholder="e.g. Bhatiary / Halishahar..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                    className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                        : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Remarks */}
               <div>
-                <label className="block text-slate-300 font-medium mb-1">মন্তব্য (ঐচ্ছিক)</label>
+                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>মন্তব্য (ঐচ্ছিক)</label>
                 <input
                   type="text"
                   value={formRemarks}
                   onChange={(e) => setFormRemarks(e.target.value)}
                   placeholder="মন্তব্য..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                  className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                  }`}
                 />
               </div>
 
@@ -595,7 +689,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer"
+                  className={`px-3 py-1.5 rounded-lg cursor-pointer ${
+                    isLight
+                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
                 >
                   বাতিল
                 </button>

@@ -41,7 +41,10 @@ export const Header: React.FC<HeaderProps> = ({
     isSimulating,
     exitSimulation,
     systemSettings,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   const [militaryTime, setMilitaryTime] = useState<string>('');
   const [roleDropdownOpen, setRoleDropdownOpen] = useState<boolean>(false);
@@ -78,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 text-white">
+    <header className={`sticky top-0 z-30 backdrop-blur-md border-b transition-colors duration-200 ${isLight ? 'bg-white/95 border-slate-200 text-slate-900 shadow-sm' : 'bg-slate-950/95 border-slate-800 text-white'}`}>
       {/* GUEST — VIEW ONLY Banner */}
       {isGuest && (
         <div className="bg-gradient-to-r from-amber-600/30 via-orange-600/20 to-amber-600/30 border-b border-amber-500/50 text-amber-100 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -140,7 +143,11 @@ export const Header: React.FC<HeaderProps> = ({
             {onToggleMobileNav && (
               <button
                 onClick={onToggleMobileNav}
-                className="lg:hidden p-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 hover:text-white"
+                className={`lg:hidden p-1.5 rounded-lg border transition-colors ${
+                  isLight
+                    ? 'bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-200'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
+                }`}
                 aria-label="Open Navigation Menu"
               >
                 <Menu className="w-4 h-4" />
@@ -154,19 +161,21 @@ export const Header: React.FC<HeaderProps> = ({
               <UnitLogo size="sm" />
               <div className="hidden sm:flex flex-col">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-100 group-hover:text-white tracking-wide text-xs sm:text-sm font-sans leading-none">
+                  <span className={`font-bold tracking-wide text-xs sm:text-sm font-sans leading-none transition-colors ${
+                    isLight ? 'text-slate-900 group-hover:text-rose-600' : 'text-slate-100 group-hover:text-white'
+                  }`}>
                     {systemSettings?.unitName || '10 Med Regt Arty'}
                   </span>
-                  <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded">
+                  <span className="bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded">
                     {systemSettings?.unitMotto || 'Born Destroyer'}
                   </span>
                   {systemSettings?.maintenanceMode && (
-                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded animate-pulse">
+                    <span className="bg-amber-500/20 text-amber-500 dark:text-amber-300 border border-amber-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded animate-pulse">
                       Maintenance Mode
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] text-slate-400 font-medium">
+                <span className={`text-[10px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   {systemSettings?.tagline || 'Smart Parade State System'}
                 </span>
               </div>
@@ -176,18 +185,24 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Center: Search & Military Time */}
           <div className="hidden md:flex items-center gap-4 flex-1 max-w-md mx-4">
             <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Army/Snk No, Name, Rank, Trade..."
-                className="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg pl-9 pr-4 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+                className={`w-full rounded-lg pl-9 pr-4 py-1.5 text-xs transition-colors focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 ${
+                  isLight
+                    ? 'bg-slate-100 border border-slate-300 text-slate-900 placeholder-slate-500'
+                    : 'bg-slate-900/90 border border-slate-700/80 text-white placeholder-slate-400'
+                }`}
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                  className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-xs transition-colors ${
+                    isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'
+                  }`}
                 >
                   ✕
                 </button>
@@ -198,8 +213,10 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Right: Military Time, Role Selector, User Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Live Military Clock */}
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-mono">
-              <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <div className={`hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${
+              isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-900 border-slate-800 text-slate-300'
+            }`}>
+              <Clock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 animate-pulse" />
               <span>{militaryTime}</span>
             </div>
 
@@ -219,41 +236,49 @@ export const Header: React.FC<HeaderProps> = ({
                   }
                   className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-medium shadow-sm transition-all cursor-pointer ${
                     isGuest
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50 text-amber-200'
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50 text-amber-700 dark:text-amber-200'
                       : isSimulating
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/60 text-amber-200 ring-1 ring-amber-500/30'
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/60 text-amber-700 dark:text-amber-200 ring-1 ring-amber-500/30'
+                      : isLight
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
                       : 'bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-850 hover:to-slate-750 border-slate-700 text-slate-200'
                   }`}
                 >
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      isSimulating ? 'bg-amber-400 animate-ping' : isGuest ? 'bg-amber-400' : 'bg-emerald-400 animate-ping'
+                      isSimulating ? 'bg-amber-500 animate-ping' : isGuest ? 'bg-amber-500' : 'bg-emerald-500 animate-ping'
                     }`}
                   />
-                  <span className={`font-semibold ${isSimulating ? 'text-amber-300 font-bold' : isGuest ? 'text-amber-300' : 'text-amber-300'}`}>
+                  <span className={`font-semibold ${isSimulating ? 'text-amber-700 dark:text-amber-300 font-bold' : isGuest ? 'text-amber-700 dark:text-amber-300' : isLight ? 'text-slate-800' : 'text-amber-300'}`}>
                     {isGuest ? (isSimulating ? `Demo View: ${currentUser.role}` : 'Role Simulator (Demo)') : (isSimulating ? `Simulating: ${currentUser.role}` : 'Role Simulator')}
                   </span>
                   {currentUser.assignedBattery && (
-                    <span className="text-slate-400 font-mono text-[11px] hidden sm:inline">
+                    <span className={`font-mono text-[11px] hidden sm:inline ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       [{currentUser.assignedBattery}]
                     </span>
                   )}
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  <ChevronDown className={`w-3.5 h-3.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
                 </button>
 
                 {roleDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-slate-200 divide-y divide-slate-800">
-                    <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-slate-400 font-semibold font-mono">
+                  <div className={`absolute right-0 mt-2 w-72 rounded-xl shadow-2xl py-2 z-50 border transition-all ${
+                    isLight
+                      ? 'bg-white border-slate-200 text-slate-900 divide-y divide-slate-100'
+                      : 'bg-slate-900 border-slate-700 text-slate-200 divide-y divide-slate-800'
+                  }`}>
+                    <div className={`px-3 py-1.5 flex items-center justify-between text-[11px] font-semibold font-mono ${
+                      isLight ? 'text-slate-500' : 'text-slate-400'
+                    }`}>
                       <span>{isGuest ? 'GUEST ROLE SIMULATOR (DEMO)' : 'ADMIN ROLE SIMULATOR'}</span>
                       {isSimulating && (
-                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-sans font-semibold">
+                        <span className="text-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-sans font-semibold">
                           Active Sim
                         </span>
                       )}
                     </div>
 
                     {isSimulating && (
-                      <div className="p-2 bg-amber-950/40">
+                      <div className={`p-2 ${isLight ? 'bg-amber-50' : 'bg-amber-950/40'}`}>
                         <button
                           onClick={() => {
                             exitSimulation();
@@ -278,16 +303,24 @@ export const Header: React.FC<HeaderProps> = ({
                               switchRole(r.role, r.bty);
                               setRoleDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-800 transition-colors cursor-pointer ${
-                              isCurrent ? 'bg-rose-950/40 border-l-2 border-rose-500 text-white font-bold' : ''
+                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                              isCurrent
+                                ? isLight
+                                  ? 'bg-rose-50 border-l-2 border-rose-500 text-rose-900 font-bold'
+                                  : 'bg-rose-950/40 border-l-2 border-rose-500 text-white font-bold'
+                                : isLight
+                                ? 'hover:bg-slate-100 text-slate-800'
+                                : 'hover:bg-slate-800 text-slate-100'
                             }`}
                           >
                             <div className="flex flex-col">
-                              <span className="text-slate-100 font-medium">{r.label}</span>
-                              <span className="text-[10px] text-slate-400">{r.desc}</span>
+                              <span className={`font-medium ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>{r.label}</span>
+                              <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{r.desc}</span>
                             </div>
                             {r.bty && (
-                              <span className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 ml-2">
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ml-2 ${
+                                isLight ? 'bg-slate-100 text-slate-700 border border-slate-200' : 'bg-slate-800 text-slate-300'
+                              }`}>
                                 {r.bty}
                               </span>
                             )}
@@ -302,9 +335,11 @@ export const Header: React.FC<HeaderProps> = ({
                           logout();
                           setRoleDropdownOpen(false);
                         }}
-                        className="w-full text-center px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center justify-center gap-1.5 font-medium cursor-pointer"
+                        className={`w-full text-center px-2 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1.5 font-medium cursor-pointer transition-colors ${
+                          isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                        }`}
                       >
-                        <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                        <LogOut className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
                         <span>Logout Session</span>
                       </button>
                     </div>
@@ -322,7 +357,11 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setIsCloudModalOpen(true)}
               className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-all cursor-pointer shadow-sm group border ${
                 !cloudPermissionDenied
-                  ? 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-300'
+                  ? isLight
+                    ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800'
+                    : 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-300'
+                  : isLight
+                  ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
                   : 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-300'
               }`}
               title={
@@ -331,17 +370,17 @@ export const Header: React.FC<HeaderProps> = ({
                   : "Cloud Rules Setup Needed • Click to view instructions"
               }
             >
-              <Cloud className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${!cloudPermissionDenied ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
-              <span className={`text-[11px] font-bold ${!cloudPermissionDenied ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <Cloud className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${!cloudPermissionDenied ? 'text-emerald-500 dark:text-emerald-400 animate-pulse' : 'text-amber-500 dark:text-amber-400'}`} />
+              <span className={`text-[11px] font-bold ${!cloudPermissionDenied ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                 {!cloudPermissionDenied ? 'Cloud Live' : 'Rules Setup'}
               </span>
-              <span className="text-[9px] text-slate-400 font-sans hidden lg:inline">
+              <span className={`text-[9px] font-sans hidden lg:inline ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 {!cloudPermissionDenied ? '(Auto-Sync)' : '(Needed)'}
               </span>
             </button>
 
             {/* Profile Pill with User Photo & Name Initials */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+            <div className={`flex items-center gap-2 pl-2 border-l ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
               {currentUser.avatar || authUser?.photoURL ? (
                 <img
                   src={currentUser.avatar || authUser?.photoURL || ''}
@@ -360,10 +399,10 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-bold text-white truncate max-w-[130px]">
+                <span className={`text-xs font-bold truncate max-w-[130px] ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   {currentUser.rank} {currentUser.name}
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">
+                <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   {currentUser.role} {currentUser.assignedBattery ? `[${currentUser.assignedBattery}]` : ''}
                 </span>
               </div>
@@ -373,7 +412,11 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={logout}
               title="লগআউট (Logout Session)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white text-xs font-medium transition-all cursor-pointer ml-1 shadow-sm"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer ml-1 shadow-sm ${
+                isLight
+                  ? 'bg-rose-50 hover:bg-rose-600 border-rose-200 text-rose-700 hover:text-white'
+                  : 'bg-rose-600/20 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white'
+              }`}
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden md:inline font-bold">লগআউট</span>

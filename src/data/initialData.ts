@@ -1,4 +1,4 @@
-import { Personnel, UserAccount, DutyAssignment, AuditLogItem } from '../types';
+import type { Personnel, UserAccount, DutyAssignment, AuditLogItem } from '../types/index.ts';
 
 export const OFFICIAL_OFFICER_SNK_NOS: string[] = [];
 export const OFFICIAL_OFFICERS: Personnel[] = [];

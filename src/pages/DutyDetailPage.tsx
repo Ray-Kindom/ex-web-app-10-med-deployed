@@ -34,7 +34,9 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
     saveDutySession,
     editDutySession,
     sendDutySessionToAdjt,
+    theme,
   } = useApp();
+  const isLight = theme === 'light';
 
   const isOfficerOrCo =
     currentUser.role === 'CO' ||
@@ -125,18 +127,24 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
   return (
     <div className="space-y-2.5 max-w-[1700px] mx-auto pb-8">
       {/* 1. COMPACT MINIMAL CONTROL BAR */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-sm">
+      <div className={`border rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-sm ${
+        isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+      }`}>
         {/* Left: Title + Session Selector + Battery Selector */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1.5 font-mono text-sm font-bold text-white tracking-tight">
+          <div className={`flex items-center gap-1.5 font-mono text-sm font-bold tracking-tight ${
+            isLight ? 'text-slate-900' : 'text-white'
+          }`}>
             <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0" />
             <span>Duty Detailing</span>
           </div>
 
-          <div className="h-4 w-px bg-slate-800 hidden sm:block" />
+          <div className={`h-4 w-px hidden sm:block ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`} />
 
           {/* Session Selector */}
-          <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-850">
+          <div className={`flex items-center gap-1 p-0.5 rounded-lg border ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-850'
+          }`}>
             {activeParadeTypes.map((pt) => {
               const isSelected = selectedDutySession === pt.name;
               return (
@@ -148,6 +156,8 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
                   className={`px-2.5 py-1 rounded text-xs font-mono transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-rose-600 text-white font-bold shadow-sm'
+                      : isLight
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 >
@@ -158,7 +168,9 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
           </div>
 
           {/* Battery Scope */}
-          <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-850">
+          <div className={`flex items-center gap-1 p-0.5 rounded-lg border ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-850'
+          }`}>
             {!isBsm && (
               <button
                 type="button"
@@ -167,6 +179,8 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
                 className={`px-2 py-1 rounded text-xs font-mono transition-colors cursor-pointer ${
                   selectedBatteryFilter === 'Consolidated'
                     ? 'bg-cyan-600 text-white font-bold'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -182,6 +196,8 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
                 className={`px-2 py-1 rounded text-xs font-mono transition-colors cursor-pointer ${
                   selectedBatteryFilter === bty
                     ? 'bg-cyan-600 text-white font-bold'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-white'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
@@ -194,12 +210,16 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
         {/* Right: Date Navigation + Workflow Actions */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Date Picker */}
-          <div className="flex items-center gap-1 bg-slate-950 px-1.5 py-1 rounded-lg border border-slate-850">
+          <div className={`flex items-center gap-1 px-1.5 py-1 rounded-lg border ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-850'
+          }`}>
             <button
               type="button"
               id="btn-duty-prev-day"
               onClick={handlePrevDay}
-              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className={`p-1 rounded transition-colors cursor-pointer ${
+                isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
               title="Previous Day"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
@@ -209,13 +229,17 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
               id="input-duty-date"
               value={selectedParadeDate}
               onChange={(e) => setSelectedParadeDate(e.target.value)}
-              className="bg-transparent border-none text-xs text-white font-mono focus:outline-none cursor-pointer w-28 text-center"
+              className={`bg-transparent border-none text-xs font-mono focus:outline-none cursor-pointer w-28 text-center ${
+                isLight ? 'text-slate-900 font-bold' : 'text-white'
+              }`}
             />
             <button
               type="button"
               id="btn-duty-next-day"
               onClick={handleNextDay}
-              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className={`p-1 rounded transition-colors cursor-pointer ${
+                isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
               title="Next Day"
             >
               <ChevronRight className="w-3.5 h-3.5" />
@@ -224,7 +248,9 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
               type="button"
               id="btn-duty-today"
               onClick={handleToday}
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-mono transition-colors cursor-pointer"
+              className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+                isLight ? 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+              }`}
             >
               Today
             </button>
@@ -232,12 +258,16 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
 
           {/* Workflow Action Buttons: Save, Edit, Sent to Adjt (RSM/Admin exclusive) */}
           {isBsm ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-850 text-slate-400 text-xs font-mono">
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono ${
+              isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-slate-950 border-slate-850 text-slate-400'
+            }`}>
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               <span>BSM (Read-Only) • RSM Controlled</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-850">
+            <div className={`flex items-center gap-1 p-1 rounded-lg border ${
+              isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-850'
+            }`}>
               {/* 1. SAVE */}
               <button
                 type="button"
@@ -245,12 +275,12 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
                 onClick={handleSave}
                 className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   dutyStatus.status === 'Saved'
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/50'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
+                    ? isLight ? 'bg-blue-100 text-blue-900 border border-blue-300' : 'bg-blue-600/30 text-blue-300 border border-blue-500/50'
+                    : isLight ? 'bg-white hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
                 }`}
                 title="Save current detailing"
               >
-                <Save className="w-3.5 h-3.5 text-blue-400" />
+                <Save className="w-3.5 h-3.5 text-blue-500" />
                 <span>Save</span>
               </button>
 
@@ -261,12 +291,12 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
                 onClick={handleEdit}
                 className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   isEditMode || dutyStatus.status === 'Draft'
-                    ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
+                    ? isLight ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500/25 text-amber-300 border border-amber-500/50'
+                    : isLight ? 'bg-white hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
                 }`}
                 title="Unlock & Edit detailing"
               >
-                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                <Edit3 className="w-3.5 h-3.5 text-amber-500" />
                 <span>Edit</span>
               </button>
 
@@ -277,15 +307,15 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
                 onClick={handleOpenSendToAdjt}
                 className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   dutyStatus.status === 'Sent to Adjt'
-                    ? 'bg-emerald-600/25 text-emerald-300 border border-emerald-500/50'
+                    ? isLight ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-emerald-600/25 text-emerald-300 border border-emerald-500/50'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 }`}
                 title="Dispatch to Adjutant"
               >
-                <Send className="w-3.5 h-3.5 text-emerald-300" />
+                <Send className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Sent to Adjt</span>
                 {dutyStatus.status === 'Sent to Adjt' && (
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                 )}
               </button>
             </div>
@@ -296,7 +326,7 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
             type="button"
             id="btn-duty-print"
             onClick={() => setIsDutyPrintOpen(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer"
+            className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
             title="Print Duty PDF"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -306,75 +336,81 @@ export const DutyDetailPage: React.FC<DutyDetailPageProps> = () => {
       </div>
 
       {/* 2. SLIM STATS & STATUS STRIP (SINGLE LINE MILITARY PARADE STATE) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs font-mono">
+      <div className={`flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono ${
+        isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/80 border-slate-800'
+      }`}>
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1 text-slate-400">
+          <div className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             <span>Auth:</span>
-            <strong className="text-white font-bold">{paradeSummary.auth}</strong>
+            <strong className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{paradeSummary.auth}</strong>
           </div>
-          <span className="text-slate-600">•</span>
-          <div className="flex items-center gap-1 text-slate-400">
+          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>•</span>
+          <div className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             <span>Out of Unit (Msn+Att):</span>
-            <strong className="text-rose-400 font-bold">{paradeSummary.outOfUnit}</strong>
+            <strong className={`font-bold ${isLight ? 'text-rose-600' : 'text-rose-400'}`}>{paradeSummary.outOfUnit}</strong>
           </div>
-          <span className="text-slate-600">•</span>
-          <div className="flex items-center gap-1 text-slate-400">
+          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>•</span>
+          <div className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             <span>Held:</span>
-            <strong className="text-amber-300 font-bold">{paradeSummary.held}</strong>
+            <strong className={`font-bold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>{paradeSummary.held}</strong>
           </div>
-          <span className="text-slate-600">•</span>
-          <div className="flex items-center gap-1 text-slate-400">
+          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>•</span>
+          <div className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             <span>Total Out:</span>
-            <strong className="text-purple-300 font-bold">{paradeSummary.totalOut}</strong>
+            <strong className={`font-bold ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>{paradeSummary.totalOut}</strong>
           </div>
-          <span className="text-slate-600">•</span>
-          <div className="flex items-center gap-1 text-slate-400">
+          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>•</span>
+          <div className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             <span>Present in Unit:</span>
-            <strong className="text-cyan-300 font-bold">{paradeSummary.presentInUnit}</strong>
+            <strong className={`font-bold ${isLight ? 'text-cyan-800' : 'text-cyan-300'}`}>{paradeSummary.presentInUnit}</strong>
           </div>
-          <span className="text-slate-600">•</span>
-          <div className="flex items-center gap-1 text-slate-400">
+          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>•</span>
+          <div className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             <span>Off Parade:</span>
-            <strong className="text-amber-400 font-bold">{paradeSummary.offParade}</strong>
+            <strong className={`font-bold ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{paradeSummary.offParade}</strong>
           </div>
-          <span className="text-slate-600">•</span>
-          <div className="flex items-center gap-1 text-slate-400">
+          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>•</span>
+          <div className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             <span>On Parade:</span>
-            <strong className="text-emerald-400 font-bold">{paradeSummary.onParade}</strong>
+            <strong className={`font-bold ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>{paradeSummary.onParade}</strong>
           </div>
         </div>
 
         {/* Workflow State Indicator */}
         <div className="flex items-center gap-2">
           {dutyStatus.status === 'Sent to Adjt' ? (
-            <div className="flex items-center gap-1.5 text-emerald-400">
+            <div className={`flex items-center gap-1.5 ${isLight ? 'text-emerald-700 font-semibold' : 'text-emerald-400'}`}>
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Status: <strong>Sent to Adjt</strong></span>
               {isLocked ? (
                 <button
                   type="button"
                   onClick={handleEdit}
-                  className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] flex items-center gap-1 cursor-pointer"
+                  className={`ml-1 px-1.5 py-0.5 rounded border text-[10px] flex items-center gap-1 cursor-pointer ${
+                    isLight ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}
                   title="Click to Unlock and edit"
                 >
                   <Lock className="w-2.5 h-2.5" />
                   <span>Locked (Edit)</span>
                 </button>
               ) : (
-                <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-300 text-[10px] flex items-center gap-1">
+                <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 ${
+                  isLight ? 'bg-amber-100 text-amber-900' : 'bg-amber-500/30 text-amber-300'
+                }`}>
                   <Unlock className="w-2.5 h-2.5" />
                   <span>Unlocked</span>
                 </span>
               )}
             </div>
           ) : dutyStatus.status === 'Saved' ? (
-            <span className="text-blue-300 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+            <span className={`flex items-center gap-1 ${isLight ? 'text-blue-700 font-semibold' : 'text-blue-300'}`}>
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" />
               <span>Status: <strong>Saved</strong></span>
             </span>
           ) : (
-            <span className="text-slate-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className={`flex items-center gap-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               <span>Status: <strong>Draft</strong></span>
             </span>
           )}

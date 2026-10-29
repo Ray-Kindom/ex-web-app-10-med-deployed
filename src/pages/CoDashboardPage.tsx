@@ -26,7 +26,8 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
   onViewDossier,
   onOpenPrintModal,
 }) => {
-  const { personnelList, getBatterySummaries, getRegimentalTotals } = useApp();
+  const { personnelList, getBatterySummaries, getRegimentalTotals, theme } = useApp();
+  const isLight = theme === 'light';
   const totals = getRegimentalTotals();
   const summaries = getBatterySummaries();
 
@@ -46,49 +47,73 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
   return (
     <div className="space-y-6">
       {/* CO Strategic Banner */}
-      <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-amber-500/30 shadow-2xl space-y-4">
+      <div className={`relative overflow-hidden p-6 rounded-2xl border shadow-xl space-y-4 ${
+        isLight
+          ? 'bg-gradient-to-r from-amber-50/80 via-white to-amber-50/80 border-amber-200'
+          : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-amber-500/30'
+      }`}>
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial-gradient from-amber-500/10 to-transparent pointer-events-none" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+              <span className={`text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${
+                isLight
+                  ? 'text-amber-800 bg-amber-100 border-amber-300'
+                  : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+              }`}>
                 Commanding Officer (CO) Executive Console
               </span>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                isLight
+                  ? 'text-emerald-700 bg-emerald-100 border-emerald-300'
+                  : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+              }`}>
                 LIVE MORNING STATE
               </span>
             </div>
-            <h1 className="text-2xl font-black text-white tracking-tight font-serif">
+            <h1 className={`text-2xl font-black tracking-tight font-serif ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>
               State of the Regiment — Executive Summary
             </h1>
           </div>
         </div>
 
         {/* Combat Operational Readiness Gauge Bar */}
-        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+        <div className={`p-4 rounded-xl border space-y-2.5 ${
+          isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-slate-950 border-slate-800'
+        }`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-            <span className="font-bold text-slate-200 flex items-center gap-2 font-mono">
-              <Zap className="w-4 h-4 text-amber-400" />
+            <span className={`font-bold flex items-center gap-2 font-mono ${
+              isLight ? 'text-slate-800' : 'text-slate-200'
+            }`}>
+              <Zap className="w-4 h-4 text-amber-500" />
               <span>OPERATIONAL COMBAT READINESS INDEX</span>
             </span>
-            <span className="font-mono text-emerald-400 font-bold text-sm">
+            <span className={`font-mono font-bold text-sm ${
+              isLight ? 'text-emerald-700' : 'text-emerald-400'
+            }`}>
               {totals.presentPercentage}% COMBAT FIT ({totals.totalPresent + totals.totalDuty} / {totals.totalPosted})
             </span>
           </div>
 
-          <div className="w-full bg-slate-900 rounded-full h-3 overflow-hidden p-0.5 border border-slate-800">
+          <div className={`w-full rounded-full h-3 overflow-hidden p-0.5 border ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-800'
+          }`}>
             <div
               className="bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-700"
               style={{ width: `${totals.presentPercentage}%` }}
             />
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono text-slate-400 pt-1">
-            <div>HQ Bty Manning: <span className="text-white font-bold">100%</span></div>
-            <div>P Bty (1st Gun): <span className="text-white font-bold">95%</span></div>
-            <div>Q Bty (2nd Gun): <span className="text-white font-bold">94%</span></div>
-            <div>R Bty (3rd Gun): <span className="text-white font-bold">97%</span></div>
+          <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono pt-1 ${
+            isLight ? 'text-slate-600' : 'text-slate-400'
+          }`}>
+            <div>HQ Bty Manning: <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>100%</span></div>
+            <div>P Bty (1st Gun): <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>95%</span></div>
+            <div>Q Bty (2nd Gun): <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>94%</span></div>
+            <div>R Bty (3rd Gun): <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>97%</span></div>
           </div>
         </div>
       </div>
@@ -145,23 +170,29 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
       {/* Critical Command Briefing Points */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Hospitalized Soldiers */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+        <div className={`p-4 rounded-xl border space-y-3 ${
+          isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-slate-900 border-slate-800'
+        }`}>
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-amber-400 uppercase font-mono flex items-center gap-1.5">
-              <HeartPulse className="w-4 h-4" />
+            <h3 className={`text-xs font-bold uppercase font-mono flex items-center gap-1.5 ${
+              isLight ? 'text-amber-800' : 'text-amber-400'
+            }`}>
+              <HeartPulse className="w-4 h-4 text-amber-500" />
               <span>Medical & Hospitalized ({sickList.length})</span>
             </h3>
           </div>
           <div className="space-y-2 text-xs font-mono">
             {sickList.length === 0 ? (
-              <div className="text-slate-500 py-4 text-center">No soldiers in CMH.</div>
+              <div className={`py-4 text-center ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>No soldiers in CMH.</div>
             ) : (
               sickList.map((p) => (
-                <div key={p.id} className="p-2 rounded bg-slate-950 border border-slate-800">
-                  <div className="font-bold text-slate-200">
+                <div key={p.id} className={`p-2 rounded border ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+                }`}>
+                  <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                     {p.rk} {p.name} ({p.snkNo})
                   </div>
-                  <div className="text-[11px] text-amber-400">{p.battery} • {p.statusDetails || 'CMH Ward'}</div>
+                  <div className={`text-[11px] ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{p.battery} • {p.statusDetails || 'CMH Ward'}</div>
                 </div>
               ))
             )}
@@ -169,40 +200,52 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
         </div>
 
         {/* Courses and Cadres */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+        <div className={`p-4 rounded-xl border space-y-3 ${
+          isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-slate-900 border-slate-800'
+        }`}>
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-cyan-400 uppercase font-mono flex items-center gap-1.5">
-              <Compass className="w-4 h-4" />
+            <h3 className={`text-xs font-bold uppercase font-mono flex items-center gap-1.5 ${
+              isLight ? 'text-cyan-800' : 'text-cyan-400'
+            }`}>
+              <Compass className="w-4 h-4 text-cyan-500" />
               <span>Courses & Training ({courseList.length})</span>
             </h3>
           </div>
           <div className="space-y-2 text-xs font-mono">
             {courseList.slice(0, 3).map((p) => (
-              <div key={p.id} className="p-2 rounded bg-slate-950 border border-slate-800">
-                <div className="font-bold text-slate-200">
+              <div key={p.id} className={`p-2 rounded border ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+              }`}>
+                <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                   {p.rk} {p.name} ({p.snkNo})
                 </div>
-                <div className="text-[11px] text-cyan-400">{p.battery} • {p.statusDetails || 'Cadre Course'}</div>
+                <div className={`text-[11px] ${isLight ? 'text-cyan-700' : 'text-cyan-400'}`}>{p.battery} • {p.statusDetails || 'Cadre Course'}</div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Leave State */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+        <div className={`p-4 rounded-xl border space-y-3 ${
+          isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-slate-900 border-slate-800'
+        }`}>
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-purple-400 uppercase font-mono flex items-center gap-1.5">
-              <PlaneTakeoff className="w-4 h-4" />
+            <h3 className={`text-xs font-bold uppercase font-mono flex items-center gap-1.5 ${
+              isLight ? 'text-purple-800' : 'text-purple-400'
+            }`}>
+              <PlaneTakeoff className="w-4 h-4 text-purple-500" />
               <span>Troops on Furlough ({leaveList.length})</span>
             </h3>
           </div>
           <div className="space-y-2 text-xs font-mono">
             {leaveList.slice(0, 3).map((p) => (
-              <div key={p.id} className="p-2 rounded bg-slate-950 border border-slate-800">
-                <div className="font-bold text-slate-200">
+              <div key={p.id} className={`p-2 rounded border ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+              }`}>
+                <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                   {p.rk} {p.name} ({p.snkNo})
                 </div>
-                <div className="text-[11px] text-purple-400">{p.battery} • {p.statusDetails || 'Approved Leave'}</div>
+                <div className={`text-[11px] ${isLight ? 'text-purple-700' : 'text-purple-400'}`}>{p.battery} • {p.statusDetails || 'Approved Leave'}</div>
               </div>
             ))}
           </div>
@@ -212,11 +255,13 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
       {/* Read-Only Personnel Roll for CO Inspection */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-white uppercase font-mono tracking-wider flex items-center gap-2">
-            <Eye className="w-4 h-4 text-amber-400" />
+          <h2 className={`text-sm font-bold uppercase font-mono tracking-wider flex items-center gap-2 ${
+            isLight ? 'text-slate-900' : 'text-white'
+          }`}>
+            <Eye className="w-4 h-4 text-amber-500" />
             <span>Regimental Nominal Roll — Command Inspection</span>
           </h2>
-          <span className="text-xs text-amber-400 font-mono">
+          <span className={`text-xs font-mono ${isLight ? 'text-amber-800' : 'text-amber-400'}`}>
             Full Regimental Strength
           </span>
         </div>

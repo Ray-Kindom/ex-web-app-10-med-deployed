@@ -126,7 +126,10 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     ranksList,
     customTeams,
     setActivePage,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   // Active Category (defaults to Team as first category for immediate entry readiness)
   const [activeCategory, setActiveCategory] = useState<ParadeDutyCategory | null>('Team');
@@ -774,23 +777,29 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
           {/* 3. LIST OF ASSIGNED SOLDIERS BELOW (CLEAN MINIMALIZED WHITE BG DESIGN) */}
           <div className="pt-2 border-t border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold text-slate-300">
+              <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                 Assigned Personnel List ({activeCategoryAssignments.length}):
               </span>
             </div>
 
             {groupedSubCategories.length > 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-slate-900">
+              <div className={`rounded-xl border shadow-sm overflow-hidden ${
+                isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-slate-100'
+              }`}>
                 {groupedSubCategories.map((group, gIdx) => (
-                  <div key={group.dutyName} className={gIdx > 0 ? 'border-t border-slate-200' : ''}>
+                  <div key={group.dutyName} className={gIdx > 0 ? (isLight ? 'border-t border-slate-200' : 'border-t border-slate-800') : ''}>
                     {/* Sub-category / Group header with delete button */}
-                    <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100/90 border-b border-slate-200 text-xs font-mono">
-                      <div className="flex items-center gap-2 font-bold text-slate-800 truncate">
+                    <div className={`flex items-center justify-between px-3 py-1.5 border-b text-xs font-mono ${
+                      isLight ? 'bg-slate-100/90 border-slate-200 text-slate-800' : 'bg-slate-950/90 border-slate-800 text-slate-200'
+                    }`}>
+                      <div className="flex items-center gap-2 font-bold truncate">
                         <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0" />
-                        <span className="truncate">{group.dutyName}</span>
+                        <span className={`truncate ${isLight ? 'text-slate-800' : 'text-white'}`}>{group.dutyName}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-300">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
+                          isLight ? 'bg-white text-slate-700 border-slate-300' : 'bg-slate-800 text-amber-300 border-slate-700'
+                        }`}>
                           {group.personnel.length} জন
                         </span>
                         {!isReadOnly && (
@@ -807,28 +816,35 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                       </div>
                     </div>
 
-                    {/* Personnel List (Clean white tabular list) */}
-                    <div className="divide-y divide-slate-100">
+                    {/* Personnel List (Theme-aware tabular list) */}
+                    <div className={isLight ? 'divide-y divide-slate-100' : 'divide-y divide-slate-800/60'}>
                       {group.personnel.map((assigned, idx) => (
                         <div
                           key={assigned.id}
-                          className="px-3 py-1.5 flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors"
+                          className={`px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${
+                            isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
+                          }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <span className="text-[11px] font-mono font-medium text-slate-400 w-5 shrink-0">
                               {idx + 1}.
                             </span>
-                            <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-900 border border-slate-300 shrink-0">
+                            <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                              isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-800 text-amber-300 border-slate-700'
+                            }`}>
                               {assigned.snkNo}
                             </span>
-                            <span className="text-xs font-semibold text-slate-900 truncate">
+                            <span className={`text-xs font-semibold truncate ${
+                              isLight ? 'text-slate-900' : 'text-slate-100'
+                            }`}>
                               {assigned.rank} {assigned.name}
                             </span>
-                            <span className="text-[11px] font-mono text-slate-500 shrink-0">
+                            <span className={`text-[11px] font-mono shrink-0 ${
+                              isLight ? 'text-slate-500' : 'text-slate-400'
+                            }`}>
                               ({assigned.battery})
                             </span>
                           </div>
-
                           {!isReadOnly && (
                             <button
                               type="button"
@@ -846,7 +862,9 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="p-4 rounded-xl bg-white border border-slate-200 text-center text-xs text-slate-500 font-mono">
+              <div className={`p-4 rounded-xl border text-center text-xs font-mono ${
+                isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-900/80 border-slate-800 text-slate-400'
+              }`}>
                 No personnel assigned yet to {activeCategory}.
               </div>
             )}

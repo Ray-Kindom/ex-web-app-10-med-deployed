@@ -56,13 +56,16 @@ export const UnitLogo: React.FC<UnitLogoProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const [imgError, setImgError] = React.useState(false);
+
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <div className={`relative flex-shrink-0 ${dimClass} rounded-full shadow-lg shadow-black/40 overflow-hidden group bg-slate-950/40 flex items-center justify-center`}>
-        {logoSrc ? (
+        {logoSrc && !imgError ? (
           <img
             src={logoSrc}
             alt="10 Medium Regiment Artillery Logo"
+            onError={() => setImgError(true)}
             className="w-full h-full object-contain select-none p-0.5"
           />
         ) : (
