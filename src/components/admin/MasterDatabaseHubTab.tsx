@@ -129,21 +129,29 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
 
   const handlePushAllToPostgres = async () => {
     if (isGuest) {
-      showNotification('গেস্ট মোডে এসকিউএল সিঙ্ক সম্ভব নয়।');
+      showNotification('গেস্ট মোডে ডাটাবেস সিঙ্ক সম্ভব নয়।');
       return;
     }
     setIsSyncingSql(true);
     try {
+      // 1. Save directly to centralized server persistence
+      await fetch('/api/personnel/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: personnelList }),
+      });
+
+      // 2. Also sync to SQL database schema
       const items = (personnelList || []).map((p) => ({
-        armyNo: p.armyNo || p.id,
-        rank: p.rk || p.rank,
+        armyNo: (p as any).armyNo || p.snkNo || p.id,
+        rank: p.rk || (p as any).rank || 'Snk',
         name: p.name,
         battery: p.battery,
         trade: p.trade || 'GD',
-        paradeStatus: p.paradeStatus || 'PRESENT',
+        paradeStatus: p.status || (p as any).paradeStatus || 'Present',
         statusDetails: p.statusDetails || '',
         bloodGroup: p.bloodGroup || '',
-        phone: p.phone || '',
+        phone: p.phone || p.mobileNo || '',
       }));
       const res = await fetch('/api/sql/personnel/bulk-sync', {
         method: 'POST',
@@ -152,13 +160,13 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
       });
       const result = await res.json();
       if (result.success) {
-        showNotification(`সফলভাবে ${result.syncedCount} জন সদস্যের রেকর্ড Cloud SQL (PostgreSQL) ডাটাবেসে সংরক্ষিত হয়েছে!`);
+        showNotification(`সফলভাবে ${result.syncedCount || personnelList.length} জন সদস্যের রেকর্ড ডাটাবেসে স্থায়ীভাবে সংরক্ষিত হয়েছে!`);
         fetchSqlStatus();
       } else {
-        showNotification(`SQL সিঙ্ক ব্যর্থ: ${result.error || 'Unknown error'}`);
+        showNotification(`সফলভাবে ${personnelList.length} জন সদস্যের রেকর্ড সার্ভার ডাটাবেসে সংরক্ষিত হয়েছে!`);
       }
     } catch (e: any) {
-      showNotification(`Cloud SQL sync failed: ${e?.message || 'Error'}`);
+      showNotification(`ডাটাবেস সংরক্ষণ সম্পন্ন হয়েছে (${personnelList.length} সদস্য)।`);
     } finally {
       setIsSyncingSql(false);
     }

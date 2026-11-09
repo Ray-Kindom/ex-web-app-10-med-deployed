@@ -488,10 +488,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isUsersLoading, setIsUsersLoading] = useState<boolean>(false);
 
   const [currentUser, setCurrentUserState] = useState<UserAccount>(() => {
-    // Only restore currentUser if there is an active session in this browser tab
-    const isAuth = sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    // Restore currentUser if there is an active session in sessionStorage or localStorage
+    const isAuth =
+      sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true' ||
+      localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
     if (isAuth) {
-      const saved = sessionStorage.getItem(STORAGE_KEYS.USER);
+      const saved =
+        sessionStorage.getItem(STORAGE_KEYS.USER) ||
+        localStorage.getItem(STORAGE_KEYS.USER);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
@@ -513,11 +517,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
-  // The genuinely authenticated user account (strictly session-based)
+  // The genuinely authenticated user account
   const [realUser, setRealUser] = useState<UserAccount | null>(() => {
-    const isAuth = sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    const isAuth =
+      sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true' ||
+      localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
     if (isAuth) {
-      const savedReal = sessionStorage.getItem(STORAGE_KEYS.REAL_USER);
+      const savedReal =
+        sessionStorage.getItem(STORAGE_KEYS.REAL_USER) ||
+        localStorage.getItem(STORAGE_KEYS.REAL_USER);
       if (savedReal) {
         try {
           return JSON.parse(savedReal);
@@ -525,7 +533,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           /* fallback */
         }
       }
-      const savedUser = sessionStorage.getItem(STORAGE_KEYS.USER);
+      const savedUser =
+        sessionStorage.getItem(STORAGE_KEYS.USER) ||
+        localStorage.getItem(STORAGE_KEYS.USER);
       if (savedUser) {
         try {
           const u = JSON.parse(savedUser);
@@ -800,30 +810,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [pendingGoogleUser]);
 
-  // Session Authentication State (Strict session storage: closing the tab ends the session)
+  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      // Clear legacy persistent auth tokens from localStorage so reopening browser requires fresh login
-      localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
-      localStorage.removeItem(STORAGE_KEYS.USER);
-      localStorage.removeItem(STORAGE_KEYS.REAL_USER);
-    } catch (e) {}
-    return sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    return (
+      sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true' ||
+      localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true'
+    );
   });
 
   const [activePage, setActivePage] = useState<string>(() => {
-    const isAuth = sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
+    const isAuth =
+      sessionStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true' ||
+      localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) === 'true';
     if (!isAuth) return 'login';
-    const saved = sessionStorage.getItem(STORAGE_KEYS.ACTIVE_PAGE);
+    const saved =
+      sessionStorage.getItem(STORAGE_KEYS.ACTIVE_PAGE) ||
+      localStorage.getItem(STORAGE_KEYS.ACTIVE_PAGE);
     return saved && saved !== 'login' ? saved : 'main_dashboard';
   });
 
   useEffect(() => {
     sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, isAuthenticated ? 'true' : 'false');
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, isAuthenticated ? 'true' : 'false');
+    } catch (e) {}
     if (isAuthenticated && activePage !== 'login') {
       sessionStorage.setItem(STORAGE_KEYS.ACTIVE_PAGE, activePage);
+      try {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_PAGE, activePage);
+      } catch (e) {}
     } else {
       sessionStorage.removeItem(STORAGE_KEYS.ACTIVE_PAGE);
+      try {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_PAGE);
+      } catch (e) {}
     }
   }, [isAuthenticated, activePage]);
   const [selectedBatteryFilter, setSelectedBatteryFilter] = useState<Battery | 'All'>('All');
@@ -1102,6 +1122,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'save parade record'
     );
 
+    // Sync to centralized server persistence
+    fetch('/api/parade-records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ record: updatedRecord }),
+    }).catch(() => {});
+
     showNotification(`${battery} ${typeId} Parade State saved (${nextStatus}).`);
     addAuditLog(
       'Parade State Record Saved',
@@ -1161,6 +1188,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'confirm parade record'
     );
 
+    // Sync to centralized server persistence
+    fetch('/api/parade-records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ record: updatedRecord }),
+    }).catch(() => {});
+
     showNotification(`${battery} ${typeId} State ${newStatus === 'Confirmed' ? 'Confirmed by RSM' : 'set to Pending'}.`);
   };
 
@@ -1183,6 +1217,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const batteries: Battery[] = ALL_BATTERIES;
+    const finalizedRecords: Record<string, DateWiseParadeRecord> = {};
     
     setParadeRecords((prev) => {
       const next = { ...prev };
@@ -1196,6 +1231,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           finalizedBy: `${currentUser.rank} ${currentUser.name} (RSM)`,
         };
         next[recordId] = updated;
+        finalizedRecords[recordId] = updated;
 
         if (isSupabaseConfigured()) {
           saveParadeRecordToSupabase(updated).catch(() => {});
@@ -1212,6 +1248,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return next;
     });
+
+    // Sync all finalized records to server
+    fetch('/api/parade-records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: finalizedRecords }),
+    }).catch(() => {});
 
     showNotification(`10 Med Regt ${typeId} Parade State for ${date} has been Finalized!`);
     addAuditLog(
@@ -1923,18 +1966,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
+    // Sync to server persistence
+    const nextList = [
+      ...(paradeDutyAssignments[key] || []).filter(
+        (a) => !(a.personnelId === assignment.personnelId && a.category === assignment.category)
+      ),
+      newRecord,
+    ];
+    fetch('/api/duty-assignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignments: { [key]: nextList } }),
+    }).catch(() => {});
+
     syncDoc(
       setDoc(
         doc(db, 'parade_duty_assignments', key),
         sanitizeForFirestore({
           date: assignment.date,
           sessionType: assignment.sessionType,
-          assignments: [
-            ...(paradeDutyAssignments[key] || []).filter(
-              (a) => !(a.personnelId === assignment.personnelId && a.category === assignment.category)
-            ),
-            newRecord,
-          ],
+          assignments: nextList,
         }),
         { merge: true }
       ),
@@ -1970,6 +2021,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
+    // Auto-sync with Server persistence
+    fetch('/api/duty-assignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignments: { [key]: updatedAll } }),
+    }).catch(() => {});
+
     // Auto-sync with Supabase Cloud
     const currentStatus = dutySessionStatuses[key]?.status || 'Draft';
     saveDutyDetailingToSupabase(date, sessionType, updatedAll, currentStatus, userDisplay).catch(() => {});
@@ -1999,6 +2057,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = { ...prev, [key]: filtered };
       return next;
     });
+
+    // Auto-sync removal with Server persistence
+    fetch('/api/duty-assignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignments: { [key]: updatedAssignments } }),
+    }).catch(() => {});
 
     // Auto-sync removal with Supabase Cloud
     const currentStatus = dutySessionStatuses[key]?.status || 'Draft';
@@ -3068,11 +3133,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Multi-Tier Personnel & Career History Bootstrap (Supabase Cloud + Server Disk + Local Cache)
+  // Central state initialization tracker to prevent overwriting server state before loading
+  const hasLoadedInitialAppState = useRef(false);
+
+  // Multi-Tier Personnel Bootstrap (Server Disk Database + Local Cache)
   useEffect(() => {
     let isMounted = true;
     const loadPersonnel = async () => {
-      // 1. Primary: Fetch from Supabase PostgreSQL Cloud Database
+      // 1. Primary: Fetch from centralized server persistence (/api/personnel)
+      try {
+        const sRes = await fetch('/api/personnel', { cache: 'no-store' });
+        const sData = await sRes.json();
+        if (!isMounted) return;
+        if (sData.success && Array.isArray(sData.data) && sData.data.length > 0) {
+          setPersonnelList(sData.data);
+          setIsPersonnelLoading(false);
+          try {
+            localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(sData.data));
+          } catch (e) {}
+          return;
+        }
+      } catch (err) {
+        console.warn('Server personnel fetch error:', err);
+      }
+
+      // 2. Secondary fallback: Fetch from Supabase PostgreSQL Cloud if configured
       if (isSupabaseConfigured()) {
         try {
           const res = await fetchPersonnelFromSupabase();
@@ -3083,38 +3168,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(res.personnel));
             } catch (e) {}
-            // Mirror to server disk for offline resilience and permanent archive
-            fetch('/api/personnel/bulk', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ items: res.personnel }),
-            }).catch(() => {});
             return;
           }
         } catch (err) {
           console.warn('Supabase personnel bootstrap error:', err);
         }
-      }
-
-      // 2. Secondary fallback: Fetch from server disk persistence (/api/personnel)
-      try {
-        const sRes = await fetch('/api/personnel');
-        const sData = await sRes.json();
-        if (!isMounted) return;
-        if (sData.success && Array.isArray(sData.data) && sData.data.length > 0) {
-          setPersonnelList(sData.data);
-          setIsPersonnelLoading(false);
-          try {
-            localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(sData.data));
-          } catch (e) {}
-          // Re-seed Supabase if it was empty
-          if (isSupabaseConfigured()) {
-            syncPersonnelToSupabase(sData.data).catch(() => {});
-          }
-          return;
-        }
-      } catch (err) {
-        console.warn('Server personnel fetch error:', err);
       }
 
       // 3. Tertiary fallback: Browser cache
@@ -3135,73 +3193,127 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     loadPersonnel();
 
-    // Auto-sync every 25 seconds so changes made across tabs, devices, or databases update live
-    const interval = setInterval(loadPersonnel, 25000);
+    // Auto-sync every 6 seconds so changes made on other devices/tabs appear immediately
+    const interval = setInterval(loadPersonnel, 6000);
     const onFocus = () => loadPersonnel();
     window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
     };
   }, []);
 
-  // Supabase Parade Records Bootstrap
+  // Centralized Parade Records Bootstrap (Cross-device real-time sync)
   useEffect(() => {
-    if (isSupabaseConfigured()) {
-      fetchParadeRecordsFromSupabase()
-        .then((res) => {
-          if (res.success && res.records) {
-            setParadeRecords((prev) => ({ ...prev, ...res.records }));
-          }
-        })
-        .catch((e) => console.warn('Supabase parade records load note:', e));
-    }
+    let isMounted = true;
+    const loadParadeRecords = async () => {
+      try {
+        const sRes = await fetch('/api/parade-records', { cache: 'no-store' });
+        const sData = await sRes.json();
+        if (isMounted && sData.success && sData.records && Object.keys(sData.records).length > 0) {
+          setParadeRecords((prev) => ({ ...prev, ...sData.records }));
+        }
+      } catch (e) {}
+
+      if (isSupabaseConfigured()) {
+        fetchParadeRecordsFromSupabase()
+          .then((res) => {
+            if (isMounted && res.success && res.records) {
+              setParadeRecords((prev) => ({ ...prev, ...res.records }));
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    loadParadeRecords();
+    const interval = setInterval(loadParadeRecords, 6000);
+    const onFocus = () => loadParadeRecords();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, []);
 
-  // Supabase Duty Detailing Bootstrap
+  // Centralized Duty Detailing Bootstrap (Cross-device real-time sync)
   useEffect(() => {
-    if (isSupabaseConfigured()) {
-      // Auto-load any previously saved Duty Detailing from Supabase Cloud
-      fetchAllDutyDetailingFromSupabase()
-        .then((res) => {
-          if (res.success && res.records && res.records.length > 0) {
-            setParadeDutyAssignments((prev) => {
-              const next = { ...prev };
-              res.records!.forEach((r) => {
-                const key = `${r.date}_${r.sessionType}`;
-                if (r.assignments && r.assignments.length > 0) {
-                  next[key] = r.assignments;
-                }
-              });
-              return next;
-            });
-
-            setDutySessionStatuses((prev) => {
-              const next = { ...prev };
-              res.records!.forEach((r) => {
-                const key = `${r.date}_${r.sessionType}`;
-                if (r.status) {
-                  next[key] = r.status;
-                }
-              });
-              return next;
-            });
+    let isMounted = true;
+    const loadDutyAssignments = async () => {
+      try {
+        const sRes = await fetch('/api/duty-assignments', { cache: 'no-store' });
+        const sData = await sRes.json();
+        if (isMounted && sData.success) {
+          if (sData.assignments && Object.keys(sData.assignments).length > 0) {
+            setParadeDutyAssignments((prev) => ({ ...prev, ...sData.assignments }));
           }
-        })
-        .catch((e) => console.warn('Supabase duty load note:', e));
-    }
+          if (sData.statuses && Object.keys(sData.statuses).length > 0) {
+            setDutySessionStatuses((prev) => ({ ...prev, ...sData.statuses }));
+          }
+        }
+      } catch (e) {}
+
+      if (isSupabaseConfigured()) {
+        fetchAllDutyDetailingFromSupabase()
+          .then((res) => {
+            if (isMounted && res.success && res.records && res.records.length > 0) {
+              setParadeDutyAssignments((prev) => {
+                const next = { ...prev };
+                res.records!.forEach((r) => {
+                  const key = `${r.date}_${r.sessionType}`;
+                  if (r.assignments && r.assignments.length > 0) {
+                    next[key] = r.assignments;
+                  }
+                });
+                return next;
+              });
+
+              setDutySessionStatuses((prev) => {
+                const next = { ...prev };
+                res.records!.forEach((r) => {
+                  const key = `${r.date}_${r.sessionType}`;
+                  if (r.status) {
+                    next[key] = r.status;
+                  }
+                });
+                return next;
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    loadDutyAssignments();
+    const interval = setInterval(loadDutyAssignments, 6000);
+    const onFocus = () => loadDutyAssignments();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, []);
 
   // Centralized App State Bootstrap: Loads server-persisted state (/api/sync/state)
-  // Ensures Incognito windows, new mobile devices, and other browsers see the exact same configuration
   useEffect(() => {
     let isMounted = true;
     const loadServerAppState = async () => {
       try {
         const sState = await fetchServerAppState();
         if (sState && isMounted) {
+          hasLoadedInitialAppState.current = true;
           if (Array.isArray(sState.categoriesList) && sState.categoriesList.length > 0) {
             setCategoriesList(sState.categoriesList);
             try { localStorage.setItem(STORAGE_KEYS.SYSTEM_CATEGORIES, JSON.stringify(sState.categoriesList)); } catch (e) {}
@@ -3234,64 +3346,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setDailyParadePoints(sState.dailyParadePoints);
             try { localStorage.setItem(STORAGE_KEYS.PARADE_POINTS, JSON.stringify(sState.dailyParadePoints)); } catch (e) {}
           }
-          if (sState.paradeRecords && typeof sState.paradeRecords === 'object') {
+          if (sState.paradeRecords && typeof sState.paradeRecords === 'object' && Object.keys(sState.paradeRecords).length > 0) {
             setParadeRecords((prev) => ({ ...prev, ...sState.paradeRecords }));
           }
-          if (sState.paradeDutyAssignments && typeof sState.paradeDutyAssignments === 'object') {
+          if (sState.paradeDutyAssignments && typeof sState.paradeDutyAssignments === 'object' && Object.keys(sState.paradeDutyAssignments).length > 0) {
             setParadeDutyAssignments((prev) => ({ ...prev, ...sState.paradeDutyAssignments }));
           }
-          if (sState.dutySessionStatuses && typeof sState.dutySessionStatuses === 'object') {
+          if (sState.dutySessionStatuses && typeof sState.dutySessionStatuses === 'object' && Object.keys(sState.dutySessionStatuses).length > 0) {
             setDutySessionStatuses((prev) => ({ ...prev, ...sState.dutySessionStatuses }));
           }
+        } else {
+          hasLoadedInitialAppState.current = true;
         }
       } catch (err) {
         console.warn('Server app state fetch error:', err);
+        hasLoadedInitialAppState.current = true;
       }
     };
 
     loadServerAppState();
 
-    // Auto refresh app state every 20 seconds to keep devices in sync
-    const stateInterval = setInterval(loadServerAppState, 20000);
+    // Auto refresh app state every 8 seconds to keep all devices in sync
+    const stateInterval = setInterval(loadServerAppState, 8000);
     const onFocus = () => loadServerAppState();
     window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
 
     return () => {
       isMounted = false;
       clearInterval(stateInterval);
       window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
     };
   }, []);
 
-  // Guard to prevent saving to server before initial load has finished
-  const isAppStateLoadedRef = React.useRef(false);
-
   // Auto-persist configuration updates to server disk (/api/sync/state)
   useEffect(() => {
-    if (!isAppStateLoadedRef.current) {
-      isAppStateLoadedRef.current = true;
-      return;
-    }
-    // Only persist if the user is authenticated and not a guest
-    if (currentUser.role !== 'Guest') {
-      const timer = setTimeout(() => {
-        saveServerAppState({
-          categoriesList,
-          subUnitsList,
-          ranksList,
-          tradesList,
-          authEstablishmentList,
-          calculationConfig,
-          systemSettings,
-          dailyParadePoints,
-          paradeRecords,
-          paradeDutyAssignments,
-          dutySessionStatuses,
-          updatedAt: new Date().toISOString(),
-        }).catch(() => {});
-      }, 800);
-      return () => clearTimeout(timer);
-    }
+    // Only persist after initial server state has been loaded
+    if (!hasLoadedInitialAppState.current) return;
+    if (currentUser.role === 'Guest') return;
+
+    const timer = setTimeout(() => {
+      saveServerAppState({
+        categoriesList,
+        subUnitsList,
+        ranksList,
+        tradesList,
+        authEstablishmentList,
+        calculationConfig,
+        systemSettings,
+        dailyParadePoints,
+        paradeRecords,
+        paradeDutyAssignments,
+        dutySessionStatuses,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(timer);
   }, [
     categoriesList,
     subUnitsList,
@@ -3301,6 +3412,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     calculationConfig,
     systemSettings,
     dailyParadePoints,
+    paradeRecords,
+    paradeDutyAssignments,
+    dutySessionStatuses,
   ]);
 
   const showNotification = (msg: string) => {
@@ -3977,7 +4091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [...prev, user!];
     });
 
-    // Login successful (Strict session storage - closes with tab)
+    // Login successful
     setCurrentUserState(user);
     setRealUser(user);
     setIsAuthenticated(true);
@@ -3985,9 +4099,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sessionStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(user));
     sessionStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
     try {
-      localStorage.removeItem(STORAGE_KEYS.USER);
-      localStorage.removeItem(STORAGE_KEYS.REAL_USER);
-      localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEYS.REAL_USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'true');
     } catch (e) {}
 
     // Route to designated dashboard based on role
@@ -4641,9 +4755,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('গেস্ট মোডে নতুন সৈন্য অন্তর্ভুক্তি করা যাবে না (GUEST — VIEW ONLY)।');
       return;
     }
-    const newId = (personnelList.length + 1).toString();
+    const maxId = personnelList.reduce((acc, p) => {
+      const n = parseInt(p.id, 10);
+      return !isNaN(n) && n > acc ? n : acc;
+    }, 0);
+    const newId = (maxId + 1).toString();
     const newPerson: Personnel = { ...person, id: newId };
-    setPersonnelList((prev) => [newPerson, ...prev]);
+    setPersonnelList((prev) => {
+      const next = [newPerson, ...prev];
+      try {
+        localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
     showNotification(`Soldier ${newPerson.rk} ${newPerson.name} (${newPerson.snkNo}) enlisted successfully.`);
     addAuditLog(
       'Personnel Enlisted',
@@ -4674,15 +4798,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     let updatedRecord: Personnel | null = null;
-    setPersonnelList((prev) =>
-      prev.map((p) => {
+    setPersonnelList((prev) => {
+      const next = prev.map((p) => {
         if (p.id === id) {
           updatedRecord = { ...p, ...updated };
           return updatedRecord;
         }
         return p;
-      })
-    );
+      });
+      try {
+        localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
     showNotification(`Personnel record updated successfully.`);
     addAuditLog('Personnel Updated', `Modified record for ID: ${id}`, 'PERSONNEL');
     // Write to Firestore
@@ -4721,8 +4849,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.warn('Supabase delete soldier note:', e)
         );
       }
-      // Delete from server disk
-      fetch(`/api/personnel/${id}`, { method: 'DELETE' }).catch(() => {});
+      // Delete from server disk & database
+      fetch(`/api/personnel/${encodeURIComponent(target.id)}`, { method: 'DELETE' }).catch(() => {});
+      if (target.snkNo && target.snkNo !== target.id) {
+        fetch(`/api/personnel/${encodeURIComponent(target.snkNo)}`, { method: 'DELETE' }).catch(() => {});
+      }
+      try {
+        const remaining = personnelList.filter((p) => p.id !== id && p.snkNo !== target.snkNo);
+        localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(remaining));
+      } catch (e) {}
     }
   };
 
@@ -4765,8 +4900,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     let updatedDoc: Partial<Personnel> | null = null;
-    setPersonnelList((prev) =>
-      prev.map((p) => {
+    setPersonnelList((prev) => {
+      const next = prev.map((p) => {
         if (p.id === id) {
           const isUnitStatus = status === 'In Unit' || status === 'Present';
           if (isUnitStatus) {
@@ -4832,8 +4967,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
         }
         return p;
-      })
-    );
+      });
+      try {
+        localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
     const target = personnelList.find((p) => p.id === id);
     if (target) {
       const locText = location ? ` at ${location}` : '';
@@ -4871,19 +5010,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('গেস্ট মোডে প্যারেড স্ট্যাটাস পরিবর্তন করা যাবে না (GUEST — VIEW ONLY)।');
       return;
     }
-    setPersonnelList((prev) =>
-      prev.map((p) => {
-        if (ids.includes(p.id)) {
-          return {
-            ...p,
-            status,
-            statusDetails: statusDetails ?? (status === 'Present' ? undefined : p.statusDetails),
-            outOfUnitCategory: status === 'Present' ? undefined : p.outOfUnitCategory,
-          };
-        }
-        return p;
-      })
-    );
+    const updatedPersonnel = personnelList.map((p) => {
+      if (ids.includes(p.id)) {
+        return {
+          ...p,
+          status,
+          statusDetails: statusDetails ?? (status === 'Present' ? undefined : p.statusDetails),
+          outOfUnitCategory: status === 'Present' ? undefined : p.outOfUnitCategory,
+        };
+      }
+      return p;
+    });
+    setPersonnelList(updatedPersonnel);
+    try {
+      localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(updatedPersonnel));
+    } catch (e) {}
     showNotification(`Updated ${ids.length} soldiers to ${status}`);
     addAuditLog('Batch Status Update', `Updated ${ids.length} records to ${status}`, 'PARADE_STATE');
     // Batch sync to Firestore
@@ -4902,20 +5043,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     });
 
-    // Batch sync to Supabase Cloud
-    if (isSupabaseConfigured()) {
-      ids.forEach((id) => {
-        const item = personnelList.find((p) => p.id === id);
-        if (item) {
-          upsertSinglePersonnelToSupabase({
-            ...item,
-            status,
-            statusDetails: statusDetails ?? (status === 'Present' ? undefined : item.statusDetails),
-            outOfUnitCategory: status === 'Present' ? undefined : item.outOfUnitCategory,
-          }).catch(() => {});
-        }
-      });
-    }
+    // Batch sync to Server Disk database
+    fetch('/api/personnel/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: updatedPersonnel }),
+    }).catch(() => {});
   };
 
   // Out Of Unit Handlers

@@ -25,6 +25,63 @@ const APP_STATE_FILE_PATH = path.join(DATA_DIR, 'app_state.json');
 const PERSONNEL_FILE_PATH = path.join(DATA_DIR, 'personnel.json');
 const TEAMS_FILE_PATH = path.join(DATA_DIR, 'teams.json');
 const COURSES_FILE_PATH = path.join(DATA_DIR, 'courses.json');
+const PARADE_RECORDS_FILE_PATH = path.join(DATA_DIR, 'parade_records.json');
+const DUTY_ROSTER_FILE_PATH = path.join(DATA_DIR, 'duty_roster.json');
+
+function loadServerParadeRecords(): Record<string, any> {
+  try {
+    if (fs.existsSync(PARADE_RECORDS_FILE_PATH)) {
+      const content = fs.readFileSync(PARADE_RECORDS_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (err) {
+    console.warn('Error reading server parade records:', err);
+  }
+  return {};
+}
+
+function saveServerParadeRecords(records: Record<string, any>): void {
+  try {
+    fs.writeFileSync(PARADE_RECORDS_FILE_PATH, JSON.stringify(records, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving server parade records:', err);
+  }
+}
+
+function loadServerDutyData(): { assignments: Record<string, any[]>; statuses: Record<string, any>; rosterList: any[] } {
+  try {
+    if (fs.existsSync(DUTY_ROSTER_FILE_PATH)) {
+      const content = fs.readFileSync(DUTY_ROSTER_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed) {
+        return {
+          assignments: parsed.assignments && typeof parsed.assignments === 'object' ? parsed.assignments : {},
+          statuses: parsed.statuses && typeof parsed.statuses === 'object' ? parsed.statuses : {},
+          rosterList: Array.isArray(parsed.rosterList) ? parsed.rosterList : [],
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading server duty roster:', err);
+  }
+  return { assignments: {}, statuses: {}, rosterList: [] };
+}
+
+function saveServerDutyData(data: { assignments?: Record<string, any[]>; statuses?: Record<string, any>; rosterList?: any[] }): void {
+  try {
+    const current = loadServerDutyData();
+    const payload = {
+      assignments: data.assignments ? { ...current.assignments, ...data.assignments } : current.assignments,
+      statuses: data.statuses ? { ...current.statuses, ...data.statuses } : current.statuses,
+      rosterList: Array.isArray(data.rosterList) ? data.rosterList : current.rosterList,
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(DUTY_ROSTER_FILE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving server duty data:', err);
+  }
+}
 
 function loadServerCourses(): { definitions: any[]; records: any[] } {
   try {
@@ -200,6 +257,14 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: '10mb' }));
+
+  // Prevent browser caching of API responses across all devices and tabs
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+  });
 
   // --- API Routes ---
 
@@ -493,8 +558,138 @@ async function startServer() {
     try {
       const { state } = req.body;
       if (state) {
-        fs.writeFileSync(APP_STATE_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
+        let current: any = {};
+        if (fs.existsSync(APP_STATE_FILE_PATH)) {
+          try {
+            current = JSON.parse(fs.readFileSync(APP_STATE_FILE_PATH, 'utf-8')) || {};
+          } catch (e) {}
+        }
+        const merged = {
+          ...current,
+          ...state,
+          paradeRecords: {
+            ...(current.paradeRecords || {}),
+            ...(state.paradeRecords || {}),
+          },
+          paradeDutyAssignments: {
+            ...(current.paradeDutyAssignments || {}),
+            ...(state.paradeDutyAssignments || {}),
+          },
+          dutySessionStatuses: {
+            ...(current.dutySessionStatuses || {}),
+            ...(state.dutySessionStatuses || {}),
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        fs.writeFileSync(APP_STATE_FILE_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+        
+        // Also sync parade records and duty data to their dedicated files
+        if (state.paradeRecords) {
+          saveServerParadeRecords({ ...loadServerParadeRecords(), ...state.paradeRecords });
+        }
+        if (state.paradeDutyAssignments || state.dutySessionStatuses) {
+          saveServerDutyData({
+            assignments: state.paradeDutyAssignments,
+            statuses: state.dutySessionStatuses,
+          });
+        }
       }
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 5b. Centralized Parade Records API
+  app.get('/api/parade-records', (req, res) => {
+    try {
+      let records = loadServerParadeRecords();
+      // Also check if app_state has more records
+      if (fs.existsSync(APP_STATE_FILE_PATH)) {
+        try {
+          const appState = JSON.parse(fs.readFileSync(APP_STATE_FILE_PATH, 'utf-8')) || {};
+          if (appState.paradeRecords) {
+            records = { ...appState.paradeRecords, ...records };
+          }
+        } catch (e) {}
+      }
+      res.json({ success: true, count: Object.keys(records).length, records });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/parade-records', (req, res) => {
+    try {
+      const { record, records } = req.body;
+      const current = loadServerParadeRecords();
+      if (record) {
+        const recId = record.id || (record.date && record.typeId && record.battery ? `${record.date}_${record.typeId}_${record.battery}` : null);
+        if (recId) {
+          current[recId] = { ...record, id: recId };
+        }
+      }
+      if (records && typeof records === 'object') {
+        Object.assign(current, records);
+      }
+      saveServerParadeRecords(current);
+
+      // Mirror to app_state.json
+      try {
+        let appState: any = {};
+        if (fs.existsSync(APP_STATE_FILE_PATH)) {
+          appState = JSON.parse(fs.readFileSync(APP_STATE_FILE_PATH, 'utf-8')) || {};
+        }
+        appState.paradeRecords = { ...(appState.paradeRecords || {}), ...current };
+        fs.writeFileSync(APP_STATE_FILE_PATH, JSON.stringify(appState, null, 2), 'utf-8');
+      } catch (e) {}
+
+      res.json({ success: true, count: Object.keys(current).length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 5c. Centralized Duty Detailing & Assignments API
+  app.get('/api/duty-assignments', (req, res) => {
+    try {
+      let data = loadServerDutyData();
+      if (fs.existsSync(APP_STATE_FILE_PATH)) {
+        try {
+          const appState = JSON.parse(fs.readFileSync(APP_STATE_FILE_PATH, 'utf-8')) || {};
+          if (appState.paradeDutyAssignments) {
+            data.assignments = { ...appState.paradeDutyAssignments, ...data.assignments };
+          }
+          if (appState.dutySessionStatuses) {
+            data.statuses = { ...appState.dutySessionStatuses, ...data.statuses };
+          }
+        } catch (e) {}
+      }
+      res.json({ success: true, ...data });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/duty-assignments', (req, res) => {
+    try {
+      const { assignments, statuses, rosterList } = req.body;
+      saveServerDutyData({ assignments, statuses, rosterList });
+
+      try {
+        let appState: any = {};
+        if (fs.existsSync(APP_STATE_FILE_PATH)) {
+          appState = JSON.parse(fs.readFileSync(APP_STATE_FILE_PATH, 'utf-8')) || {};
+        }
+        if (assignments) {
+          appState.paradeDutyAssignments = { ...(appState.paradeDutyAssignments || {}), ...assignments };
+        }
+        if (statuses) {
+          appState.dutySessionStatuses = { ...(appState.dutySessionStatuses || {}), ...statuses };
+        }
+        fs.writeFileSync(APP_STATE_FILE_PATH, JSON.stringify(appState, null, 2), 'utf-8');
+      } catch (e) {}
+
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
@@ -531,15 +726,20 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Valid personnel object required' });
       }
       const list = loadServerPersonnel();
+      const targetId = person.id ? String(person.id).trim().toLowerCase() : '';
+      const targetSnk = person.snkNo ? String(person.snkNo).trim().toLowerCase() : '';
+
       const idx = list.findIndex(
         (p) =>
-          (person.id && p.id === person.id) ||
-          (person.snkNo && p.snkNo && p.snkNo === person.snkNo)
+          (targetId && p.id && String(p.id).trim().toLowerCase() === targetId) ||
+          (targetSnk && p.snkNo && String(p.snkNo).trim().toLowerCase() === targetSnk) ||
+          (targetId && p.snkNo && String(p.snkNo).trim().toLowerCase() === targetId) ||
+          (targetSnk && p.id && String(p.id).trim().toLowerCase() === targetSnk)
       );
       if (idx >= 0) {
         list[idx] = { ...list[idx], ...person };
       } else {
-        list.push(person);
+        list.unshift(person);
       }
       saveServerPersonnel(list);
       res.json({ success: true, person: idx >= 0 ? list[idx] : person, count: list.length });
@@ -550,9 +750,17 @@ async function startServer() {
 
   app.delete('/api/personnel/:id', (req, res) => {
     try {
-      const targetId = req.params.id;
+      const rawTarget = String(req.params.id || '').trim().toLowerCase();
+      if (!rawTarget) {
+        return res.status(400).json({ success: false, error: 'Valid id required' });
+      }
       const list = loadServerPersonnel();
-      const filtered = list.filter((p) => p.id !== targetId && p.snkNo !== targetId);
+      const filtered = list.filter((p) => {
+        const idMatch = p.id && String(p.id).trim().toLowerCase() === rawTarget;
+        const snkMatch = p.snkNo && String(p.snkNo).trim().toLowerCase() === rawTarget;
+        const armyMatch = (p as any).armyNo && String((p as any).armyNo).trim().toLowerCase() === rawTarget;
+        return !idMatch && !snkMatch && !armyMatch;
+      });
       saveServerPersonnel(filtered);
       res.json({ success: true, count: filtered.length });
     } catch (error: any) {
