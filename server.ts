@@ -1,7 +1,24 @@
+import dotenv from 'dotenv';
+dotenv.config();
+import http from 'http';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+
+process.on('uncaughtException', (err: any) => {
+  // Prevent unhandled WebSocket / EADDRINUSE from terminating the server process
+  if (err?.code === 'EADDRINUSE' || err?.message?.includes('WebSocket')) {
+    console.warn('[Server Warning] Non-fatal server error:', err?.message || err);
+    return;
+  }
+  console.error('[Server Uncaught Exception]:', err);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.warn('[Server Unhandled Rejection]:', reason);
+});
+
 import {
   getOrCreateSqlUser,
   deleteSqlUser,
@@ -254,7 +271,23 @@ function saveServerPersonnel(list: any[]): void {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+
+  // Support command line args (--port, --host) and environment variables
+  let port = 3000;
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    port = parseInt(process.argv[portArgIdx + 1], 10) || 3000;
+  } else if (process.env.PORT) {
+    port = parseInt(process.env.PORT, 10) || 3000;
+  }
+
+  let host = '0.0.0.0';
+  const hostArgIdx = process.argv.indexOf('--host');
+  if (hostArgIdx !== -1 && process.argv[hostArgIdx + 1]) {
+    host = process.argv[hostArgIdx + 1];
+  }
+
+  const httpServer = http.createServer(app);
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -814,8 +847,12 @@ async function startServer() {
 
   // --- Vite Frontend Middleware ---
   if (process.env.NODE_ENV !== 'production') {
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: isHmrDisabled ? false : { server: httpServer },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -827,8 +864,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  httpServer.listen(port, host, () => {
+    console.log(`Server running on http://${host}:${port}`);
   });
 }
 

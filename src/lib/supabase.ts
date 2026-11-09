@@ -2,8 +2,13 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES } from '../types';
 
 // Read Vite client-side environment variables for Supabase project credentials
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || (import.meta.env as any).SUPABASE_URL || '').trim();
+const SUPABASE_ANON_KEY = (
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  (import.meta.env as any).VITE_SUPABASE_PUBLISHABLE_KEY ||
+  (import.meta.env as any).SUPABASE_PUBLISHABLE_KEY ||
+  ''
+).trim();
 
 let clientInstance: SupabaseClient | null = null;
 
