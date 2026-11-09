@@ -179,10 +179,8 @@ export const TopModuleNavBar: React.FC = () => {
   });
 
   return (
-    <div className={`sticky top-12 sm:top-13 z-20 backdrop-blur-md border-b px-3 sm:px-4 py-1.5 sm:py-2 mb-2 transition-colors duration-200 ${
-      isLight ? 'bg-white/95 border-slate-200 shadow-sm' : 'bg-slate-950/90 border-slate-800/80'
-    }`}>
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[1700px] mx-auto py-0.5">
+    <div className="sticky top-13 z-20 backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 px-4 py-2 mb-3 transition-colors">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[1700px] mx-auto">
         {displayTabs.map((tab) => {
           const Icon = tab.icon;
           const isDashboardTab =
@@ -194,26 +192,20 @@ export const TopModuleNavBar: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => (tab.action ? tab.action() : setActivePage(tab.id))}
-              className={`flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all cursor-pointer shadow-sm ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer select-none ${
                 isActive
-                  ? 'bg-rose-600 text-white shadow-rose-900/40 border border-rose-500 font-bold'
-                  : isLight
-                  ? 'bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200/80 border border-slate-200'
-                  : 'bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800'
+                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Icon className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${
-                isActive ? 'text-white' : isLight ? 'text-slate-500' : 'text-slate-400'
-              }`} />
+              <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
               {tab.badge && (
                 <span
-                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-normal ${
                     isActive
-                      ? 'bg-black/30 text-white'
-                      : isLight
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-slate-800 text-rose-300 border border-rose-500/20'
+                      ? 'bg-white/20 text-white dark:bg-slate-900/15 dark:text-slate-900'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                   }`}
                 >
                   {tab.badge}
@@ -225,4 +217,5 @@ export const TopModuleNavBar: React.FC = () => {
       </div>
     </div>
   );
+
 };

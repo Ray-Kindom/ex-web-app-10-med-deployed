@@ -24,6 +24,38 @@ const DELETED_USERS_FILE_PATH = path.join(DATA_DIR, 'deleted_users.json');
 const APP_STATE_FILE_PATH = path.join(DATA_DIR, 'app_state.json');
 const PERSONNEL_FILE_PATH = path.join(DATA_DIR, 'personnel.json');
 const TEAMS_FILE_PATH = path.join(DATA_DIR, 'teams.json');
+const COURSES_FILE_PATH = path.join(DATA_DIR, 'courses.json');
+
+function loadServerCourses(): { definitions: any[]; records: any[] } {
+  try {
+    if (fs.existsSync(COURSES_FILE_PATH)) {
+      const content = fs.readFileSync(COURSES_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed) {
+        return {
+          definitions: Array.isArray(parsed.definitions) ? parsed.definitions : [],
+          records: Array.isArray(parsed.records) ? parsed.records : [],
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading server courses:', err);
+  }
+  return { definitions: [], records: [] };
+}
+
+function saveServerCourses(data: { definitions?: any[]; records?: any[] }): void {
+  try {
+    const payload = {
+      definitions: Array.isArray(data.definitions) ? data.definitions : [],
+      records: Array.isArray(data.records) ? data.records : [],
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(COURSES_FILE_PATH, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving server courses:', err);
+  }
+}
 
 function loadServerTeams(): { activeTeams: any[]; teamHistory: any[]; deletedTeamIds: string[] } {
   try {
@@ -546,6 +578,26 @@ async function startServer() {
         teamHistory: Array.isArray(teamHistory) ? teamHistory : [],
         deletedTeamIds: Array.isArray(deletedTeamIds) ? deletedTeamIds : [],
       });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 8. Centralized Courses & Qualifications Database Persistence (Cross-device sync)
+  app.get('/api/courses', (req, res) => {
+    try {
+      const data = loadServerCourses();
+      res.json({ success: true, ...data });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/courses', (req, res) => {
+    try {
+      const { definitions, records } = req.body;
+      saveServerCourses({ definitions, records });
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });

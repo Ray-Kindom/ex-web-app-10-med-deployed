@@ -749,184 +749,116 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
         {/* ========================================================= */}
         {/* Card 1: Appointment Holders (নিয়োগপ্রাপ্ত কর্মকর্তা ও পদাধিকারী) */}
         {/* ========================================================= */}
+        {/* Card 1: Appointment Holders */}
         <div
           onClick={() => toggleView('appointments')}
-          className={`relative rounded-2xl p-4 sm:p-5 transition-all duration-200 cursor-pointer shadow-lg group select-none border ${
+          className={`rounded-xl p-4 sm:p-5 transition-colors cursor-pointer select-none border ${
             activeRosterView === 'appointments'
-              ? isLight
-                ? 'bg-amber-50/90 border-amber-500 ring-2 ring-amber-500/40 shadow-amber-900/10'
-                : 'bg-gradient-to-br from-amber-950/60 via-slate-900 to-slate-950 border-amber-500/80 ring-2 ring-amber-500/40 shadow-amber-950/30'
-              : isLight
-                ? 'bg-white hover:bg-slate-50/90 border-slate-200 hover:border-amber-400 shadow-sm'
-                : 'bg-gradient-to-br from-slate-900 via-slate-900 to-amber-950/15 border-slate-700/80 hover:border-amber-500/50 hover:bg-slate-850'
+              ? 'bg-slate-50 dark:bg-slate-800/60 border-slate-900 dark:border-slate-100 ring-1 ring-slate-900 dark:ring-slate-100'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           {/* Top Bar: Icon, Title, Counter Badge */}
-          <div className={`flex items-start justify-between gap-3 pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border transition-colors ${
-                  activeRosterView === 'appointments'
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/30'
-                    : isLight
-                      ? 'bg-amber-50 border-amber-200 text-amber-700 group-hover:bg-amber-100'
-                      : 'bg-amber-500/15 border-amber-500/30 text-amber-400 group-hover:bg-amber-500/25'
-                }`}
-              >
-                <Award className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                <Award className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className={`text-sm sm:text-base font-bold tracking-tight font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                     Appointment Holders
                   </h3>
-                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${
-                    isLight
-                      ? 'bg-amber-50 text-amber-800 border-amber-300'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  }`}>
-                    {appointmentHolders.length} Active
+                  <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                    ({appointmentHolders.length})
                   </span>
                 </div>
-                <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                  নিয়োগপ্রাপ্ত কর্মকর্তা ও পদাধিকারী (CO, Staff, BCs, RSM, BSMs)
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Command & Staff (CO, Staff, BCs, RSM, BSMs)
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              <span
-                className={`text-[11px] font-mono font-semibold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
-                  activeRosterView === 'appointments'
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
-                    : isLight
-                      ? 'bg-slate-100 text-amber-900 border-slate-200 group-hover:border-amber-400'
-                      : 'bg-slate-800 text-amber-300 border-slate-700 group-hover:border-amber-500/40'
-                }`}
-              >
-                <span>{activeRosterView === 'appointments' ? 'বন্ধ করুন' : 'তালিকা দেখুন'}</span>
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                <span>{activeRosterView === 'appointments' ? 'Collapse' : 'View all'}</span>
                 <ChevronRight
                   className={`w-3.5 h-3.5 transition-transform ${
-                    activeRosterView === 'appointments' ? 'rotate-90' : 'group-hover:translate-x-0.5'
+                    activeRosterView === 'appointments' ? 'rotate-90' : ''
                   }`}
                 />
               </span>
             </div>
           </div>
 
-          {/* Mini List Preview inside the box (List er moto choto preview) */}
+          {/* Mini List Preview */}
           <div className="mt-3 space-y-1.5">
             {appointmentHolders.slice(0, 3).map((item, idx) => (
               <div
                 key={item.id || idx}
-                className={`flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                  isLight
-                    ? 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
-                    : 'bg-slate-950/60 border-slate-800/80 group-hover:border-slate-700/80'
-                }`}
+                className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/70 dark:bg-slate-850"
               >
                 <div className="flex items-center gap-2 truncate">
-                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-                    isLight
-                      ? 'bg-amber-50 text-amber-800 border-amber-200'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  }`}>
+                  <span className="text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-400 shrink-0">
                     {item.appointment.split('—')[0].replace('Commanding Officer (CO)', 'CO').replace('Second-in-Command (2IC)', '2IC').replace('Adjutant (Adjt)', 'Adjt').replace('Regimental Sergeant Major (RSM)', 'RSM').trim()}
                   </span>
-                  <span className={`font-semibold truncate ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{item.name}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-200 truncate">{item.name}</span>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                    isLight ? 'text-slate-600 bg-slate-200 border border-slate-300' : 'text-slate-400 bg-slate-800'
-                  }`}>
-                    {item.battery}
-                  </span>
-                </div>
+                <span className="text-[10px] font-mono text-slate-400 ml-2">
+                  {item.battery}
+                </span>
               </div>
             ))}
           </div>
 
-          {/* Bottom Cue */}
-          <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[11px] font-mono ${
-            isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800/70 text-slate-400'
-          }`}>
-            <span className={`flex items-center gap-1 ${isLight ? 'text-amber-700 font-semibold' : 'text-amber-400/90'}`}>
-              <Crown className="w-3 h-3" />
-              <span>+ {Math.max(0, appointmentHolders.length - 3)} আরো পদাধিকারী তালিকাভুক্ত</span>
-            </span>
-            <span className={isLight ? 'text-slate-600 group-hover:text-amber-700 font-medium transition-colors' : 'text-slate-500 group-hover:text-amber-300 transition-colors'}>
-              Click to view all →
-            </span>
+          <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+            <span>+{Math.max(0, appointmentHolders.length - 3)} more appointments</span>
+            <span>Click to expand</span>
           </div>
         </div>
 
-        {/* ========================================================= */}
-        {/* Card 2: Regimental Police (রেজিমেন্টাল পুলিশ - RP) */}
-        {/* ========================================================= */}
+        {/* Card 2: Regimental Police */}
         <div
           onClick={() => toggleView('rp')}
-          className={`relative rounded-2xl p-4 sm:p-5 transition-all duration-200 cursor-pointer shadow-lg group select-none border ${
+          className={`rounded-xl p-4 sm:p-5 transition-colors cursor-pointer select-none border ${
             activeRosterView === 'rp'
-              ? isLight
-                ? 'bg-indigo-50/90 border-indigo-500 ring-2 ring-indigo-500/40 shadow-indigo-900/10'
-                : 'bg-gradient-to-br from-indigo-950/60 via-slate-900 to-slate-950 border-indigo-500/80 ring-2 ring-indigo-500/40 shadow-indigo-950/30'
-              : isLight
-                ? 'bg-white hover:bg-slate-50/90 border-slate-200 hover:border-indigo-400 shadow-sm'
-                : 'bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/15 border-slate-700/80 hover:border-indigo-500/50 hover:bg-slate-850'
+              ? 'bg-slate-50 dark:bg-slate-800/60 border-slate-900 dark:border-slate-100 ring-1 ring-slate-900 dark:ring-slate-100'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
           }`}
         >
           {/* Top Bar: Icon, Title, Counter Badge */}
-          <div className={`flex items-start justify-between gap-3 pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border transition-colors ${
-                  activeRosterView === 'rp'
-                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-500/30'
-                    : isLight
-                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700 group-hover:bg-indigo-100'
-                      : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 group-hover:bg-indigo-500/25'
-                }`}
-              >
-                <ShieldAlert className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                <ShieldAlert className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className={`text-sm sm:text-base font-bold tracking-tight font-sans ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                     Regimental Police (RP)
                   </h3>
-                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${
-                    isLight
-                      ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
-                      : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                  }`}>
-                    {rpPersonnelList.length} Personnel
+                  <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                    ({rpPersonnelList.length})
                   </span>
                 </div>
-                <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                  রেজিমেন্টাল পুলিশ (মেইন গেইট, কোয়ার্টার গার্ড ও শৃংখলা সেন্ট্রি)
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Main Gate, Quarter Guard & Sentry Posts
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              <span
-                className={`text-[11px] font-mono font-semibold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
-                  activeRosterView === 'rp'
-                    ? 'bg-indigo-600 text-white border-indigo-400 font-bold'
-                    : isLight
-                      ? 'bg-slate-100 text-indigo-900 border-slate-200 group-hover:border-indigo-400'
-                      : 'bg-slate-800 text-indigo-300 border-slate-700 group-hover:border-indigo-500/40'
-                }`}
-              >
-                <span>{activeRosterView === 'rp' ? 'বন্ধ করুন' : 'তালিকা দেখুন'}</span>
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                <span>{activeRosterView === 'rp' ? 'Collapse' : 'View all'}</span>
                 <ChevronRight
                   className={`w-3.5 h-3.5 transition-transform ${
-                    activeRosterView === 'rp' ? 'rotate-90' : 'group-hover:translate-x-0.5'
+                    activeRosterView === 'rp' ? 'rotate-90' : ''
                   }`}
                 />
               </span>
             </div>
           </div>
+
 
           {/* Mini List Preview inside the box (List er moto choto preview) */}
           <div className="mt-3 space-y-1.5">

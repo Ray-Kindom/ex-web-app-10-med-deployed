@@ -97,6 +97,8 @@ import {
   saveUserToServer,
   deleteUserFromServer,
   fetchDeletedUserIdentifiers,
+  fetchServerAppState,
+  saveServerAppState,
 } from '../lib/serverUserSync';
 
 export const MASTER_ADMIN_EMAIL = 'mdraiyan1512@gmail.com';
@@ -3192,6 +3194,115 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // Centralized App State Bootstrap: Loads server-persisted state (/api/sync/state)
+  // Ensures Incognito windows, new mobile devices, and other browsers see the exact same configuration
+  useEffect(() => {
+    let isMounted = true;
+    const loadServerAppState = async () => {
+      try {
+        const sState = await fetchServerAppState();
+        if (sState && isMounted) {
+          if (Array.isArray(sState.categoriesList) && sState.categoriesList.length > 0) {
+            setCategoriesList(sState.categoriesList);
+            try { localStorage.setItem(STORAGE_KEYS.SYSTEM_CATEGORIES, JSON.stringify(sState.categoriesList)); } catch (e) {}
+          }
+          if (Array.isArray(sState.subUnitsList) && sState.subUnitsList.length > 0) {
+            setSubUnitsList(sState.subUnitsList);
+            try { localStorage.setItem(STORAGE_KEYS.SUB_UNITS, JSON.stringify(sState.subUnitsList)); } catch (e) {}
+          }
+          if (Array.isArray(sState.ranksList) && sState.ranksList.length > 0) {
+            setRanksList(sState.ranksList);
+            try { localStorage.setItem(STORAGE_KEYS.MILITARY_RANKS, JSON.stringify(sState.ranksList)); } catch (e) {}
+          }
+          if (Array.isArray(sState.tradesList) && sState.tradesList.length > 0) {
+            setTradesList(sState.tradesList);
+            try { localStorage.setItem(STORAGE_KEYS.MILITARY_TRADES, JSON.stringify(sState.tradesList)); } catch (e) {}
+          }
+          if (Array.isArray(sState.authEstablishmentList) && sState.authEstablishmentList.length > 0) {
+            setAuthEstablishmentList(sState.authEstablishmentList);
+            try { localStorage.setItem(STORAGE_KEYS.AUTH_ESTABLISHMENT, JSON.stringify(sState.authEstablishmentList)); } catch (e) {}
+          }
+          if (sState.calculationConfig) {
+            setCalculationConfig(sState.calculationConfig);
+            try { localStorage.setItem(STORAGE_KEYS.CALCULATION_CONFIG, JSON.stringify(sState.calculationConfig)); } catch (e) {}
+          }
+          if (sState.systemSettings) {
+            setSystemSettings(sState.systemSettings);
+            try { localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(sState.systemSettings)); } catch (e) {}
+          }
+          if (Array.isArray(sState.dailyParadePoints) && sState.dailyParadePoints.length > 0) {
+            setDailyParadePoints(sState.dailyParadePoints);
+            try { localStorage.setItem(STORAGE_KEYS.PARADE_POINTS, JSON.stringify(sState.dailyParadePoints)); } catch (e) {}
+          }
+          if (sState.paradeRecords && typeof sState.paradeRecords === 'object') {
+            setParadeRecords((prev) => ({ ...prev, ...sState.paradeRecords }));
+          }
+          if (sState.paradeDutyAssignments && typeof sState.paradeDutyAssignments === 'object') {
+            setParadeDutyAssignments((prev) => ({ ...prev, ...sState.paradeDutyAssignments }));
+          }
+          if (sState.dutySessionStatuses && typeof sState.dutySessionStatuses === 'object') {
+            setDutySessionStatuses((prev) => ({ ...prev, ...sState.dutySessionStatuses }));
+          }
+        }
+      } catch (err) {
+        console.warn('Server app state fetch error:', err);
+      }
+    };
+
+    loadServerAppState();
+
+    // Auto refresh app state every 20 seconds to keep devices in sync
+    const stateInterval = setInterval(loadServerAppState, 20000);
+    const onFocus = () => loadServerAppState();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(stateInterval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
+  // Guard to prevent saving to server before initial load has finished
+  const isAppStateLoadedRef = React.useRef(false);
+
+  // Auto-persist configuration updates to server disk (/api/sync/state)
+  useEffect(() => {
+    if (!isAppStateLoadedRef.current) {
+      isAppStateLoadedRef.current = true;
+      return;
+    }
+    // Only persist if the user is authenticated and not a guest
+    if (currentUser.role !== 'Guest') {
+      const timer = setTimeout(() => {
+        saveServerAppState({
+          categoriesList,
+          subUnitsList,
+          ranksList,
+          tradesList,
+          authEstablishmentList,
+          calculationConfig,
+          systemSettings,
+          dailyParadePoints,
+          paradeRecords,
+          paradeDutyAssignments,
+          dutySessionStatuses,
+          updatedAt: new Date().toISOString(),
+        }).catch(() => {});
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    categoriesList,
+    subUnitsList,
+    ranksList,
+    tradesList,
+    authEstablishmentList,
+    calculationConfig,
+    systemSettings,
+    dailyParadePoints,
+  ]);
+
   const showNotification = (msg: string) => {
     setNotification(msg);
     setTimeout(() => {
@@ -4087,6 +4198,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const exportSystemBackup = () => {
+    let courseDefinitions = [];
+    let courseQualifications = [];
+    try {
+      const savedDefs = localStorage.getItem('10MED_COURSE_DEFINITIONS_V1');
+      if (savedDefs) courseDefinitions = JSON.parse(savedDefs);
+      const savedRecs = localStorage.getItem('10MED_COURSE_QUALIFICATIONS_V1');
+      if (savedRecs) courseQualifications = JSON.parse(savedRecs);
+    } catch (e) {}
+
     const fullBackup = {
       version: '1.0',
       exportedAt: new Date().toISOString(),
@@ -4109,6 +4229,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       accessRequests,
       auditLogs,
       customLogo,
+      courseDefinitions,
+      courseQualifications,
     };
     const jsonStr = JSON.stringify(fullBackup, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -4192,6 +4314,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (backupData.customLogo) {
         setCustomLogoState(backupData.customLogo);
         localStorage.setItem(STORAGE_KEYS.LOGO, backupData.customLogo);
+      }
+      if (Array.isArray(backupData.courseDefinitions) && backupData.courseDefinitions.length > 0) {
+        localStorage.setItem('10MED_COURSE_DEFINITIONS_V1', JSON.stringify(backupData.courseDefinitions));
+      }
+      if (Array.isArray(backupData.courseQualifications) && backupData.courseQualifications.length > 0) {
+        localStorage.setItem('10MED_COURSE_QUALIFICATIONS_V1', JSON.stringify(backupData.courseQualifications));
+      }
+      if (Array.isArray(backupData.courseDefinitions) || Array.isArray(backupData.courseQualifications)) {
+        fetch('/api/courses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            definitions: backupData.courseDefinitions || [],
+            records: backupData.courseQualifications || [],
+          }),
+        }).catch(() => {});
       }
       addAuditLog('SYSTEM_BACKUP_RESTORE', 'Restored complete database from backup file', 'SYSTEM');
       showNotification('ব্যাকআপ সফলভাবে রিস্টোর করা হয়েছে!');

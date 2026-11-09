@@ -14,16 +14,21 @@ import {
   Plus,
   X,
   Printer,
-  Eye,
   Trash2,
   Calendar,
   MapPin,
   Award,
   ChevronRight,
   BookOpen,
+  Edit3,
+  RotateCcw,
+  Check,
+  Tag,
+  Clock,
 } from 'lucide-react';
 
 const STORAGE_KEY_COURSES = '10MED_COURSE_QUALIFICATIONS_V1';
+const STORAGE_KEY_COURSE_DEFINITIONS = '10MED_COURSE_DEFINITIONS_V1';
 
 interface CourseQualificationPageProps {
   onViewDossier: (person: Personnel) => void;
@@ -36,7 +41,21 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   const { personnelList, showNotification, isGuest, theme } = useApp();
   const isLight = theme === 'light';
 
-  // Persistent course qualifications
+  // 1. Persistent Course Definitions (allow updating names, adding new courses, deleting)
+  const [courseDefinitions, setCourseDefinitions] = useState<CourseDefinition[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_COURSE_DEFINITIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load saved course definitions', e);
+    }
+    return COURSE_DEFINITIONS;
+  });
+
+  // 2. Persistent course qualifications
   const [courseRecords, setCourseRecords] = useState<CourseQualificationRecord[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_COURSES);
@@ -44,30 +63,132 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('Failed to load saved course qualifications', e);
+    }
     return INITIAL_COURSE_QUALIFICATIONS;
   });
 
+  // Guard against race condition: Only sync to server after initial server fetch has finished
+  const isServerLoadedRef = React.useRef(false);
+
+  // Helper to persist to server disk for cross-mobile and cross-device sync
+  const syncCoursesToServer = (defs: CourseDefinition[], recs: CourseQualificationRecord[]) => {
+    fetch('/api/courses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ definitions: defs, records: recs }),
+    }).catch((err) => console.warn('Could not sync courses to server:', err));
+  };
+
+  // Load centralized courses from server on mount to sync across all devices & mobile phones
+  useEffect(() => {
+    let isMounted = true;
+    const fetchServerCourses = async () => {
+      try {
+        const res = await fetch('/api/courses');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && isMounted) {
+            if (Array.isArray(data.definitions) && data.definitions.length > 0) {
+              setCourseDefinitions(data.definitions);
+              try {
+                localStorage.setItem(STORAGE_KEY_COURSE_DEFINITIONS, JSON.stringify(data.definitions));
+              } catch (e) {}
+            }
+            if (Array.isArray(data.records) && data.records.length > 0) {
+              setCourseRecords(data.records);
+              try {
+                localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(data.records));
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (err) {
+        // Fallback silently to localStorage
+      } finally {
+        if (isMounted) {
+          isServerLoadedRef.current = true;
+        }
+      }
+    };
+    fetchServerCourses();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // ONLY sync to server when user changes definitions AFTER server has loaded
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_COURSE_DEFINITIONS, JSON.stringify(courseDefinitions));
+    } catch (e) {
+      console.error('Failed to persist course definitions', e);
+    }
+    if (isServerLoadedRef.current && !isGuest) {
+      syncCoursesToServer(courseDefinitions, courseRecords);
+    }
+  }, [courseDefinitions]);
+
+  // ONLY sync to server when user changes records AFTER server has loaded
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courseRecords));
-    } catch (e) {}
+    } catch (e) {
+      console.error('Failed to persist course qualifications', e);
+    }
+    if (isServerLoadedRef.current && !isGuest) {
+      syncCoursesToServer(courseDefinitions, courseRecords);
+    }
   }, [courseRecords]);
 
-  const [selectedCourseId, setSelectedCourseId] = useState<string>(COURSE_DEFINITIONS[0].id);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>(() => {
+    return courseDefinitions[0]?.id || COURSE_DEFINITIONS[0]?.id || 'bgc';
+  });
+
+  // Safeguard: if selected course was deleted, select first available
+  useEffect(() => {
+    if (courseDefinitions.length > 0 && !courseDefinitions.some((c) => c.id === selectedCourseId)) {
+      setSelectedCourseId(courseDefinitions[0].id);
+    }
+  }, [courseDefinitions, selectedCourseId]);
+
   const [courseSearchQuery, setCourseSearchQuery] = useState('');
   const [rosterSearch, setRosterSearch] = useState('');
   const [btyFilter, setBtyFilter] = useState<Battery | 'All'>('All');
 
-  // Modal State
+  // Add Soldier Qualification Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [formCourseId, setFormCourseId] = useState(COURSE_DEFINITIONS[0].id);
+  const [formCourseId, setFormCourseId] = useState(courseDefinitions[0]?.id || 'bgc');
   const [formSoldierSnk, setFormSoldierSnk] = useState('');
+  const [soldierSearchQuery, setSoldierSearchQuery] = useState('');
+  const [isSoldierSearchFocused, setIsSoldierSearchFocused] = useState(false);
   const [formDate, setFormDate] = useState(new Date().toISOString().slice(0, 10));
   const [formLocation, setFormLocation] = useState('');
   const [formGrade, setFormGrade] = useState('Qualified (Grade A)');
   const [formAuthority, setFormAuthority] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
+
+  // Course Definition Edit / Create Modal State
+  const [isCourseEditModalOpen, setIsCourseEditModalOpen] = useState(false);
+  const [isCreatingNewCourse, setIsCreatingNewCourse] = useState(false);
+  const [courseEditForm, setCourseEditForm] = useState<{
+    id: string;
+    name: string;
+    bengaliName: string;
+    shortCode: string;
+    category: CourseDefinition['category'];
+    defaultDuration: string;
+    defaultLocation: string;
+  }>({
+    id: '',
+    name: '',
+    bengaliName: '',
+    shortCode: '',
+    category: 'Artillery Specialist',
+    defaultDuration: '4 Weeks',
+    defaultLocation: '',
+  });
 
   // Helper to find soldier by Army / Snk No
   const findPerson = (snkNo: string): Personnel | undefined => {
@@ -76,10 +197,34 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     );
   };
 
+  // Currently selected soldier in Add Qualification Modal
+  const selectedSoldier = useMemo(() => {
+    if (!formSoldierSnk) return null;
+    return findPerson(formSoldierSnk) || null;
+  }, [personnelList, formSoldierSnk]);
+
+  // Matching soldiers when searching in Add Qualification Modal
+  const matchingSoldiers = useMemo(() => {
+    if (!soldierSearchQuery.trim()) return [];
+    const q = soldierSearchQuery.toLowerCase().trim();
+    return (personnelList || [])
+      .filter((p) => {
+        if (!p) return false;
+        return (
+          (p.snkNo || '').toLowerCase().includes(q) ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.rk || '').toLowerCase().includes(q) ||
+          (p.trade || '').toLowerCase().includes(q) ||
+          (p.battery || '').toLowerCase().includes(q)
+        );
+      })
+      .slice(0, 8);
+  }, [personnelList, soldierSearchQuery]);
+
   // Course qualification counts per course
   const courseCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    COURSE_DEFINITIONS.forEach((c) => {
+    courseDefinitions.forEach((c) => {
       counts[c.id] = 0;
     });
 
@@ -92,7 +237,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     });
 
     return counts;
-  }, [courseRecords]);
+  }, [courseDefinitions, courseRecords]);
 
   const totalQualifications = useMemo(() => {
     return (Object.values(courseCounts) as number[]).reduce((a: number, b: number) => a + b, 0);
@@ -101,9 +246,18 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   // Selected Course Definition
   const currentCourseDef: CourseDefinition = useMemo(() => {
     return (
-      COURSE_DEFINITIONS.find((c) => c.id === selectedCourseId) || COURSE_DEFINITIONS[0]
+      courseDefinitions.find((c) => c.id === selectedCourseId) ||
+      courseDefinitions[0] || {
+        id: 'bgc',
+        name: 'Basic Gunner Cadre (BGC)',
+        bengaliName: 'বেসিক গানার ক্যাডার',
+        shortCode: 'BGC',
+        category: 'Artillery Specialist',
+        defaultDuration: '6 Weeks',
+        defaultLocation: '10 Med Regimental Trg Ground',
+      }
     );
-  }, [selectedCourseId]);
+  }, [courseDefinitions, selectedCourseId]);
 
   // Qualified Soldiers list for Selected Course
   const selectedCourseRoster = useMemo(() => {
@@ -162,32 +316,175 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
 
   // Filtered Course Directory
   const filteredCourses = useMemo(() => {
-    if (!courseSearchQuery.trim()) return COURSE_DEFINITIONS;
+    if (!courseSearchQuery.trim()) return courseDefinitions;
     const q = courseSearchQuery.toLowerCase().trim();
-    return COURSE_DEFINITIONS.filter(
+    return courseDefinitions.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.bengaliName.toLowerCase().includes(q) ||
         c.shortCode.toLowerCase().includes(q) ||
         c.category.toLowerCase().includes(q)
     );
-  }, [courseSearchQuery]);
+  }, [courseDefinitions, courseSearchQuery]);
 
-  // Open Modal
+  // Open Add Soldier Qualification Modal
   const handleOpenAddModal = (courseId?: string) => {
     const cId = courseId || selectedCourseId;
-    const cDef = COURSE_DEFINITIONS.find((c) => c.id === cId) || COURSE_DEFINITIONS[0];
+    const cDef = courseDefinitions.find((c) => c.id === cId) || courseDefinitions[0] || COURSE_DEFINITIONS[0];
     setFormCourseId(cId);
     setFormLocation(cDef.defaultLocation);
     setFormGrade('Qualified (Grade A)');
     setFormSoldierSnk(personnelList[0]?.snkNo || '');
+    setSoldierSearchQuery('');
+    setIsSoldierSearchFocused(false);
     setFormDate(new Date().toISOString().slice(0, 10));
     setFormAuthority('');
     setFormRemarks('');
     setIsAddModalOpen(true);
   };
 
-  // Save Record
+  // Open Course Edit Modal
+  const handleOpenEditCourse = (course: CourseDefinition) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে কোনো পরিবর্তন করা সম্ভব নয়।');
+      return;
+    }
+    setIsCreatingNewCourse(false);
+    setCourseEditForm({
+      id: course.id,
+      name: course.name,
+      bengaliName: course.bengaliName,
+      shortCode: course.shortCode,
+      category: course.category,
+      defaultDuration: course.defaultDuration,
+      defaultLocation: course.defaultLocation,
+    });
+    setIsCourseEditModalOpen(true);
+  };
+
+  // Open New Course Modal
+  const handleOpenAddCourse = () => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে কোনো পরিবর্তন করা সম্ভব নয়।');
+      return;
+    }
+    setIsCreatingNewCourse(true);
+    setCourseEditForm({
+      id: `course_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: '',
+      bengaliName: '',
+      shortCode: '',
+      category: 'Artillery Specialist',
+      defaultDuration: '4 Weeks',
+      defaultLocation: '10 Med Regimental Trg Ground',
+    });
+    setIsCourseEditModalOpen(true);
+  };
+
+  // Save Course Definition (Name change or new course)
+  const handleSaveCourseDefinition = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isGuest) {
+      showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
+      return;
+    }
+
+    const trimmedName = courseEditForm.name.trim();
+    if (!trimmedName) {
+      showNotification('অনুগ্রহ করে কোর্সের নাম প্রদান করুন!');
+      return;
+    }
+
+    const updatedCourse: CourseDefinition = {
+      id: courseEditForm.id,
+      name: trimmedName,
+      bengaliName: courseEditForm.bengaliName.trim() || trimmedName,
+      shortCode: courseEditForm.shortCode.trim() || trimmedName.slice(0, 8).toUpperCase(),
+      category: courseEditForm.category,
+      defaultDuration: courseEditForm.defaultDuration.trim() || '4 Weeks',
+      defaultLocation: courseEditForm.defaultLocation.trim() || '10 Med Regimental Trg Ground',
+    };
+
+    if (isCreatingNewCourse) {
+      setCourseDefinitions((prev) => [...prev, updatedCourse]);
+      setSelectedCourseId(updatedCourse.id);
+      showNotification(`নতুন কোর্স "${updatedCourse.name}" সফলভাবে যুক্ত করা হয়েছে।`);
+    } else {
+      // Find old course to cascade name change across existing records
+      const oldCourse = courseDefinitions.find((c) => c.id === updatedCourse.id);
+      setCourseDefinitions((prev) =>
+        prev.map((c) => (c.id === updatedCourse.id ? updatedCourse : c))
+      );
+
+      // Auto-update course name in all qualified soldier records
+      if (oldCourse && oldCourse.name !== updatedCourse.name) {
+        setCourseRecords((prev) =>
+          prev.map((cr) =>
+            cr.courseId === updatedCourse.id
+              ? { ...cr, courseName: updatedCourse.name }
+              : cr
+          )
+        );
+      }
+      showNotification(`কোর্সের নাম ও বিবরণ সফলভাবে আপডেট করা হয়েছে: "${updatedCourse.name}"`);
+    }
+
+    setIsCourseEditModalOpen(false);
+  };
+
+  // Delete Course
+  const handleDeleteCourse = (courseId: string) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে কোর্স মোছা সম্ভব নয়।');
+      return;
+    }
+
+    const targetCourse = courseDefinitions.find((c) => c.id === courseId);
+    if (!targetCourse) return;
+
+    if (courseDefinitions.length <= 1) {
+      showNotification('কমপক্ষে একটি কোর্স তালিকায় থাকা আবশ্যক!');
+      return;
+    }
+
+    const count = courseRecords.filter((cr) => cr.courseId === courseId).length;
+    const confirmed = window.confirm(
+      `আপনি কি নিশ্চিত যে "${targetCourse.name}" কোর্সটি মুছে ফেলতে চান?` +
+        (count > 0 ? `\n\nসতর্কতা: এই কোর্সের অন্তর্ভুক্ত ${count} জন সৈনিকের রেকর্ড রয়েছে, যা তালিকা থেকে বাদ পড়বে।` : '')
+    );
+
+    if (!confirmed) return;
+
+    setCourseDefinitions((prev) => {
+      const nextList = prev.filter((c) => c.id !== courseId);
+      if (selectedCourseId === courseId && nextList.length > 0) {
+        setSelectedCourseId(nextList[0].id);
+      }
+      return nextList;
+    });
+
+    setCourseRecords((prev) => prev.filter((cr) => cr.courseId !== courseId));
+    setIsCourseEditModalOpen(false);
+    showNotification(`"${targetCourse.name}" কোর্সটি মুছে ফেলা হয়েছে।`);
+  };
+
+  // Reset to Factory Default Courses
+  const handleResetDefaultCourses = () => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে রিসেট করা সম্ভব নয়।');
+      return;
+    }
+    const confirmed = window.confirm(
+      'আপনি কি সকল কোর্স তালিকা মূল অফিশিয়াল ডিফল্ট (১১টি কোর্স) এ রিসেট করতে চান?'
+    );
+    if (!confirmed) return;
+
+    setCourseDefinitions(COURSE_DEFINITIONS);
+    setSelectedCourseId(COURSE_DEFINITIONS[0].id);
+    showNotification('কোর্স তালিকা সফলভাবে ডিফল্ট অবস্থায় ফিরিয়ে আনা হয়েছে।');
+  };
+
+  // Save Soldier Qualification Record
   const handleSaveQualification = (e: React.FormEvent) => {
     e.preventDefault();
     if (isGuest) {
@@ -204,7 +501,8 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       return;
     }
 
-    const course = COURSE_DEFINITIONS.find((c) => c.id === formCourseId) || COURSE_DEFINITIONS[0];
+    const course =
+      courseDefinitions.find((c) => c.id === formCourseId) || courseDefinitions[0] || COURSE_DEFINITIONS[0];
 
     const newRecord: CourseQualificationRecord = {
       id: `cq-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -294,16 +592,36 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
         <div className={`lg:col-span-4 border rounded-xl p-3.5 space-y-3 ${
           isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
         }`}>
-          <div className={`flex items-center justify-between pb-2 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-emerald-500" />
-              <h2 className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>
+          <div className={`flex items-center justify-between pb-2 border-b gap-2 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <BookOpen className="w-4 h-4 text-emerald-500 shrink-0" />
+              <h2 className={`text-xs font-bold uppercase tracking-wider truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 কোর্স ও ক্যাডার তালিকা
               </h2>
             </div>
-            <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              {filteredCourses.length} টি কোর্স
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleOpenAddCourse}
+                className="px-2 py-1 rounded-md text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
+                title="নতুন কোর্স বা ক্যাডার তৈরি করুন"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+ নতুন কোর্স</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResetDefaultCourses}
+                className={`p-1 rounded-md text-xs border transition-colors cursor-pointer ${
+                  isLight
+                    ? 'border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                    : 'border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+                title="মূল ডিফল্ট কোর্স তালিকায় ফিরিয়ে আনুন"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Search Courses */}
@@ -311,7 +629,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
             <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
             <input
               type="text"
-              placeholder="কোর্সের নাম লিখুন..."
+              placeholder="কোর্সের নাম বা কোড লিখুন..."
               value={courseSearchQuery}
               onChange={(e) => setCourseSearchQuery(e.target.value)}
               className={`w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-emerald-500 ${
@@ -335,7 +653,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     setSelectedCourseId(c.id);
                     setRosterSearch('');
                   }}
-                  className={`p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                  className={`group p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
                     isSelected
                       ? isLight
                         ? 'bg-emerald-50 border-emerald-500 shadow-xs'
@@ -356,8 +674,8 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     </div>
                   </div>
 
-                  {/* Right side: Qualified Count */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  {/* Right side: Qualified Count and Quick Edit Button */}
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <span
                       className={`text-xs font-mono font-bold tabular-nums px-2 py-0.5 rounded border ${
                         isSelected
@@ -368,10 +686,32 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                           ? 'bg-white text-slate-700 border-slate-200'
                           : 'bg-slate-900 text-slate-300 border-slate-800'
                       }`}
-                      title="Qualified Count"
+                      title="উত্তীর্ণ সৈনিক সংখ্যা"
                     >
                       {count} জন
                     </span>
+
+                    {/* Edit Course Icon Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditCourse(c);
+                      }}
+                      className={`p-1 rounded transition-colors cursor-pointer ${
+                        isSelected
+                          ? isLight
+                            ? 'hover:bg-emerald-200 text-emerald-800'
+                            : 'hover:bg-slate-700 text-emerald-300'
+                          : isLight
+                          ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-200'
+                          : 'text-slate-500 hover:text-white hover:bg-slate-800'
+                      }`}
+                      title="কোর্সের নাম বা বিবরণ পরিবর্তন করুন"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+
                     <ChevronRight
                       className={`w-3.5 h-3.5 transition-transform ${
                         isSelected ? 'text-emerald-500 translate-x-0.5' : isLight ? 'text-slate-400' : 'text-slate-600'
@@ -400,6 +740,11 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                 }`}>
                   {selectedCourseRoster.length} জন উত্তীর্ণ / কোয়ালিফাইড
                 </span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                  isLight ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'
+                }`}>
+                  {currentCourseDef.category}
+                </span>
               </div>
               <div className={`flex items-center gap-3 text-xs mt-1 flex-wrap ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 <span>{currentCourseDef.bengaliName}</span>
@@ -413,13 +758,29 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
               </div>
             </div>
 
-            <button
-              onClick={() => handleOpenAddModal(selectedCourseId)}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>সৈনিক যুক্ত করুন</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleOpenEditCourse(currentCourseDef)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                }`}
+                title="কোর্সের নাম বা বিবরণ এডিট করুন"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>কোর্সের নাম এডিট</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddModal(selectedCourseId)}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>সৈনিক যুক্ত করুন</span>
+              </button>
+            </div>
           </div>
 
           {/* Filter and Search Bar for Roster */}
@@ -621,7 +982,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                   onChange={(e) => {
                     const cId = e.target.value;
                     setFormCourseId(cId);
-                    const cDef = COURSE_DEFINITIONS.find((c) => c.id === cId);
+                    const cDef = courseDefinitions.find((c) => c.id === cId);
                     if (cDef) {
                       setFormLocation(cDef.defaultLocation);
                     }
@@ -629,7 +990,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
                   required
                 >
-                  {COURSE_DEFINITIONS.map((c) => (
+                  {courseDefinitions.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.bengaliName})
                     </option>
@@ -637,21 +998,143 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                 </select>
               </div>
 
-              {/* Select Soldier */}
+              {/* Select Soldier with Instant Search */}
               <div>
-                <label className="block text-slate-300 font-medium mb-1">সৈনিক নির্বাচন</label>
-                <select
-                  value={formSoldierSnk}
-                  onChange={(e) => setFormSoldierSnk(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
-                  required
-                >
-                  {personnelList.map((p) => (
-                    <option key={p.id} value={p.snkNo}>
-                      {p.snkNo} — {p.rk} {p.name} ({p.battery})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                    <span>সৈনিক নির্বাচন (সার্চ করুন)</span>
+                    <span className="text-emerald-400 font-mono text-[11px]">*</span>
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    সেনা নং বা নাম লিখুন
+                  </span>
+                </div>
+
+                {/* Instant Search Input */}
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={soldierSearchQuery}
+                      onChange={(e) => {
+                        setSoldierSearchQuery(e.target.value);
+                        setIsSoldierSearchFocused(true);
+                      }}
+                      onFocus={() => setIsSoldierSearchFocused(true)}
+                      placeholder="সেনা নং (যেমন 1243723), পদবি বা নাম লিখুন..."
+                      className="w-full pl-8 pr-8 py-2 text-xs rounded-lg border bg-slate-950 border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 shadow-inner"
+                    />
+                    {soldierSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSoldierSearchQuery('');
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                        title="ক্লিয়ার করুন"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown Suggestions List */}
+                  {isSoldierSearchFocused && soldierSearchQuery.trim().length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 divide-y divide-slate-800 rounded-xl z-30 max-h-56 overflow-y-auto shadow-2xl">
+                      {matchingSoldiers.length > 0 ? (
+                        matchingSoldiers.map((p) => {
+                          const isSelected = p.snkNo.trim().toLowerCase() === formSoldierSnk.trim().toLowerCase();
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setFormSoldierSnk(p.snkNo);
+                                setSoldierSearchQuery('');
+                                setIsSoldierSearchFocused(false);
+                              }}
+                              className={`w-full p-2.5 text-left text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                                isSelected ? 'bg-emerald-950/60 text-emerald-200' : 'hover:bg-slate-800 text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-mono font-bold text-amber-400 shrink-0">{p.snkNo}</span>
+                                <RankBadge rank={p.rk} size="sm" />
+                                <span className="font-semibold text-white truncate">{p.name}</span>
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-slate-950 border-slate-800 text-slate-400 shrink-0">
+                                  {p.battery}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-mono text-emerald-400 shrink-0">
+                                {p.trade || 'GD'}
+                              </span>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="p-3 text-center text-xs text-slate-400">
+                          &ldquo;{soldierSearchQuery}&rdquo; দিয়ে কোনো সৈনিক পাওয়া যায়নি
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Soldier Card */}
+                {selectedSoldier ? (
+                  <div className="mt-2 p-2.5 rounded-lg border bg-emerald-950/30 border-emerald-500/40 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                        <Check className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-amber-400 text-xs">{selectedSoldier.snkNo}</span>
+                          <RankBadge rank={selectedSoldier.rk} size="sm" />
+                          <span className="font-bold text-white text-xs truncate">{selectedSoldier.name}</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                            {selectedSoldier.battery}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
+                          <span>ট্রেড: {selectedSoldier.trade || 'GD'}</span>
+                          <span>•</span>
+                          <span>স্ট্যাটাস: {selectedSoldier.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded shrink-0">
+                      নির্বাচিত
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-1.5 text-[11px] text-amber-400/90 flex items-center gap-1">
+                    <span>⚠️ অনুগ্রহ করে উপরে সেনা নং বা নাম লিখে সৈনিক নির্বাচন করুন</span>
+                  </div>
+                )}
+
+                {/* Collapsible Full Roster Select Fallback */}
+                <div className="mt-2">
+                  <details className="text-[11px] text-slate-400">
+                    <summary className="cursor-pointer hover:text-slate-300 transition-colors select-none">
+                      বা ড্রপডাউন তালিকা থেকে বেছে নিন ({personnelList.length} জন)
+                    </summary>
+                    <div className="mt-1.5">
+                      <select
+                        value={formSoldierSnk}
+                        onChange={(e) => setFormSoldierSnk(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        {personnelList.map((p) => (
+                          <option key={p.id} value={p.snkNo}>
+                            {p.snkNo} — {p.rk} {p.name} ({p.battery})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </details>
+                </div>
               </div>
 
               {/* Completion Date */}
@@ -733,6 +1216,171 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                 >
                   সংরক্ষণ করুন
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Course Edit & Creation Modal */}
+      {isCourseEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  {isCreatingNewCourse ? <Plus className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">
+                    {isCreatingNewCourse ? 'নতুন কোর্স / ক্যাডার যুক্ত করুন' : 'কোর্সের নাম ও বিবরণ পরিবর্তন করুন'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {isCreatingNewCourse
+                      ? 'রেজিমেন্টে নতুন কোর্স তৈরি করুন'
+                      : 'কোর্সের নাম পরিবর্তন করলে সম্পন্ন করা সকল সৈনিকের ডাটাতেও স্বয়ংক্রিয়ভাবে আপডেট হবে'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCourseEditModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCourseDefinition} className="space-y-3 text-xs">
+              {/* Course Name (English / Main Title) */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  কোর্সের পুরো নাম (Course Full Name) <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={courseEditForm.name}
+                  onChange={(e) => setCourseEditForm({ ...courseEditForm, name: e.target.value })}
+                  placeholder="e.g. Basic Gunner Cadre (BGC)"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* Bengali Name */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  বাংলা নাম (Course Bengali Title)
+                </label>
+                <input
+                  type="text"
+                  value={courseEditForm.bengaliName}
+                  onChange={(e) => setCourseEditForm({ ...courseEditForm, bengaliName: e.target.value })}
+                  placeholder="e.g. বেসিক গানার ক্যাডার"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Short Code & Category Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Short Code */}
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    সংক্ষিপ্ত কোড (Short Code)
+                  </label>
+                  <input
+                    type="text"
+                    value={courseEditForm.shortCode}
+                    onChange={(e) => setCourseEditForm({ ...courseEditForm, shortCode: e.target.value })}
+                    placeholder="e.g. BGC"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    ক্যাটাগরি (Category)
+                  </label>
+                  <select
+                    value={courseEditForm.category}
+                    onChange={(e) =>
+                      setCourseEditForm({
+                        ...courseEditForm,
+                        category: e.target.value as CourseDefinition['category'],
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="Artillery Specialist">Artillery Specialist (আর্টিলারি)</option>
+                    <option value="Combat & Physical">Combat & Physical (কমব্যাট/শারীরিক)</option>
+                    <option value="Technical & Support">Technical & Support (কারিগরি)</option>
+                    <option value="Leadership">Leadership (নেতৃত্ব/প্রশাসন)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Duration & Location Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Duration */}
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    মেয়াদ (Duration)
+                  </label>
+                  <input
+                    type="text"
+                    value={courseEditForm.defaultDuration}
+                    onChange={(e) => setCourseEditForm({ ...courseEditForm, defaultDuration: e.target.value })}
+                    placeholder="e.g. 4 Weeks / 6 Weeks"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* Default Location */}
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    ডিফল্ট স্থান / প্রতিষ্ঠান (Location)
+                  </label>
+                  <input
+                    type="text"
+                    value={courseEditForm.defaultLocation}
+                    onChange={(e) => setCourseEditForm({ ...courseEditForm, defaultLocation: e.target.value })}
+                    placeholder="e.g. Artillery Centre & School (AC&S)"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                {!isCreatingNewCourse ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCourse(courseEditForm.id)}
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>কোর্স মুছুন</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCourseEditModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer transition-colors"
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer shadow-sm transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isCreatingNewCourse ? 'কোর্স তৈরি করুন' : 'পরিবর্তন সংরক্ষণ করুন'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

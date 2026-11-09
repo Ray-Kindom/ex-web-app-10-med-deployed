@@ -47,33 +47,24 @@ export const ParadeStateSummaryGrid: React.FC<ParadeStateSummaryGridProps> = ({
   const handleAttached = () => handleOpenCategory('Att');
 
   return (
-    <div className={`rounded-xl overflow-hidden shadow-xl border transition-colors duration-200 ${
-      isLight ? 'bg-white border-slate-200 text-slate-900 shadow-md' : 'bg-slate-900 border-slate-800 text-white'
-    }`}>
-      <div className={`p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-        isLight
-          ? 'bg-gradient-to-r from-slate-50 via-white to-slate-50 border-slate-200'
-          : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
-      }`}>
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-              <Layers className="w-4 h-4 text-rose-500" />
-              <span>Bty Wise Parade State</span>
-            </h3>
-            <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded">
-              0630 HRS MORNING STATE
-            </span>
-          </div>
+    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-colors">
+      <div className="p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            Battery-Wise Parade State
+          </h3>
+          <span className="text-slate-400 dark:text-slate-500 text-xs">·</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+            0630 HRS Morning State
+          </span>
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className={`uppercase tracking-wider text-[10px] font-mono border-b ${
-              isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'
-            }`}>
+            <tr className="uppercase tracking-wider text-[11px] font-mono border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400">
+
               <th className="p-3">Battery / Sub-Unit</th>
               <th className="p-3 text-center">Posted</th>
               <th className={`p-3 text-center ${isLight ? 'bg-emerald-50 text-emerald-800 font-bold' : 'bg-emerald-950/30 text-emerald-300'}`}>Present</th>

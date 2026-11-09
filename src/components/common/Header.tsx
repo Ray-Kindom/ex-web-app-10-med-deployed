@@ -81,73 +81,57 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className={`sticky top-0 z-30 backdrop-blur-md border-b transition-colors duration-200 ${isLight ? 'bg-white/95 border-slate-200 text-slate-900 shadow-sm' : 'bg-slate-950/95 border-slate-800 text-white'}`}>
-      {/* GUEST — VIEW ONLY Banner */}
+    <header className="sticky top-0 z-30 backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 transition-colors">
+      {/* Quiet Guest / Simulation Notice */}
       {isGuest && (
-        <div className="bg-gradient-to-r from-amber-600/30 via-orange-600/20 to-amber-600/30 border-b border-amber-500/50 text-amber-100 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-200 px-4 py-1 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black tracking-wider text-[11px] uppercase shadow-sm">
-              GUEST — VIEW ONLY
-            </span>
-            <span className="font-semibold text-amber-200">
-              {isSimulating
-                ? `রোল সিমুলেটর সক্রিয়: বর্তমানে ${currentUser.role} ${currentUser.assignedBattery ? `(${currentUser.assignedBattery})` : ''} রোলের ভিউ দেখছেন (Read-Only Demo)`
-                : 'রিড-অনলি ডেমো মোড: আপনি সকল ডেটা, রোল ও প্যারেড স্টেট পর্যবেক্ষণ করতে পারবেন'}
+            <span className="font-semibold">Demo Mode (Read-Only)</span>
+            <span className="text-slate-400 dark:text-slate-500">·</span>
+            <span className="text-amber-800/80 dark:text-amber-300/80">
+              {isSimulating ? `Viewing as ${currentUser.role}` : 'All data visible in read-only'}
             </span>
           </div>
-          {isSimulating ? (
+          {isSimulating && (
             <button
               onClick={exitSimulation}
-              className="px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors cursor-pointer shadow"
+              className="text-xs font-medium text-amber-800 dark:text-amber-200 hover:underline cursor-pointer"
             >
-              গেস্ট ড্যাশবোর্ডে ফিরুন (Exit)
+              Exit Demo
             </button>
-          ) : (
-            <span className="text-[10px] text-amber-300/80 font-mono hidden sm:inline">
-              [No Editing / Saving Permitted]
-            </span>
           )}
         </div>
       )}
 
-      {/* Simulation Active Notice Banner for Admin */}
       {!isGuest && isSimulating && (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-200 px-4 py-1 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
-            <span className="font-semibold text-amber-300">
-              এডমিন রোল সিমুলেটর সক্রিয়: বর্তমানে <span className="underline font-bold">{currentUser.role}</span> {currentUser.assignedBattery ? `(${currentUser.assignedBattery})` : ''} প্রোফাইলে আছেন
-            </span>
-          </div>
+        <div className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 px-4 py-1 flex items-center justify-between text-xs">
+          <span className="font-medium">
+            Simulating: <strong className="font-semibold">{currentUser.role}</strong> {currentUser.assignedBattery ? `(${currentUser.assignedBattery})` : ''}
+          </span>
           <button
             onClick={exitSimulation}
-            className="px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors cursor-pointer"
+            className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
           >
-            এডমিন মোডে ফিরুন (Exit)
+            Exit Simulation
           </button>
         </div>
       )}
 
-      {/* Top Banner alert if notification */}
+      {/* Notification Toast */}
       {notification && (
-        <div className="bg-rose-600/90 text-white text-xs font-medium px-4 py-1.5 flex items-center justify-center gap-2 border-b border-rose-400/40">
-          <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+        <div className="bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs px-4 py-1.5 flex items-center justify-center gap-2 border-b border-slate-700">
           <span>{notification}</span>
         </div>
       )}
 
-      <div className="max-w-[1700px] mx-auto px-3 sm:px-4">
-        <div className="flex items-center justify-between h-12 sm:h-13 gap-2.5">
+      <div className="max-w-[1700px] mx-auto px-4">
+        <div className="flex items-center justify-between h-13 gap-3">
           {/* Left: Brand / Logo */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             {onToggleMobileNav && (
               <button
                 onClick={onToggleMobileNav}
-                className={`lg:hidden p-1.5 rounded-lg border transition-colors ${
-                  isLight
-                    ? 'bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-200'
-                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
-                }`}
+                className="lg:hidden p-1.5 rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 aria-label="Open Navigation Menu"
               >
                 <Menu className="w-4 h-4" />
@@ -156,53 +140,36 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div
               onClick={() => setActivePage('main_dashboard')}
-              className="flex items-center gap-2 cursor-pointer group"
+              className="flex items-center gap-2.5 cursor-pointer group select-none"
             >
               <UnitLogo size="sm" />
-              <div className="hidden sm:flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className={`font-bold tracking-wide text-xs sm:text-sm font-sans leading-none transition-colors ${
-                    isLight ? 'text-slate-900 group-hover:text-rose-600' : 'text-slate-100 group-hover:text-white'
-                  }`}>
-                    {systemSettings?.unitName || '10 Med Regt Arty'}
-                  </span>
-                  <span className="bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded">
-                    {systemSettings?.unitMotto || 'Born Destroyer'}
-                  </span>
-                  {systemSettings?.maintenanceMode && (
-                    <span className="bg-amber-500/20 text-amber-500 dark:text-amber-300 border border-amber-500/40 text-[8px] font-mono font-bold uppercase px-1 py-0.2 rounded animate-pulse">
-                      Maintenance Mode
-                    </span>
-                  )}
-                </div>
-                <span className={`text-[10px] font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              <div className="flex flex-col">
+                <span className="font-bold tracking-tight text-sm text-slate-900 dark:text-white leading-tight">
+                  {systemSettings?.unitName || '10 Med Regt Arty'}
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 leading-none">
                   {systemSettings?.tagline || 'Smart Parade State System'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Center: Search & Military Time */}
-          <div className="hidden md:flex items-center gap-4 flex-1 max-w-md mx-4">
+
+          {/* Center: Search */}
+          <div className="hidden md:flex items-center flex-1 max-w-sm mx-4">
             <div className="relative w-full">
-              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search Army/Snk No, Name, Rank, Trade..."
-                className={`w-full rounded-lg pl-9 pr-4 py-1.5 text-xs transition-colors focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 ${
-                  isLight
-                    ? 'bg-slate-100 border border-slate-300 text-slate-900 placeholder-slate-500'
-                    : 'bg-slate-900/90 border border-slate-700/80 text-white placeholder-slate-400'
-                }`}
+                placeholder="Search soldier, snk no, rank, trade..."
+                className="w-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg pl-8.5 pr-8 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 transition-colors"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-xs transition-colors ${
-                    isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'
-                  }`}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   ✕
                 </button>
@@ -210,92 +177,48 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Right: Military Time, Role Selector, User Profile */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Live Military Clock */}
-            <div className={`hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${
-              isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-900 border-slate-800 text-slate-300'
-            }`}>
-              <Clock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 animate-pulse" />
+          {/* Right: Military Time, Role Simulator, User Profile */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Military Clock */}
+            <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
               <span>{militaryTime}</span>
             </div>
 
-            {/* Role Switcher Dropdown - AVAILABLE FOR ADMIN AND GUEST DEMO */}
+            {/* Role Switcher - Simple Clean Control */}
             {(isRealAdmin || isGuest) && (
               <div className="relative">
                 <button
                   onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-                  title={
-                    isGuest
-                      ? (isSimulating
-                          ? `ডেমো সিমুলেশন: ${currentUser.role} (ক্লিক করে অন্য রোল সিলেক্ট করুন)`
-                          : 'Guest Role Simulator (Demo Mode)')
-                      : (isSimulating
-                          ? `সিমুলেশন চলছে: ${currentUser.role} (ক্লিক করে অন্য রোল সিলেক্ট করুন অথবা এডমিনে ফিরুন)`
-                          : 'Admin Role Simulator')
-                  }
-                  className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-medium shadow-sm transition-all cursor-pointer ${
-                    isGuest
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50 text-amber-700 dark:text-amber-200'
-                      : isSimulating
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/60 text-amber-700 dark:text-amber-200 ring-1 ring-amber-500/30'
-                      : isLight
-                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                      : 'bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-850 hover:to-slate-750 border-slate-700 text-slate-200'
-                  }`}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 text-xs font-medium transition-colors cursor-pointer"
                 >
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      isSimulating ? 'bg-amber-500 animate-ping' : isGuest ? 'bg-amber-500' : 'bg-emerald-500 animate-ping'
-                    }`}
-                  />
-                  <span className={`font-semibold ${isSimulating ? 'text-amber-700 dark:text-amber-300 font-bold' : isGuest ? 'text-amber-700 dark:text-amber-300' : isLight ? 'text-slate-800' : 'text-amber-300'}`}>
-                    {isGuest ? (isSimulating ? `Demo View: ${currentUser.role}` : 'Role Simulator (Demo)') : (isSimulating ? `Simulating: ${currentUser.role}` : 'Role Simulator')}
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                  <span className="font-medium">
+                    {isGuest ? (isSimulating ? `Role: ${currentUser.role}` : 'Role Demo') : (isSimulating ? `Role: ${currentUser.role}` : 'Simulator')}
                   </span>
-                  {currentUser.assignedBattery && (
-                    <span className={`font-mono text-[11px] hidden sm:inline ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                      [{currentUser.assignedBattery}]
-                    </span>
-                  )}
-                  <ChevronDown className={`w-3.5 h-3.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                 </button>
 
                 {roleDropdownOpen && (
-                  <div className={`absolute right-0 mt-2 w-72 rounded-xl shadow-2xl py-2 z-50 border transition-all ${
-                    isLight
-                      ? 'bg-white border-slate-200 text-slate-900 divide-y divide-slate-100'
-                      : 'bg-slate-900 border-slate-700 text-slate-200 divide-y divide-slate-800'
-                  }`}>
-                    <div className={`px-3 py-1.5 flex items-center justify-between text-[11px] font-semibold font-mono ${
-                      isLight ? 'text-slate-500' : 'text-slate-400'
-                    }`}>
-                      <span>{isGuest ? 'GUEST ROLE SIMULATOR (DEMO)' : 'ADMIN ROLE SIMULATOR'}</span>
+                  <div className="absolute right-0 mt-2 w-64 rounded-xl shadow-lg py-1.5 z-50 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 divide-y divide-slate-100 dark:divide-slate-700/60">
+                    <div className="px-3 py-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                      <span>Switch Role View</span>
                       {isSimulating && (
-                        <span className="text-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-sans font-semibold">
-                          Active Sim
-                        </span>
-                      )}
-                    </div>
-
-                    {isSimulating && (
-                      <div className={`p-2 ${isLight ? 'bg-amber-50' : 'bg-amber-950/40'}`}>
                         <button
                           onClick={() => {
                             exitSimulation();
                             setRoleDropdownOpen(false);
                           }}
-                          className="w-full text-center px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                          className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold hover:underline"
                         >
-                          <ShieldAlert className="w-3.5 h-3.5 text-slate-950" />
-                          <span>{isGuest ? 'Exit to Guest View (গেস্টে ফিরুন)' : 'Exit Simulation (এডমিন মোডে ফিরুন)'}</span>
+                          Reset
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
-                    <div className="py-1 max-h-64 overflow-y-auto">
+                    <div className="py-1 max-h-60 overflow-y-auto">
                       {rolesList.map((r) => {
-                        const isCurrent =
-                          currentUser.role === r.role && (!r.bty || currentUser.assignedBattery === r.bty);
+                        const isCurrent = currentUser.role === r.role && (!r.bty || currentUser.assignedBattery === r.bty);
                         return (
                           <button
                             key={r.role + (r.bty || '')}
@@ -303,24 +226,15 @@ export const Header: React.FC<HeaderProps> = ({
                               switchRole(r.role, r.bty);
                               setRoleDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                            className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
                               isCurrent
-                                ? isLight
-                                  ? 'bg-rose-50 border-l-2 border-rose-500 text-rose-900 font-bold'
-                                  : 'bg-rose-950/40 border-l-2 border-rose-500 text-white font-bold'
-                                : isLight
-                                ? 'hover:bg-slate-100 text-slate-800'
-                                : 'hover:bg-slate-800 text-slate-100'
+                                ? 'bg-slate-100 dark:bg-slate-700/60 font-semibold text-slate-900 dark:text-white'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/30 text-slate-700 dark:text-slate-300'
                             }`}
                           >
-                            <div className="flex flex-col">
-                              <span className={`font-medium ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>{r.label}</span>
-                              <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{r.desc}</span>
-                            </div>
+                            <span>{r.label}</span>
                             {r.bty && (
-                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ml-2 ${
-                                isLight ? 'bg-slate-100 text-slate-700 border border-slate-200' : 'bg-slate-800 text-slate-300'
-                              }`}>
+                              <span className="text-[10px] text-slate-400 font-mono ml-2">
                                 {r.bty}
                               </span>
                             )}
@@ -329,17 +243,15 @@ export const Header: React.FC<HeaderProps> = ({
                       })}
                     </div>
 
-                    <div className="p-2">
+                    <div className="p-1.5">
                       <button
                         onClick={() => {
                           logout();
                           setRoleDropdownOpen(false);
                         }}
-                        className={`w-full text-center px-2 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1.5 font-medium cursor-pointer transition-colors ${
-                          isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                        }`}
+                        className="w-full text-left px-2.5 py-1 rounded text-xs flex items-center gap-2 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                       >
-                        <LogOut className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
+                        <LogOut className="w-3.5 h-3.5" />
                         <span>Logout Session</span>
                       </button>
                     </div>
@@ -351,79 +263,49 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Theme Mode Switcher */}
             <ThemeSwitch />
 
-            {/* Firebase Cloud Sync Interactive Button */}
+            {/* Cloud Auto-Sync Simple Status */}
             <button
               type="button"
               onClick={() => setIsCloudModalOpen(true)}
-              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono transition-all cursor-pointer shadow-sm group border ${
-                !cloudPermissionDenied
-                  ? isLight
-                    ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800'
-                    : 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-300'
-                  : isLight
-                  ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
-                  : 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-300'
-              }`}
-              title={
-                !cloudPermissionDenied
-                  ? "Real-time Cloud Auto-Sync Active (ID/Password Mode) • Click for details"
-                  : "Cloud Rules Setup Needed • Click to view instructions"
-              }
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 cursor-pointer"
+              title="Cloud Database Sync Status"
             >
-              <Cloud className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${!cloudPermissionDenied ? 'text-emerald-500 dark:text-emerald-400 animate-pulse' : 'text-amber-500 dark:text-amber-400'}`} />
-              <span className={`text-[11px] font-bold ${!cloudPermissionDenied ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                {!cloudPermissionDenied ? 'Cloud Live' : 'Rules Setup'}
-              </span>
-              <span className={`text-[9px] font-sans hidden lg:inline ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                {!cloudPermissionDenied ? '(Auto-Sync)' : '(Needed)'}
-              </span>
+              <Cloud className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-[11px] font-medium">Cloud</span>
             </button>
 
-            {/* Profile Pill with User Photo & Name Initials */}
-            <div className={`flex items-center gap-2 pl-2 border-l ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-              {currentUser.avatar || authUser?.photoURL ? (
-                <img
-                  src={currentUser.avatar || authUser?.photoURL || ''}
-                  alt={currentUser.name}
-                  className="w-8 h-8 rounded-full border border-rose-500/50 object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-rose-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white shadow-inner font-mono">
-                  {(() => {
-                    const name = currentUser.name || '';
-                    const parts = name.trim().split(/\s+/);
-                    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-                    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                  })()}
-                </div>
-              )}
+            {/* User Profile */}
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+              <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold text-xs font-mono">
+                {(() => {
+                  const name = currentUser.name || '';
+                  const parts = name.trim().split(/\s+/);
+                  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+                  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                })()}
+              </div>
               <div className="hidden sm:flex flex-col text-left">
-                <span className={`text-xs font-bold truncate max-w-[130px] ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  {currentUser.rank} {currentUser.name}
+                <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[120px]">
+                  {currentUser.name}
                 </span>
-                <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                  {currentUser.role} {currentUser.assignedBattery ? `[${currentUser.assignedBattery}]` : ''}
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-none">
+                  {currentUser.role}
                 </span>
               </div>
             </div>
 
-            {/* Universal Logout Button for All Users */}
+            {/* Clean Logout */}
             <button
               onClick={logout}
-              title="লগআউট (Logout Session)"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer ml-1 shadow-sm ${
-                isLight
-                  ? 'bg-rose-50 hover:bg-rose-600 border-rose-200 text-rose-700 hover:text-white'
-                  : 'bg-rose-600/20 hover:bg-rose-600 border border-rose-500/40 text-rose-300 hover:text-white'
-              }`}
+              title="Logout"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden md:inline font-bold">লগআউট</span>
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
+
 
       {/* Cloud Auto-Sync Modal */}
       <CloudSyncModal

@@ -301,172 +301,72 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner: Standard Luxury Executive Command for CO, or Dignified Command for others */}
-      {isCO ? (
-        <div className={`relative overflow-hidden rounded-2xl border p-5 sm:p-7 shadow-2xl space-y-5 transition-colors duration-200 ${
-          isLight
-            ? 'bg-gradient-to-r from-amber-50/80 via-white to-amber-100/50 border-amber-300/80 shadow-amber-950/5 text-slate-900'
-            : 'bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/40 border-amber-500/40 shadow-amber-950/20 text-white'
-        }`}>
-          <div className="absolute right-0 top-0 bottom-0 w-2/5 bg-radial-gradient from-amber-500/10 via-amber-600/5 to-transparent pointer-events-none" />
-          <div className="absolute left-0 top-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
-          
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[10px] uppercase font-mono font-bold tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-sm ${
-                  isLight
-                    ? 'text-amber-800 bg-amber-100 border-amber-300'
-                    : 'text-amber-300 bg-amber-500/15 border-amber-500/30'
-                }`}>
-                  <Crown className="w-3 h-3 text-amber-500" />
-                  <span>Commanding Officer Executive Console</span>
-                </span>
-                <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
-                  isLight
-                    ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
-                    : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                }`}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>REGIMENTAL STATE: ACTIVE</span>
-                </span>
-              </div>
-              <h1 className={`text-2xl sm:text-3xl font-black font-serif tracking-tight flex items-center gap-2.5 ${
-                isLight ? 'text-slate-900' : 'text-white'
-              }`}>
-                <span>10 Medium Regiment Artillery</span>
-              </h1>
-              <p className={`text-xs sm:text-sm ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
-                <span className={`font-semibold ${isLight ? 'text-amber-800' : 'text-amber-200'}`}>{currentUser.rank} {currentUser.name}</span> — Commanding Officer
-              </p>
+      {/* Unified Minimal Command Header */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 transition-colors">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-semibold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">
+                Command & Operations
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>10 Medium Regiment Artillery</span>
+              <span aria-hidden="true">·</span>
+              <span>Daily Parade State</span>
             </div>
-
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <div className={`text-[10px] font-mono uppercase tracking-wider font-semibold ${
-                  isLight ? 'text-amber-700' : 'text-amber-400/80'
-                }`}>Total Combat Force</div>
-                <div className={`text-xl font-bold font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>{totals.totalPosted} Troops</div>
-              </div>
-            </div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Regimental State & Combat Strength
+            </h1>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Logged in as <strong className="text-slate-900 dark:text-slate-200">{currentUser.rank} {currentUser.name}</strong> ({currentUser.role})
+            </p>
           </div>
 
-          {/* Operational Combat Readiness Gauge Bar for CO */}
-          <div className={`relative p-4 sm:p-5 rounded-xl border space-y-3 transition-colors ${
-            isLight
-              ? 'bg-white border-amber-200 shadow-sm text-slate-900'
-              : 'bg-slate-950/90 border-amber-500/25 shadow-inner text-white'
-          }`}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-              <span className={`font-bold flex items-center gap-2 font-mono tracking-wide ${
-                isLight ? 'text-slate-800' : 'text-slate-100'
-              }`}>
-                <Zap className="w-4 h-4 text-amber-500" />
-                <span>OPERATIONAL COMBAT READINESS INDEX</span>
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-sm sm:text-base">
-                  {totals.presentPercentage}% COMBAT FIT
-                </span>
-                <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                  ({totals.totalPresent + totals.totalDuty} / {totals.totalPosted})
-                </span>
-              </div>
-            </div>
-
-            <div className={`w-full rounded-full h-3.5 overflow-hidden p-0.5 border ${
-              isLight ? 'bg-slate-200 border-slate-300' : 'bg-slate-900 border-slate-800'
-            }`}>
-              <div
-                className="bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-1000 shadow-sm"
-                style={{ width: `${totals.presentPercentage}%` }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] font-mono">
-              {summaries.map((s) => (
-                <div key={s.battery} className={`px-2.5 py-1.5 rounded-lg flex items-center justify-between border ${
-                  isLight
-                    ? 'bg-slate-50 border-slate-200'
-                    : 'bg-slate-900/80 border-slate-800/80'
-                }`}>
-                  <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{s.battery}:</span>
-                  <span className={`font-bold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>{s.percentage}%</span>
-                </div>
-              ))}
-            </div>
+          <div className="flex items-center gap-2 self-start md:self-center">
+            {currentUser.role === 'RSM' && (
+              <button
+                id="enlist-soldier-btn-rsm"
+                onClick={onOpenAddModal}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-medium hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Enlist Soldier
+              </button>
+            )}
+            <button
+              onClick={onOpenPrintModal}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium transition-colors cursor-pointer"
+            >
+              Print State
+            </button>
           </div>
         </div>
-      ) : (
-        <div className={`relative overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-xl space-y-4 transition-colors duration-200 ${
-          isLight
-            ? 'bg-gradient-to-r from-slate-50 via-white to-rose-50/30 border-slate-200 text-slate-900'
-            : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800 text-white'
-        }`}>
-          <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial-gradient from-rose-600/10 to-transparent pointer-events-none" />
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-rose-500 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                  10 Medium Regiment Artillery
-                </span>
-                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                  isLight
-                    ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
-                    : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                }`}>
-                  MORNING PARADE ACTIVE
-                </span>
-              </div>
-              <h1 className={`text-xl sm:text-2xl font-bold font-sans tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                Regimental Command Dashboard
-              </h1>
-              <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                <span className={`font-semibold ${isLight ? 'text-slate-800' : 'text-white'}`}>{currentUser.rank} {currentUser.name}</span> ({currentUser.role})
-              </p>
-            </div>
 
-            <div className="flex items-center gap-2 sm:self-end">
-              {currentUser.role === 'RSM' && (
-                <button
-                  id="enlist-soldier-btn-rsm"
-                  onClick={onOpenAddModal}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-900/40 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Enlist Soldier</span>
-                </button>
-              )}
-            </div>
+        {/* Operational Readiness Strip */}
+        <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-slate-600 dark:text-slate-400">
+              Combat Readiness ({totals.totalPresent + totals.totalDuty} / {totals.totalPosted} Fit)
+            </span>
+            <span className="font-mono tabular-nums font-semibold text-slate-900 dark:text-white">
+              {totals.presentPercentage}% Fit
+            </span>
           </div>
-
-          {/* Operational Readiness Summary Gauge */}
-          <div className={`p-3.5 rounded-xl border space-y-2 transition-colors ${
-            isLight
-              ? 'bg-white border-slate-200'
-              : 'bg-slate-950/80 border-slate-800/80'
-          }`}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
-              <span className={`font-bold flex items-center gap-2 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                <Zap className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                <span>OPERATIONAL COMBAT READINESS</span>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-emerald-600 dark:bg-emerald-500 h-full rounded-full transition-all duration-500"
+              style={{ width: `${totals.presentPercentage}%` }}
+            />
+          </div>
+          <div className="flex items-center gap-4 text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 overflow-x-auto pt-0.5">
+            {summaries.map((s) => (
+              <span key={s.battery}>
+                {s.battery}: <strong className="text-slate-700 dark:text-slate-300">{s.percentage}%</strong>
               </span>
-              <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                {totals.presentPercentage}% COMBAT FIT ({totals.totalPresent + totals.totalDuty} / {totals.totalPosted})
-              </span>
-            </div>
-            <div className={`w-full rounded-full h-2.5 overflow-hidden p-0.5 border ${
-              isLight ? 'bg-slate-200 border-slate-300' : 'bg-slate-900 border-slate-800'
-            }`}>
-              <div
-                className="bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-700"
-                style={{ width: `${totals.presentPercentage}%` }}
-              />
-            </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
+
 
       {/* Regimental Key Performance Stat Cards - 9 Key Status Indicators */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-9 gap-3 sm:gap-4">
@@ -925,64 +825,23 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                   <button
                     key={item.bty}
                     onClick={() => handleSelectBatteryBox(item.bty)}
-                    className={`p-3.5 rounded-xl text-left transition-all group flex flex-col justify-between border cursor-pointer ${
+                    className={`p-3 rounded-xl text-left transition-colors flex flex-col justify-between border cursor-pointer select-none ${
                       isSelected
-                        ? isLight
-                          ? 'bg-rose-50 border-rose-500/80 ring-2 ring-rose-500/30 shadow-md text-slate-900'
-                          : 'bg-rose-950/40 border-rose-500/80 ring-2 ring-rose-500/40 shadow-lg shadow-rose-950/30 text-white'
-                        : isLight
-                        ? 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 shadow-sm text-slate-900'
-                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 hover:border-slate-700 text-white'
+                        ? 'border-slate-900 dark:border-slate-100 bg-slate-50 dark:bg-slate-800 ring-1 ring-slate-900 dark:ring-slate-100'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm border transition-colors ${
-                            isSelected
-                              ? 'bg-rose-600 text-white border-rose-500'
-                              : isLight
-                              ? 'bg-slate-100 border-slate-200 text-rose-600 group-hover:border-rose-400'
-                              : 'bg-slate-800 border-slate-700 text-rose-400 group-hover:border-rose-500'
-                          }`}
-                        >
-                          {item.shortCode}
-                        </div>
-                        <span
-                          className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                            isSelected
-                              ? 'bg-rose-500 text-white'
-                              : isLight
-                              ? 'bg-slate-100 text-slate-600 border border-slate-200'
-                              : 'bg-slate-800 text-slate-400'
-                          }`}
-                        >
-                          {count} Soldiers
-                        </span>
-                      </div>
-
-                      <div className={`font-bold text-xs mt-2.5 font-sans flex items-center gap-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                        <span>{item.bty}</span>
-                        {isSelected && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        )}
-                      </div>
-                      <div className={`text-[10px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{item.name}</div>
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-bold text-xs font-mono text-slate-900 dark:text-white">
+                        {item.bty}
+                      </span>
+                      <span className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                        {count} troops
+                      </span>
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between text-[11px] font-mono">
-                      <span className={isSelected ? 'text-rose-600 dark:text-rose-300 font-bold' : isLight ? 'text-slate-500' : 'text-slate-400'}>
-                        {isSelected ? 'Active Roll' : 'View Nominal'}
-                      </span>
-                      <ArrowRight
-                        className={`w-3.5 h-3.5 transition-transform ${
-                          isSelected
-                            ? 'text-rose-500 translate-x-1'
-                            : isLight
-                            ? 'text-slate-400 group-hover:text-rose-500 group-hover:translate-x-1'
-                            : 'text-slate-500 group-hover:text-rose-400 group-hover:translate-x-1'
-                        }`}
-                      />
+                    <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {item.role}
                     </div>
                   </button>
                 );
