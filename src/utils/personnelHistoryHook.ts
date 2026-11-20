@@ -98,21 +98,44 @@ export const createPersonnelChangeActivities = (
   const today = getCleanDate();
   const existingActivities = prevRecord.activityHistory || [];
 
-  // Helper to check if a very similar activity already exists today to prevent duplicates
+  // Helper to check if a very similar activity already exists on that exact start date to prevent duplicates
   const isDuplicateActivity = (type: ServiceActivityType, title: string, startDate?: string): boolean => {
+    const targetStart = startDate || today;
     return existingActivities.some(
       (a) =>
         a.type === type &&
         a.title.toLowerCase().trim() === title.toLowerCase().trim() &&
-        (a.startDate === startDate || a.startDate === today)
+        a.startDate === targetStart
     );
   };
 
-  // 1. Status / Parade Status Changes
+  // 1. Status / Parade Status Changes (or repeat Leave/Course/Out-of-Unit with updated start date)
   const oldStatus = prevRecord.status;
   const newStatus = updatedFields.status;
+  const newStart =
+    updatedFields.leaveFrom ||
+    updatedFields.courseFrom ||
+    updatedFields.outOfUnitStartDate ||
+    updatedFields.startDate ||
+    updatedFields.admissionDate ||
+    updatedFields.comdFrom;
+  const oldStart =
+    prevRecord.leaveFrom ||
+    prevRecord.courseFrom ||
+    prevRecord.outOfUnitStartDate ||
+    prevRecord.startDate ||
+    prevRecord.admissionDate ||
+    prevRecord.comdFrom;
+  const statusChanged = Boolean(newStatus && newStatus !== oldStatus);
+  const sameStatusNewDates = Boolean(
+    newStatus &&
+      newStatus !== 'In Unit' &&
+      newStatus !== 'Present' &&
+      newStart &&
+      newStart !== oldStart
+  );
 
-  if (newStatus && newStatus !== oldStatus) {
+  if (statusChanged || sameStatusNewDates) {
     if (newStatus === 'In Unit' || newStatus === 'Present') {
       // Soldier returned to Unit from outstation, hospital, course, or leave
       const wasOut = oldStatus && oldStatus !== 'In Unit' && oldStatus !== 'Present';

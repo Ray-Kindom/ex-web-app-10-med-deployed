@@ -463,6 +463,7 @@ export interface Personnel {
 
 export type ServiceActivityType =
   | 'Duty'
+  | 'Training'
   | 'FDMN Camp'
   | 'Course'
   | 'CMH'
@@ -491,6 +492,8 @@ export interface ServiceActivityRecord {
   recordedAt: string; // ISO string
   recordedBy?: string;
   status?: 'Active' | 'Completed' | 'Returned' | 'Cancelled';
+  sourceTable?: 'personnel' | 'out_of_unit' | 'course_cadre' | 'trg_state' | 'parade_records' | 'duty_roster' | 'manual';
+  sourceId?: string;
 }
 
 export interface ParadePointCount {
@@ -574,6 +577,7 @@ export interface TeamMemberSnapshot {
 export interface CustomTeam {
   id: string;
   name: string;
+  year?: number;
   description?: string;
   memberIds: string[];
   createdAt: string;

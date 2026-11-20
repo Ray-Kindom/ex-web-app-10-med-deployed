@@ -42,8 +42,6 @@ import {
   INITIAL_AUDIT_LOGS,
   GUEST_USER,
 } from '../data/initialData';
-import { ASLT_COURSE_SNK_NOS } from '../data/asltCourseData';
-import { CRICKET_TEAM_SNK_NOS } from '../data/cricketTeamData';
 import { INITIAL_PARADE_POINTS } from '../data/paradePointsData';
 import {
   INITIAL_SYSTEM_CATEGORIES,
@@ -54,6 +52,9 @@ import {
   INITIAL_CALCULATION_CONFIG,
 } from '../data/configData';
 import { calculateSimpleParadeState, SimpleParadeSummary, normalizeDutyName } from '../utils/paradeCalculations';
+import {
+  applyPersonnelHistoryHook,
+} from '../utils/personnelHistoryHook';
 import {
   db,
   auth,
@@ -85,12 +86,13 @@ import {
   deleteSinglePersonnelFromSupabase,
   verifyUserCredentialsInSupabase,
   fetchPersonnelFromSupabase,
-  batchUpdatePersonnelStatusInSupabase,
   saveParadeRecordToSupabase,
   fetchParadeRecordsFromSupabase,
   saveSystemStateToSupabase,
   fetchSystemStateFromSupabase,
-  savePersonnelActivityToDatabase,
+  fetchTeamsFromSupabase,
+  saveTeamsByYearToSupabase,
+  deleteTeamPermanentlyFromSupabase,
 } from '../lib/supabase';
 import {
   fetchServerUsers,
@@ -278,21 +280,22 @@ interface AppContextType {
   editDutySession: (date: string, sessionType: string) => void;
   sendDutySessionToAdjt: (date: string, sessionType: string, notes?: string) => void;
 
-  // Custom Teams Management (Between Duty Detailing and Out of Unit)
+  // Custom Teams Management (Strictly Year-Partitioned Supabase DB)
   customTeams: CustomTeam[];
   recentlyDeletedTeams: CustomTeam[];
   teamHistory: CustomTeam[];
   deletedTeamIds: string[];
+  teamsLoading: boolean;
+  refreshTeamsFromDatabase: () => Promise<void>;
   addCustomTeam: (team: Omit<CustomTeam, 'id' | 'createdAt'>) => CustomTeam;
   updateCustomTeam: (id: string, updated: Partial<CustomTeam>) => void;
   deleteCustomTeam: (id: string) => CustomTeam | null;
+  permanentlyDeleteTeam: (id: string) => Promise<void>;
   undoDeleteTeam: (teamId?: string) => CustomTeam | null;
   restoreCustomTeam: (team: CustomTeam) => void;
   clearDeletedTeamsHistory: () => void;
   addMemberToTeam: (teamId: string, personnelId: string) => void;
   removeMemberFromTeam: (teamId: string, personnelId: string) => void;
-  resetAsltCourseTeam: () => void;
-  resetCricketTeam: () => void;
 
   // Out Of Unit Management
   assignOutOfUnit: (
@@ -1265,207 +1268,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  // --- CUSTOM TEAMS (Between Duty Detailing and Out of Unit) ---
-  const DEFAULT_TEAMS_LIST: CustomTeam[] = [
-    {
-      id: 'team_aslt_course',
-      name: 'Aslt Course',
-      description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
-      memberIds: [],
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-    {
-      id: 'team_cricket',
-      name: 'Cricket',
-      description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
-      memberIds: [],
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-    {
-      id: 'team_athletics',
-      name: 'Athletics Team',
-      description: 'রেজিমেন্টাল অ্যাথলেটিক্স ও স্পোর্টস দল',
-      memberIds: [],
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-    {
-      id: 'team_sl_course',
-      name: 'SL Course',
-      description: 'সেকেন্ডারি লিডারশিপ কোর্স ক্যাডার দল',
-      memberIds: [],
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-    {
-      id: 'team_firing',
-      name: 'Firing Team',
-      description: 'বার্ষিক ফায়ারিং ও অস্ত্র প্রতিযোগিতা স্কোয়াড',
-      memberIds: [],
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-  ];
+  // --- CUSTOM TEAMS (Strictly Supabase Year-Partitioned DB; zero hardcoded defaults) ---
+  const [deletedTeamIds, setDeletedTeamIds] = useState<string[]>([]);
+  const [teamHistory, setTeamHistory] = useState<CustomTeam[]>([]);
+  const [recentlyDeletedTeams, setRecentlyDeletedTeams] = useState<CustomTeam[]>([]);
+  const [customTeams, setCustomTeams] = useState<CustomTeam[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState<boolean>(true);
 
-  // Tombstones for permanently deleted team IDs (survives page reloads & prevents resurrection)
-  const [deletedTeamIds, setDeletedTeamIds] = useState<string[]>(() => {
+  const resolveTeamYear = (t: Partial<CustomTeam>): number =>
+    Number(t.year) ||
+    (t.createdAt ? new Date(t.createdAt).getFullYear() : new Date().getFullYear()) ||
+    new Date().getFullYear();
+
+  const persistTeamsByYear = (
+    nextActive: CustomTeam[],
+    nextHistory: CustomTeam[],
+    nextDeletedIds: string[]
+  ) => {
+    saveTeamsByYearToSupabase({
+      activeTeams: nextActive,
+      teamHistory: nextHistory,
+      deletedTeamIds: nextDeletedIds,
+    }).catch((err) => console.warn('Year-partitioned teams save note:', err));
+  };
+
+  const refreshTeamsFromDatabase = async () => {
+    setTeamsLoading(true);
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.DELETED_TEAM_IDS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map((s: string) => String(s).trim());
+      const res = await fetchTeamsFromSupabase();
+      if (res && res.success) {
+        const sDeletedIds: string[] = Array.isArray(res.deletedTeamIds) ? res.deletedTeamIds : [];
+        const sHistory: CustomTeam[] = (Array.isArray(res.teamHistory) ? res.teamHistory : []).map((t) => ({
+          ...t,
+          year: resolveTeamYear(t),
+          isDeleted: true,
+        }));
+        const delSet = new Set(sDeletedIds);
+        const sActive: CustomTeam[] = (Array.isArray(res.activeTeams) ? res.activeTeams : [])
+          .filter((t) => t && t.id && !t.isDeleted && !delSet.has(t.id))
+          .map((t) => ({
+            ...t,
+            year: resolveTeamYear(t),
+          }));
+
+        setDeletedTeamIds(sDeletedIds);
+        setTeamHistory(sHistory);
+        setRecentlyDeletedTeams(sHistory.slice(0, 15));
+        setCustomTeams(sActive);
+      } else {
+        setDeletedTeamIds([]);
+        setTeamHistory([]);
+        setRecentlyDeletedTeams([]);
+        setCustomTeams([]);
       }
-    } catch (e) {}
-    return [];
-  });
+    } catch (err) {
+      console.warn('Supabase teams fetch error:', err);
+      setCustomTeams([]);
+    } finally {
+      setTeamsLoading(false);
+    }
+  };
 
-  // Permanent Historical Archive of Deleted / Past Teams (with full member snapshot)
-  const [teamHistory, setTeamHistory] = useState<CustomTeam[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TEAM_HISTORY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      const legacyDeleted = localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS);
-      if (legacyDeleted) {
-        const parsed = JSON.parse(legacyDeleted);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return [];
-  });
-
-  const [recentlyDeletedTeams, setRecentlyDeletedTeams] = useState<CustomTeam[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return [];
-  });
-
-  // Active teams (strictly loaded from persistent storage, filtering out any deleted team IDs)
-  const [customTeams, setCustomTeams] = useState<CustomTeam[]>(() => {
-    const deletedSet = new Set(
-      (() => {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEYS.DELETED_TEAM_IDS);
-          return raw ? JSON.parse(raw) : [];
-        } catch {
-          return [];
-        }
-      })()
-    );
-
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_TEAMS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((t: CustomTeam) => t && t.id && !t.isDeleted && !deletedSet.has(t.id));
-        }
-      }
-    } catch (e) {}
-
-    // First time defaults: filter out any tombstoned IDs
-    return DEFAULT_TEAMS_LIST.filter((t) => !deletedSet.has(t.id));
-  });
-
-  // Multi-tier Database & Server Disk Teams Bootstrap
   useEffect(() => {
     let isMounted = true;
-    const syncTeamsFromDatabase = async () => {
-      let serverSyncSuccess = false;
-      // 1. Fetch from server disk endpoint (/api/teams)
-      try {
-        const res = await fetch('/api/teams');
-        const data = await res.json();
-        if (isMounted && data && data.success) {
-          const sDeletedIds: string[] = Array.isArray(data.deletedTeamIds) ? data.deletedTeamIds : [];
-          const sHistory: CustomTeam[] = Array.isArray(data.teamHistory) ? data.teamHistory : [];
-          const sActive: CustomTeam[] = Array.isArray(data.activeTeams) ? data.activeTeams : [];
-
-          if (sDeletedIds.length > 0 || sHistory.length > 0 || sActive.length > 0) {
-            setDeletedTeamIds((prev) => {
-              const merged = Array.from(new Set([...prev, ...sDeletedIds]));
-              try {
-                localStorage.setItem(STORAGE_KEYS.DELETED_TEAM_IDS, JSON.stringify(merged));
-              } catch (e) {}
-              return merged;
-            });
-
-            setTeamHistory((prev) => {
-              const existingIds = new Set(prev.map((t) => t.id));
-              const merged = [...prev];
-              sHistory.forEach((item) => {
-                if (!existingIds.has(item.id)) merged.push(item);
-              });
-              try {
-                localStorage.setItem(STORAGE_KEYS.TEAM_HISTORY, JSON.stringify(merged));
-                localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify(merged.slice(0, 15)));
-              } catch (e) {}
-              return merged;
-            });
-
-            setRecentlyDeletedTeams((prev) => {
-              const existingIds = new Set(prev.map((t) => t.id));
-              const merged = [...prev];
-              sHistory.forEach((item) => {
-                if (!existingIds.has(item.id)) merged.push(item);
-              });
-              return merged.slice(0, 15);
-            });
-
-            if (sActive.length > 0) {
-              const delSet = new Set(sDeletedIds);
-              const validActive = sActive.filter((t) => !t.isDeleted && !delSet.has(t.id));
-              setCustomTeams(validActive);
-              try {
-                localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(validActive));
-              } catch (e) {}
-            }
-            serverSyncSuccess = true;
-          }
-        }
-      } catch (err) {
-        console.warn('Server teams sync note:', err);
-      }
-
-      // 2. Fetch from Supabase Cloud Database if configured and server was empty
-      if (!serverSyncSuccess && isSupabaseConfigured()) {
-        try {
-          const suRes = await fetchSystemStateFromSupabase('custom_teams');
-          if (isMounted && suRes.success && suRes.data) {
-            const d = suRes.data;
-            const suDeletedIds: string[] = Array.isArray(d.deletedTeamIds) ? d.deletedTeamIds : [];
-            const suHistory: CustomTeam[] = Array.isArray(d.teamHistory) ? d.teamHistory : [];
-            const suActive: CustomTeam[] = Array.isArray(d.activeTeams) ? d.activeTeams : [];
-
-            if (suDeletedIds.length > 0) {
-              setDeletedTeamIds((prev) => Array.from(new Set([...prev, ...suDeletedIds])));
-            }
-            if (suHistory.length > 0) {
-              setTeamHistory((prev) => {
-                const existingIds = new Set(prev.map((t) => t.id));
-                const merged = [...prev];
-                suHistory.forEach((item) => {
-                  if (!existingIds.has(item.id)) merged.push(item);
-                });
-                return merged;
-              });
-            }
-            if (suActive.length > 0) {
-              const delSet = new Set(suDeletedIds);
-              setCustomTeams(suActive.filter((t) => !t.isDeleted && !delSet.has(t.id)));
-            }
-          }
-        } catch (e) {
-          console.warn('Supabase teams sync note:', e);
-        }
-      }
+    const loadInitialTeams = async () => {
+      if (!isMounted) return;
+      await refreshTeamsFromDatabase();
     };
-
-    syncTeamsFromDatabase();
+    loadInitialTeams();
     return () => {
       isMounted = false;
     };
@@ -1473,10 +1343,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addCustomTeam = (team: Omit<CustomTeam, 'id' | 'createdAt'>): CustomTeam => {
     const id = 'team_' + Date.now();
+    const nowIso = new Date().toISOString();
+    const teamYear = Number(team.year) || new Date().getFullYear();
     const newTeam: CustomTeam = {
       ...team,
       id,
-      createdAt: new Date().toISOString(),
+      year: teamYear,
+      createdAt: nowIso,
       createdBy: `${currentUser.rank} ${currentUser.name}`,
     };
     const nextActive = [...customTeams, newTeam];
@@ -1484,72 +1357,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCustomTeams(nextActive);
     setDeletedTeamIds(nextDeletedIds);
+    persistTeamsByYear(nextActive, teamHistory, nextDeletedIds);
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(nextActive));
-      localStorage.setItem(STORAGE_KEYS.DELETED_TEAM_IDS, JSON.stringify(nextDeletedIds));
-    } catch (e) {}
-
-    // Server Disk persistence
-    fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activeTeams: nextActive,
-        teamHistory,
-        deletedTeamIds: nextDeletedIds,
-      }),
-    }).catch(() => {});
-
-    // Supabase Cloud persistence
-    if (isSupabaseConfigured()) {
-      saveSystemStateToSupabase('custom_teams', {
-        activeTeams: nextActive,
-        teamHistory,
-        deletedTeamIds: nextDeletedIds,
-      }).catch(() => {});
-    }
-
-    syncDoc(setDoc(doc(db, 'custom_teams', id), sanitizeForFirestore(newTeam)), 'add custom team');
-    showNotification(`Team "${newTeam.name}" সফলভাবে তৈরি হয়েছে।`);
-    addAuditLog('Team Created', `Created team "${newTeam.name}" with ${newTeam.memberIds.length} members`, 'SYSTEM');
+    showNotification(`Team "${newTeam.name}" (${teamYear} সাল) ডাটাবেজে সংরক্ষণ হয়েছে।`);
+    addAuditLog('Team Created', `Created team "${newTeam.name}" (Year ${teamYear}) with ${newTeam.memberIds.length} members`, 'SYSTEM');
     return newTeam;
   };
 
   const updateCustomTeam = (id: string, updated: Partial<CustomTeam>) => {
-    const nextActive = customTeams.map((t) => (t.id === id ? { ...t, ...updated, updatedAt: new Date().toISOString() } : t));
+    const nextActive = customTeams.map((t) => {
+      if (t.id !== id) return t;
+      const merged = { ...t, ...updated, updatedAt: new Date().toISOString() };
+      return { ...merged, year: resolveTeamYear(merged) };
+    });
     setCustomTeams(nextActive);
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(nextActive));
-    } catch (e) {}
-
-    fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activeTeams: nextActive,
-        teamHistory,
-        deletedTeamIds,
-      }),
-    }).catch(() => {});
-
-    if (isSupabaseConfigured()) {
-      saveSystemStateToSupabase('custom_teams', {
-        activeTeams: nextActive,
-        teamHistory,
-        deletedTeamIds,
-      }).catch(() => {});
-    }
-
-    syncDoc(setDoc(doc(db, 'custom_teams', id), sanitizeForFirestore(updated), { merge: true }), 'update custom team');
-    showNotification('টিমের তথ্য আপডেট করা হয়েছে।');
+    persistTeamsByYear(nextActive, teamHistory, deletedTeamIds);
+    showNotification('টিমের তথ্য ডাটাবেজে আপডেট করা হয়েছে।');
   };
 
   const deleteCustomTeam = (id: string): CustomTeam | null => {
     const teamToDelete = customTeams.find((t) => t.id === id);
     if (!teamToDelete) return null;
 
-    // Build snapshot of members who were in this team so user can always see who was in it later
     const snapshotMembers = teamToDelete.memberIds
       .map((mId) => {
         const p = (personnelList || []).find((s) => s.id === mId || s.snkNo === mId);
@@ -1568,6 +1397,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const deletedRecord: CustomTeam = {
       ...teamToDelete,
+      year: resolveTeamYear(teamToDelete),
       isDeleted: true,
       deletedAt: new Date().toISOString(),
       deletedBy: `${currentUser.rank} ${currentUser.name}`,
@@ -1576,64 +1406,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const nextActive = customTeams.filter((t) => t.id !== id);
     const nextDeletedIds = Array.from(new Set([...deletedTeamIds, id]));
-    const nextHistory = [
-      deletedRecord,
-      ...teamHistory.filter((t) => t.id !== id),
-    ];
+    const nextHistory = [deletedRecord, ...teamHistory.filter((t) => t.id !== id)];
 
     setCustomTeams(nextActive);
     setDeletedTeamIds(nextDeletedIds);
     setTeamHistory(nextHistory);
     setRecentlyDeletedTeams(nextHistory.slice(0, 15));
 
-    // Save to LocalStorage
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(nextActive));
-      localStorage.setItem(STORAGE_KEYS.DELETED_TEAM_IDS, JSON.stringify(nextDeletedIds));
-      localStorage.setItem(STORAGE_KEYS.TEAM_HISTORY, JSON.stringify(nextHistory));
-      localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify(nextHistory.slice(0, 15)));
-    } catch (e) {}
+    persistTeamsByYear(nextActive, nextHistory, nextDeletedIds);
 
-    // Save to Server Disk (data/teams.json)
-    fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activeTeams: nextActive,
-        teamHistory: nextHistory,
-        deletedTeamIds: nextDeletedIds,
-      }),
-    }).catch(() => {});
-
-    // Save to Supabase Cloud Database
-    if (isSupabaseConfigured()) {
-      saveSystemStateToSupabase('custom_teams', {
-        activeTeams: nextActive,
-        teamHistory: nextHistory,
-        deletedTeamIds: nextDeletedIds,
-      }).catch(() => {});
-    }
-
-    // Firestore Sync
-    syncDoc(deleteDoc(doc(db, 'custom_teams', id)), 'delete custom team');
-    syncDoc(
-      setDoc(doc(db, 'settings', 'custom_teams_state'), sanitizeForFirestore({
-        activeTeams: nextActive,
-        teamHistory: nextHistory,
-        deletedTeamIds: nextDeletedIds,
-        lastUpdated: new Date().toISOString(),
-      })),
-      'sync teams state'
-    );
-
-    showNotification(`টিম "${teamToDelete.name}" সফলভাবে মুছে ফেলা হয়েছে এবং টিম হিস্ট্রি ও ডাটাবেজে স্থায়ীভাবে সংরক্ষণ করা হয়েছে।`);
-    addAuditLog('Team Deleted & Preserved', `Deleted team "${teamToDelete.name}" (${teamToDelete.memberIds.length} members) and preserved in database history`, 'SYSTEM');
+    showNotification(`টিম "${teamToDelete.name}" আর্কাইভ করা হয়েছে এবং সাল-ভিত্তিক ডাটাবেজে সংরক্ষিত রয়েছে।`);
+    addAuditLog('Team Archived', `Archived team "${teamToDelete.name}" (${teamToDelete.memberIds.length} members)`, 'SYSTEM');
     return deletedRecord;
+  };
+
+  const permanentlyDeleteTeam = async (id: string) => {
+    const nextActive = customTeams.filter((t) => t.id !== id);
+    const nextHistory = teamHistory.filter((t) => t.id !== id);
+    const nextDeletedIds = deletedTeamIds.filter((tId) => tId !== id);
+
+    setCustomTeams(nextActive);
+    setTeamHistory(nextHistory);
+    setRecentlyDeletedTeams(nextHistory.slice(0, 15));
+    setDeletedTeamIds(nextDeletedIds);
+
+    await deleteTeamPermanentlyFromSupabase(id);
+    persistTeamsByYear(nextActive, nextHistory, nextDeletedIds);
+    showNotification('টিমটি ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে।');
   };
 
   const restoreCustomTeam = (team: CustomTeam) => {
     const cleanTeam: CustomTeam = {
       ...team,
+      year: resolveTeamYear(team),
       isDeleted: false,
       deletedAt: undefined,
       deletedBy: undefined,
@@ -1649,46 +1454,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTeamHistory(nextHistory);
     setRecentlyDeletedTeams(nextHistory.slice(0, 15));
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(nextActive));
-      localStorage.setItem(STORAGE_KEYS.DELETED_TEAM_IDS, JSON.stringify(nextDeletedIds));
-      localStorage.setItem(STORAGE_KEYS.TEAM_HISTORY, JSON.stringify(nextHistory));
-      localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify(nextHistory.slice(0, 15)));
-    } catch (e) {}
-
-    // Save to Server Disk (data/teams.json)
-    fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activeTeams: nextActive,
-        teamHistory: nextHistory,
-        deletedTeamIds: nextDeletedIds,
-      }),
-    }).catch(() => {});
-
-    // Save to Supabase Cloud Database
-    if (isSupabaseConfigured()) {
-      saveSystemStateToSupabase('custom_teams', {
-        activeTeams: nextActive,
-        teamHistory: nextHistory,
-        deletedTeamIds: nextDeletedIds,
-      }).catch(() => {});
-    }
-
-    syncDoc(setDoc(doc(db, 'custom_teams', team.id), sanitizeForFirestore(cleanTeam)), 'restore custom team');
-    syncDoc(
-      setDoc(doc(db, 'settings', 'custom_teams_state'), sanitizeForFirestore({
-        activeTeams: nextActive,
-        teamHistory: nextHistory,
-        deletedTeamIds: nextDeletedIds,
-        lastUpdated: new Date().toISOString(),
-      })),
-      'sync teams state'
-    );
-
-    showNotification(`টিম "${team.name}" সফলভাবে সক্রিয় টিমে পুনরুদ্ধার করা হয়েছে।`);
-    addAuditLog('Team Restored', `Restored team "${team.name}" from history to active teams`, 'SYSTEM');
+    persistTeamsByYear(nextActive, nextHistory, nextDeletedIds);
+    showNotification(`টিম "${team.name}" (${cleanTeam.year} সাল) সক্রিয় তালিকায় পুনরুদ্ধার করা হয়েছে।`);
+    addAuditLog('Team Restored', `Restored team "${team.name}" (Year ${cleanTeam.year})`, 'SYSTEM');
   };
 
   const undoDeleteTeam = (teamId?: string): CustomTeam | null => {
@@ -1705,10 +1473,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearDeletedTeamsHistory = () => {
     setRecentlyDeletedTeams([]);
     setTeamHistory([]);
-    try {
-      localStorage.removeItem(STORAGE_KEYS.DELETED_TEAMS);
-      localStorage.removeItem(STORAGE_KEYS.TEAM_HISTORY);
-    } catch (e) {}
+    persistTeamsByYear(customTeams, [], deletedTeamIds);
     showNotification('টিম হিস্ট্রি খালি করা হয়েছে।');
   };
 
@@ -1718,6 +1483,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (t.memberIds.includes(personnelId)) return t;
         return {
           ...t,
+          year: resolveTeamYear(t),
           memberIds: [...t.memberIds, personnelId],
           updatedAt: new Date().toISOString(),
         };
@@ -1725,24 +1491,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return t;
     });
     setCustomTeams(nextActive);
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(nextActive));
-    } catch (e) {}
-
-    fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activeTeams: nextActive,
-        teamHistory,
-        deletedTeamIds,
-      }),
-    }).catch(() => {});
-
-    const target = nextActive.find((t) => t.id === teamId);
-    if (target) {
-      syncDoc(setDoc(doc(db, 'custom_teams', teamId), sanitizeForFirestore(target), { merge: true }), 'add team member');
-    }
+    persistTeamsByYear(nextActive, teamHistory, deletedTeamIds);
   };
 
   const removeMemberFromTeam = (teamId: string, personnelId: string) => {
@@ -1750,6 +1499,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (t.id === teamId) {
         return {
           ...t,
+          year: resolveTeamYear(t),
           memberIds: t.memberIds.filter((mId) => mId !== personnelId),
           updatedAt: new Date().toISOString(),
         };
@@ -1757,169 +1507,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return t;
     });
     setCustomTeams(nextActive);
-    try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(nextActive));
-    } catch (e) {}
-
-    fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activeTeams: nextActive,
-        teamHistory,
-        deletedTeamIds,
-      }),
-    }).catch(() => {});
-
-    const target = nextActive.find((t) => t.id === teamId);
-    if (target) {
-      syncDoc(setDoc(doc(db, 'custom_teams', teamId), sanitizeForFirestore(target), { merge: true }), 'remove team member');
-    }
+    persistTeamsByYear(nextActive, teamHistory, deletedTeamIds);
   };
-
-  const resetAsltCourseTeam = () => {
-    const asltIds = ASLT_COURSE_SNK_NOS.map((snk) => {
-      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
-      return p?.id;
-    }).filter(Boolean) as string[];
-
-    const nextDeletedIds = deletedTeamIds.filter((id) => id !== 'team_aslt_course');
-    setDeletedTeamIds(nextDeletedIds);
-    setTeamHistory((prev) => prev.filter((t) => t.id !== 'team_aslt_course'));
-
-    setCustomTeams((prev) => {
-      const nonAslt = prev.filter(
-        (t) => t.id !== 'team_aslt_course' && !t.name.toLowerCase().includes('aslt')
-      );
-      const existing = prev.find(
-        (t) => t.id === 'team_aslt_course' || t.name.toLowerCase().includes('aslt')
-      );
-      const asltTeam: CustomTeam = {
-        id: 'team_aslt_course',
-        name: 'Aslt Course',
-        description: 'Assault Course ক্যাডার ও প্রশিক্ষণ দল (৩২ জন সদস্য)',
-        memberIds: asltIds,
-        createdAt: existing?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      const next = [asltTeam, ...nonAslt];
-      try {
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
-        localStorage.setItem(STORAGE_KEYS.DELETED_TEAM_IDS, JSON.stringify(nextDeletedIds));
-      } catch (e) {}
-
-      fetch('/api/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          activeTeams: next,
-          teamHistory: teamHistory.filter((t) => t.id !== 'team_aslt_course'),
-          deletedTeamIds: nextDeletedIds,
-        }),
-      }).catch(() => {});
-
-      return next;
-    });
-    showNotification('Aslt Course টিম ৩২ জন সদস্য সহ সফলভাবে রিসেট ও সক্রিয় করা হয়েছে।');
-  };
-
-  const resetCricketTeam = () => {
-    const cricketIds = CRICKET_TEAM_SNK_NOS.map((snk) => {
-      const p = (personnelList || []).find((s) => s.snkNo?.toLowerCase() === snk.toLowerCase());
-      return p?.id;
-    }).filter(Boolean) as string[];
-
-    const nextDeletedIds = deletedTeamIds.filter((id) => id !== 'team_cricket');
-    setDeletedTeamIds(nextDeletedIds);
-    setTeamHistory((prev) => prev.filter((t) => t.id !== 'team_cricket'));
-
-    setCustomTeams((prev) => {
-      const nonCricket = prev.filter(
-        (t) => t.id !== 'team_cricket' && !t.name.toLowerCase().includes('cricket')
-      );
-      const existing = prev.find(
-        (t) => t.id === 'team_cricket' || t.name.toLowerCase().includes('cricket')
-      );
-      const cricketTeam: CustomTeam = {
-        id: 'team_cricket',
-        name: 'Cricket',
-        description: 'রেজিমেন্টাল ক্রিকেট দল (১৬ জন সদস্য)',
-        memberIds: cricketIds,
-        createdAt: existing?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      const next = [cricketTeam, ...nonCricket];
-      try {
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
-        localStorage.setItem(STORAGE_KEYS.DELETED_TEAM_IDS, JSON.stringify(nextDeletedIds));
-      } catch (e) {}
-
-      fetch('/api/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          activeTeams: next,
-          teamHistory: teamHistory.filter((t) => t.id !== 'team_cricket'),
-          deletedTeamIds: nextDeletedIds,
-        }),
-      }).catch(() => {});
-
-      return next;
-    });
-    showNotification('Cricket টিম ১৬ জন সদস্য সহ সফলভাবে রিসেট ও সক্রিয় করা হয়েছে।');
-  };
-
-  // Synchronize Assault Course (32) and Cricket (16) members ONLY IF active (never recreate if deleted)
-  useEffect(() => {
-    if (!personnelList || personnelList.length === 0) return;
-
-    const asltIds = ASLT_COURSE_SNK_NOS.map((snk) => {
-      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
-      return p?.id;
-    }).filter(Boolean) as string[];
-
-    const cricketIds = CRICKET_TEAM_SNK_NOS.map((snk) => {
-      const p = personnelList.find((soldier) => soldier.snkNo?.toLowerCase() === snk.toLowerCase());
-      return p?.id;
-    }).filter(Boolean) as string[];
-
-    if (asltIds.length === 0 && cricketIds.length === 0) return;
-
-    setCustomTeams((prev) => {
-      const delSet = new Set(deletedTeamIds);
-      let modified = false;
-
-      const next = prev.map((team) => {
-        const isAslt = team.id === 'team_aslt_course' || team.name.toLowerCase().trim() === 'aslt course' || team.name.toLowerCase().includes('aslt');
-        const isCricket = team.id === 'team_cricket' || team.name.toLowerCase().trim() === 'cricket' || team.name.toLowerCase().includes('cricket');
-
-        if (isAslt && !delSet.has(team.id)) {
-          const isIdentical = team.memberIds.length === asltIds.length && team.memberIds.every((id, idx) => id === asltIds[idx]);
-          if (!isIdentical && asltIds.length > 0) {
-            modified = true;
-            return { ...team, memberIds: asltIds, updatedAt: new Date().toISOString() };
-          }
-        }
-
-        if (isCricket && !delSet.has(team.id)) {
-          const isIdentical = team.memberIds.length === cricketIds.length && team.memberIds.every((id, idx) => id === cricketIds[idx]);
-          if (!isIdentical && cricketIds.length > 0) {
-            modified = true;
-            return { ...team, memberIds: cricketIds, updatedAt: new Date().toISOString() };
-          }
-        }
-
-        return team;
-      });
-
-      if (!modified) return prev;
-
-      try {
-        localStorage.setItem(STORAGE_KEYS.CUSTOM_TEAMS, JSON.stringify(next));
-      } catch (e) {}
-      return next;
-    });
-  }, [personnelList, deletedTeamIds]);
 
   // --- PARADE DUTY ASSIGNMENTS (Team, Unit Sy, working, Fixed Duty, Others) ---
   const [paradeDutyAssignments, setParadeDutyAssignments] = useState<
@@ -1979,6 +1568,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ assignments: { [key]: nextList } }),
     }).catch(() => {});
+
+    // Auto-sync with Supabase Cloud (parade_records duty_% row)
+    if (isSupabaseConfigured()) {
+      const userDisplay = `${currentUser.rank} ${currentUser.name}`;
+      const currentStatus = dutySessionStatuses[key]?.status || 'Draft';
+      saveDutyDetailingToSupabase(assignment.date, assignment.sessionType, nextList, currentStatus, userDisplay).catch(() => {});
+    }
 
     syncDoc(
       setDoc(
@@ -4837,11 +4433,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('গেস্ট মোডে সৈন্যের তথ্য পরিবর্তন করা যাবে না (GUEST — VIEW ONLY)।');
       return;
     }
+    const actorName = `${currentUser.rank} ${currentUser.name}`;
+
     let updatedRecord: Personnel | null = null;
     setPersonnelList((prev) => {
       const next = prev.map((p) => {
         if (p.id === id) {
-          updatedRecord = { ...p, ...updated };
+          updatedRecord = applyPersonnelHistoryHook(p, updated, actorName);
           return updatedRecord;
         }
         return p;
@@ -4856,7 +4454,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Write to Firestore
     if (updatedRecord) {
       syncDoc(setDoc(doc(db, 'personnel', id), sanitizeForFirestore(updatedRecord), { merge: true }), 'update personnel');
-      // Sync to Supabase Cloud
+      // Sync to Supabase Cloud (personnel row + embedded status_details.activityHistory)
       if (isSupabaseConfigured()) {
         upsertSinglePersonnelToSupabase(updatedRecord).catch((e) =>
           console.warn('Supabase update soldier note:', e)
@@ -4939,72 +4537,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    const actorName = `${currentUser.rank} ${currentUser.name}`;
+    const today = new Date().toISOString().split('T')[0];
+    const targetBefore = personnelList.find((p) => p.id === id);
+
     let updatedDoc: Partial<Personnel> | null = null;
+    let fullUpdatedRecord: Personnel | null = null;
+
+    const isUnitStatus = status === 'In Unit' || status === 'Present';
+    if (isUnitStatus) {
+      updatedDoc = {
+        status: 'In Unit',
+        statusDetails: undefined,
+        outOfUnitCategory: undefined,
+        location: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        durationDays: undefined,
+        authority: undefined,
+        outOfUnitLocation: undefined,
+        outOfUnitStartDate: undefined,
+        outOfUnitEndDate: undefined,
+        outOfUnitAuthority: undefined,
+        outOfUnitRemarks: undefined,
+      };
+    } else {
+      let nextCategory: OutOfUnitCategory | undefined = undefined;
+      if (
+        status === 'P/Lve' ||
+        status === 'C/Lve' ||
+        status === 'Course' ||
+        status === 'CMH' ||
+        status === 'FDMN' ||
+        status === 'Comd' ||
+        status === 'Att' ||
+        status === 'Msn' ||
+        status === 'ERE'
+      ) {
+        nextCategory = status as OutOfUnitCategory;
+      }
+
+      const formattedDetails =
+        detailsStr ||
+        `${status}${location ? ` - ${location}` : ''}${
+          durationDays ? ` (${durationDays} Days)` : ''
+        }`;
+
+      updatedDoc = {
+        status,
+        statusDetails: formattedDetails,
+        outOfUnitCategory: nextCategory,
+        location: location ?? targetBefore?.location,
+        startDate: startDate ?? targetBefore?.startDate,
+        endDate: endDate ?? targetBefore?.endDate,
+        durationDays: durationDays ?? targetBefore?.durationDays,
+        authority: authority ?? targetBefore?.authority,
+        remarks: remarks ?? targetBefore?.remarks,
+        outOfUnitLocation: location ?? targetBefore?.outOfUnitLocation,
+        outOfUnitStartDate: startDate ?? targetBefore?.outOfUnitStartDate,
+        outOfUnitEndDate: endDate ?? targetBefore?.outOfUnitEndDate,
+        outOfUnitAuthority: authority ?? targetBefore?.outOfUnitAuthority,
+        outOfUnitRemarks: remarks ?? targetBefore?.outOfUnitRemarks,
+      };
+    }
+
     setPersonnelList((prev) => {
       const next = prev.map((p) => {
-        if (p.id === id) {
-          const isUnitStatus = status === 'In Unit' || status === 'Present';
-          if (isUnitStatus) {
-            updatedDoc = {
-              status: 'In Unit',
-              statusDetails: undefined,
-              outOfUnitCategory: undefined,
-              location: undefined,
-              startDate: undefined,
-              endDate: undefined,
-              durationDays: undefined,
-              authority: undefined,
-              outOfUnitLocation: undefined,
-              outOfUnitStartDate: undefined,
-              outOfUnitEndDate: undefined,
-              outOfUnitAuthority: undefined,
-              outOfUnitRemarks: undefined,
-            };
-          } else {
-            // Map status to category if applicable
-            let nextCategory: OutOfUnitCategory | undefined = undefined;
-            if (
-              status === 'P/Lve' ||
-              status === 'C/Lve' ||
-              status === 'Course' ||
-              status === 'CMH' ||
-              status === 'FDMN' ||
-              status === 'Comd' ||
-              status === 'Att' ||
-              status === 'Msn' ||
-              status === 'ERE'
-            ) {
-              nextCategory = status as OutOfUnitCategory;
-            }
-
-            const formattedDetails =
-              detailsStr ||
-              `${status}${location ? ` - ${location}` : ''}${
-                durationDays ? ` (${durationDays} Days)` : ''
-              }`;
-
-            updatedDoc = {
-              status,
-              statusDetails: formattedDetails,
-              outOfUnitCategory: nextCategory,
-              location: location ?? p.location,
-              startDate: startDate ?? p.startDate,
-              endDate: endDate ?? p.endDate,
-              durationDays: durationDays ?? p.durationDays,
-              authority: authority ?? p.authority,
-              remarks: remarks ?? p.remarks,
-              outOfUnitLocation: location ?? p.outOfUnitLocation,
-              outOfUnitStartDate: startDate ?? p.outOfUnitStartDate,
-              outOfUnitEndDate: endDate ?? p.outOfUnitEndDate,
-              outOfUnitAuthority: authority ?? p.outOfUnitAuthority,
-              outOfUnitRemarks: remarks ?? p.outOfUnitRemarks,
-            };
-          }
-
-          return {
-            ...p,
-            ...updatedDoc,
-          };
+        if (p.id === id && updatedDoc) {
+          const basePerson: Personnel = isUnitStatus
+            ? {
+                ...p,
+                activityHistory: (p.activityHistory || []).map((a) =>
+                  a.status === 'Active' ? { ...a, status: 'Returned' as const, endDate: a.endDate || today } : a
+                ),
+              }
+            : p;
+          fullUpdatedRecord = applyPersonnelHistoryHook(basePerson, updatedDoc, actorName);
+          return fullUpdatedRecord;
         }
         return p;
       });
@@ -5013,7 +4622,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
       return next;
     });
-    const target = personnelList.find((p) => p.id === id);
+
+    const target = fullUpdatedRecord || targetBefore;
     if (target) {
       const locText = location ? ` at ${location}` : '';
       const durText = durationDays ? ` (${durationDays} Days)` : '';
@@ -5026,16 +4636,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     // Write to Firestore
     if (updatedDoc) {
-      syncDoc(setDoc(doc(db, 'personnel', id), sanitizeForFirestore(updatedDoc), { merge: true }), 'update parade status');
-      // Sync to Supabase Cloud
+      syncDoc(
+        setDoc(
+          doc(db, 'personnel', id),
+          sanitizeForFirestore(fullUpdatedRecord || updatedDoc),
+          { merge: true }
+        ),
+        'update parade status'
+      );
+      // Sync to Supabase Cloud (personnel row + embedded status_details.activityHistory)
       if (isSupabaseConfigured() && target) {
-        const fullUpdated = { ...target, ...updatedDoc } as Personnel;
+        const fullUpdated = (fullUpdatedRecord || { ...target, ...updatedDoc }) as Personnel;
         upsertSinglePersonnelToSupabase(fullUpdated).catch((e) =>
           console.warn('Supabase update parade status note:', e)
         );
       }
       if (target) {
-        const fullUpdated = { ...target, ...updatedDoc } as Personnel;
+        const fullUpdated = (fullUpdatedRecord || { ...target, ...updatedDoc }) as Personnel;
         fetch('/api/personnel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5050,14 +4667,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('গেস্ট মোডে প্যারেড স্ট্যাটাস পরিবর্তন করা যাবে না (GUEST — VIEW ONLY)।');
       return;
     }
+    const actorName = `${currentUser.rank} ${currentUser.name}`;
+    const today = new Date().toISOString().split('T')[0];
+    const isUnitStatus = status === 'Present' || status === 'In Unit';
+    const modifiedRecords: Personnel[] = [];
+
     const updatedPersonnel = personnelList.map((p) => {
       if (ids.includes(p.id)) {
-        return {
-          ...p,
-          status,
-          statusDetails: statusDetails ?? (status === 'Present' ? undefined : p.statusDetails),
-          outOfUnitCategory: status === 'Present' ? undefined : p.outOfUnitCategory,
+        const basePerson: Personnel = isUnitStatus
+          ? {
+              ...p,
+              activityHistory: (p.activityHistory || []).map((a) =>
+                a.status === 'Active' ? { ...a, status: 'Returned' as const, endDate: a.endDate || today } : a
+              ),
+            }
+          : p;
+        const patch: Partial<Personnel> = {
+          status: isUnitStatus ? 'In Unit' : status,
+          statusDetails: statusDetails ?? (isUnitStatus ? undefined : p.statusDetails),
+          outOfUnitCategory: isUnitStatus ? undefined : p.outOfUnitCategory,
         };
+        const hooked = applyPersonnelHistoryHook(basePerson, patch, actorName);
+        modifiedRecords.push(hooked);
+        return hooked;
       }
       return p;
     });
@@ -5067,20 +4699,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
     showNotification(`Updated ${ids.length} soldiers to ${status}`);
     addAuditLog('Batch Status Update', `Updated ${ids.length} records to ${status}`, 'PARADE_STATE');
-    // Batch sync to Firestore
-    ids.forEach((id) => {
+    // Batch sync to Firestore & Supabase
+    modifiedRecords.forEach((rec) => {
       syncDoc(
-        setDoc(
-          doc(db, 'personnel', id),
-          sanitizeForFirestore({
-            status,
-            statusDetails: statusDetails ?? null,
-            outOfUnitCategory: status === 'Present' ? null : undefined,
-          }),
-          { merge: true }
-        ),
+        setDoc(doc(db, 'personnel', rec.id), sanitizeForFirestore(rec), { merge: true }),
         'batch update status'
       );
+      if (isSupabaseConfigured()) {
+        upsertSinglePersonnelToSupabase(rec).catch(() => {});
+      }
     });
 
     // Batch sync to Server Disk database
@@ -5211,7 +4838,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     // Sync to Firestore
     syncDoc(setDoc(doc(db, 'personnel', personnelId), sanitizeForFirestore(patch), { merge: true }), 'assign out of unit');
-    // Sync to Supabase Cloud
+    // Sync to Supabase Cloud (personnel row + embedded status_details.activityHistory)
     if (isSupabaseConfigured() && person) {
       upsertSinglePersonnelToSupabase({
         ...person,
@@ -5333,7 +4960,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     // Sync to Firestore
     syncDoc(setDoc(doc(db, 'personnel', personnelId), patch, { merge: true }), 'cancel out of unit');
-    // Sync to Supabase Cloud
+    // Sync to Supabase Cloud (personnel row + returned activityHistory)
     if (isSupabaseConfigured() && person) {
       upsertSinglePersonnelToSupabase({
         ...person,
@@ -5417,13 +5044,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 1. Save directly to Supabase PostgreSQL database
     if (isSupabaseConfigured() && person) {
-      savePersonnelActivityToDatabase(personnelId, updatedHistory).catch((err) =>
-        console.warn('Supabase activity save note:', err)
-      );
       upsertSinglePersonnelToSupabase({
         ...person,
         activityHistory: updatedHistory,
-      } as Personnel).catch((err) => console.warn('Supabase full upsert note:', err));
+      } as Personnel).catch((err) => console.warn('Supabase activity upsert note:', err));
     }
 
     // 2. Save directly to Server Disk storage (/api/personnel)
@@ -5465,9 +5089,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPersonnelList((prev) =>
       prev.map((p) => {
         if (p.id === personnelId) {
-          const currentHist = (p.activityHistory || []).map((a) =>
-            a.id === activityId ? { ...a, ...updated } : a
-          );
+          const currentHist = (p.activityHistory || []).map((a) => {
+            if (a.id === activityId) {
+              return { ...a, ...updated };
+            }
+            return a;
+          });
           finalHistory = currentHist;
           fullUpdatedPerson = { ...p, activityHistory: currentHist };
           return fullUpdatedPerson;
@@ -5478,7 +5105,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const person = personnelList.find((p) => p.id === personnelId);
     if (person && isSupabaseConfigured()) {
-      savePersonnelActivityToDatabase(personnelId, finalHistory).catch(() => {});
       upsertSinglePersonnelToSupabase({
         ...person,
         activityHistory: finalHistory,
@@ -5521,7 +5147,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const person = personnelList.find((p) => p.id === personnelId);
     if (person && isSupabaseConfigured()) {
-      savePersonnelActivityToDatabase(personnelId, finalHistory).catch(() => {});
       upsertSinglePersonnelToSupabase({
         ...person,
         activityHistory: finalHistory,
@@ -6117,21 +5742,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         editDutySession,
         sendDutySessionToAdjt,
 
-        // Custom Teams Management (Between Duty Detailing and Out of Unit)
+        // Custom Teams Management (Year-Partitioned Supabase DB)
         customTeams,
         recentlyDeletedTeams,
         teamHistory,
         deletedTeamIds,
+        teamsLoading,
+        refreshTeamsFromDatabase,
         addCustomTeam,
         updateCustomTeam,
         deleteCustomTeam,
+        permanentlyDeleteTeam,
         undoDeleteTeam,
         restoreCustomTeam,
         clearDeletedTeamsHistory,
         addMemberToTeam,
         removeMemberFromTeam,
-        resetAsltCourseTeam,
-        resetCricketTeam,
 
         assignOutOfUnit,
         cancelOutOfUnit,

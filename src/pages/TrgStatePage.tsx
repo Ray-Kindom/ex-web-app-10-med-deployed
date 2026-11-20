@@ -1,28 +1,30 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { Battery, Personnel } from '../types';
 import { RankBadge } from '../components/common/RankBadge';
 import {
   TrgModuleType,
   TrgRecord,
-  INITIAL_TRG_RECORDS,
   TRG_MODULE_CONFIGS,
 } from '../data/trgStateData';
+import {
+  fetchTrgStateFromSupabase,
+  upsertTrgStateToSupabase,
+  deleteTrgStateFromSupabase,
+} from '../lib/supabase';
 import {
   Target,
   Search,
   Plus,
   X,
   Printer,
-  Eye,
   Trash2,
   Calendar,
   MapPin,
   CheckCircle2,
   Award,
+  RefreshCw,
 } from 'lucide-react';
-
-const STORAGE_KEY_TRG = '10MED_TRG_STATE_RECORDS_V1';
 
 interface TrgStatePageProps {
   onViewDossier: (person: Personnel) => void;
@@ -35,23 +37,34 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const { personnelList, showNotification, isGuest, theme } = useApp();
   const isLight = theme === 'light';
 
-  // Persistent training state records
-  const [records, setRecords] = useState<TrgRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_TRG);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {}
-    return INITIAL_TRG_RECORDS;
-  });
+  // Training state records strictly from Supabase `trg_state`
+  const [records, setRecords] = useState<TrgRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [tableMissing, setTableMissing] = useState(false);
+
+  const loadFromSupabase = useCallback(async () => {
+    const res = await fetchTrgStateFromSupabase();
+    if (res.success) {
+      setRecords(res.records);
+      setTableMissing(false);
+    } else {
+      setRecords([]);
+      setTableMissing(Boolean(res.tableMissing));
+    }
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_TRG, JSON.stringify(records));
-    } catch (e) {}
-  }, [records]);
+    loadFromSupabase();
+    const interval = setInterval(loadFromSupabase, 15000);
+    const onFocus = () => loadFromSupabase();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [loadFromSupabase]);
 
   // Selected training module (default to 'RET')
   const [selectedModule, setSelectedModule] = useState<TrgModuleType>('RET');
@@ -156,8 +169,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     setIsAddModalOpen(true);
   };
 
-  // Save New Record
-  const handleSaveRecord = (e: React.FormEvent) => {
+  // Save New Record to Supabase `trg_state`
+  const handleSaveRecord = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isGuest) {
       showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
@@ -180,6 +193,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
     const newRecord: TrgRecord = {
       id: `trg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      personnelId: soldier.id,
       module: formModule,
       snkNo: soldier.snkNo,
       name: soldier.name,
@@ -193,19 +207,35 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       remarks: formRemarks || '',
     };
 
-    setRecords((prev) => [newRecord, ...prev]);
-    setIsAddModalOpen(false);
-    showNotification(`${soldier.name}-এর ${formModule} ফলাফল সংরক্ষণ করা হয়েছে।`);
+    setIsSaving(true);
+    try {
+      const res = await upsertTrgStateToSupabase(newRecord);
+      if (!res.success) {
+        if (res.tableMissing) setTableMissing(true);
+        showNotification(`Supabase সংরক্ষণ ব্যর্থ: ${res.error || 'trg_state টেবিল তৈরি করুন'}`);
+        return;
+      }
+      setRecords((prev) => [newRecord, ...prev]);
+      setIsAddModalOpen(false);
+      showNotification(`${soldier.name}-এর ${formModule} ফলাফল Supabase-এ সংরক্ষণ করা হয়েছে।`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // Delete Record
-  const handleDeleteRecord = (id: string, name: string) => {
+  // Delete Record from Supabase `trg_state`
+  const handleDeleteRecord = async (id: string, name: string) => {
     if (isGuest) {
       showNotification('গেস্ট মোডে ডিলিট অনুমোদিত নয়।');
       return;
     }
+    const res = await deleteTrgStateFromSupabase(id);
+    if (!res.success) {
+      showNotification(`ডিলিট ব্যর্থ: ${res.error || 'Supabase error'}`);
+      return;
+    }
     setRecords((prev) => prev.filter((r) => r.id !== id));
-    showNotification(`${name}-এর রেকর্ড মুছে ফেলা হয়েছে।`);
+    showNotification(`${name}-এর রেকর্ড Supabase থেকে মুছে ফেলা হয়েছে।`);
   };
 
   const modules: { id: TrgModuleType; label: string; full: string }[] = [
@@ -237,6 +267,19 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
         <div className="flex items-center gap-2 shrink-0">
           <button
+            type="button"
+            onClick={loadFromSupabase}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title="Supabase থেকে রিফ্রেশ করুন"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">রিফ্রেশ</span>
+          </button>
+          <button
             onClick={() => handleOpenAddModal(selectedModule)}
             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
@@ -257,6 +300,14 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
           </button>
         </div>
       </div>
+
+      {tableMissing && (
+        <div className={`p-3 rounded-xl border text-xs ${
+          isLight ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-amber-950/30 border-amber-500/40 text-amber-200'
+        }`}>
+          Supabase `trg_state` ডাটাবেজ সংযোগে সমস্যা রয়েছে। অনুগ্রহ করে রিফ্রেশ করুন।
+        </div>
+      )}
 
       {/* 2. Four Clean Module Selector Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -376,9 +427,14 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       <div className={`border rounded-xl overflow-hidden shadow-sm ${
         isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
       }`}>
-        {filteredRecords.length === 0 ? (
+        {isLoading ? (
           <div className={`py-12 text-center text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            কোনো প্রশিক্ষণ রেকর্ড পাওয়া যায়নি।
+            Supabase থেকে প্রশিক্ষণ রেকর্ড লোড হচ্ছে...
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className={`py-12 text-center text-xs space-y-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            <p className="font-medium">Supabase `trg_state` টেবিলে কোনো প্রশিক্ষণ রেকর্ড পাওয়া যায়নি।</p>
+            <p className="text-[11px] opacity-80">নতুন রেকর্ড যুক্ত করতে উপরে &ldquo;নতুন রেকর্ড&rdquo; বাটনে ক্লিক করুন।</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -699,9 +755,10 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer shadow-sm"
+                  disabled={isSaving}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold cursor-pointer shadow-sm"
                 >
-                  সংরক্ষণ করুন
+                  {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
                 </button>
               </div>
             </form>

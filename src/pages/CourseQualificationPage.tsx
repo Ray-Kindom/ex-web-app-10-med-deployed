@@ -1,13 +1,22 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { Battery, Personnel } from '../types';
 import { RankBadge } from '../components/common/RankBadge';
 import {
   COURSE_DEFINITIONS,
-  INITIAL_COURSE_QUALIFICATIONS,
   CourseDefinition,
   CourseQualificationRecord,
 } from '../data/courseQualificationData';
+import {
+  fetchCourseCadreFromSupabase,
+  upsertCourseCadreToSupabase,
+  deleteCourseCadreFromSupabase,
+  deleteCourseCadreByCourseIdFromSupabase,
+  updateCourseCadreNameInSupabase,
+  fetchCourseDefinitionsFromSupabase,
+  upsertCourseDefinitionToSupabase,
+  deleteCourseDefinitionFromSupabase,
+} from '../lib/supabase';
 import {
   GraduationCap,
   Search,
@@ -23,12 +32,8 @@ import {
   Edit3,
   RotateCcw,
   Check,
-  Tag,
-  Clock,
+  RefreshCw,
 } from 'lucide-react';
-
-const STORAGE_KEY_COURSES = '10MED_COURSE_QUALIFICATIONS_V1';
-const STORAGE_KEY_COURSE_DEFINITIONS = '10MED_COURSE_DEFINITIONS_V1';
 
 interface CourseQualificationPageProps {
   onViewDossier: (person: Personnel) => void;
@@ -41,109 +46,67 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   const { personnelList, showNotification, isGuest, theme } = useApp();
   const isLight = theme === 'light';
 
-  // 1. Persistent Course Definitions (allow updating names, adding new courses, deleting)
-  const [courseDefinitions, setCourseDefinitions] = useState<CourseDefinition[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_COURSE_DEFINITIONS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to load saved course definitions', e);
+  // 1. Course Definitions (UI interface catalog, overridden/extended by Supabase `course_definitions` if present)
+  const [courseDefinitions, setCourseDefinitions] = useState<CourseDefinition[]>(COURSE_DEFINITIONS);
+
+  // 2. Course Cadre records strictly from Supabase `course_cadre`
+  const [courseRecords, setCourseRecords] = useState<CourseQualificationRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [tableMissing, setTableMissing] = useState(false);
+
+  const loadFromSupabase = useCallback(async () => {
+    const [cadreRes, defsRes] = await Promise.all([
+      fetchCourseCadreFromSupabase(),
+      fetchCourseDefinitionsFromSupabase(),
+    ]);
+
+    const supabaseRecords = cadreRes.success ? cadreRes.records : [];
+    if (cadreRes.success) {
+      setCourseRecords(supabaseRecords);
+      setTableMissing(false);
+    } else {
+      setCourseRecords([]);
+      setTableMissing(Boolean(cadreRes.tableMissing));
     }
-    return COURSE_DEFINITIONS;
-  });
 
-  // 2. Persistent course qualifications
-  const [courseRecords, setCourseRecords] = useState<CourseQualificationRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_COURSES);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    // Build course definitions: Supabase `course_definitions` if populated, else base UI catalog + any custom course_id from `course_cadre`
+    const baseDefs =
+      defsRes.success && defsRes.definitions.length > 0
+        ? defsRes.definitions
+        : COURSE_DEFINITIONS;
+
+    const mergedDefs = [...baseDefs];
+    supabaseRecords.forEach((rec) => {
+      if (!mergedDefs.some((d) => d.id === rec.courseId)) {
+        mergedDefs.push({
+          id: rec.courseId,
+          name: rec.courseName || rec.courseId,
+          bengaliName: rec.courseName || rec.courseId,
+          shortCode: rec.courseId.toUpperCase().slice(0, 10),
+          category: 'Artillery Specialist',
+          defaultDuration: '4 Weeks',
+          defaultLocation: rec.location || '10 Med Regimental Trg Ground',
+        });
       }
-    } catch (e) {
-      console.error('Failed to load saved course qualifications', e);
-    }
-    return INITIAL_COURSE_QUALIFICATIONS;
-  });
-
-  // Guard against race condition: Only sync to server after initial server fetch has finished
-  const isServerLoadedRef = React.useRef(false);
-
-  // Helper to persist to server disk for cross-mobile and cross-device sync
-  const syncCoursesToServer = (defs: CourseDefinition[], recs: CourseQualificationRecord[]) => {
-    fetch('/api/courses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ definitions: defs, records: recs }),
-    }).catch((err) => console.warn('Could not sync courses to server:', err));
-  };
-
-  // Load centralized courses from server on mount to sync across all devices & mobile phones
-  useEffect(() => {
-    let isMounted = true;
-    const fetchServerCourses = async () => {
-      try {
-        const res = await fetch('/api/courses');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.success && isMounted) {
-            if (Array.isArray(data.definitions) && data.definitions.length > 0) {
-              setCourseDefinitions(data.definitions);
-              try {
-                localStorage.setItem(STORAGE_KEY_COURSE_DEFINITIONS, JSON.stringify(data.definitions));
-              } catch (e) {}
-            }
-            if (Array.isArray(data.records) && data.records.length > 0) {
-              setCourseRecords(data.records);
-              try {
-                localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(data.records));
-              } catch (e) {}
-            }
-          }
-        }
-      } catch (err) {
-        // Fallback silently to localStorage
-      } finally {
-        if (isMounted) {
-          isServerLoadedRef.current = true;
-        }
-      }
-    };
-    fetchServerCourses();
-    return () => {
-      isMounted = false;
-    };
+    });
+    setCourseDefinitions(mergedDefs);
+    setIsLoading(false);
   }, []);
 
-  // ONLY sync to server when user changes definitions AFTER server has loaded
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_COURSE_DEFINITIONS, JSON.stringify(courseDefinitions));
-    } catch (e) {
-      console.error('Failed to persist course definitions', e);
-    }
-    if (isServerLoadedRef.current && !isGuest) {
-      syncCoursesToServer(courseDefinitions, courseRecords);
-    }
-  }, [courseDefinitions]);
-
-  // ONLY sync to server when user changes records AFTER server has loaded
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(courseRecords));
-    } catch (e) {
-      console.error('Failed to persist course qualifications', e);
-    }
-    if (isServerLoadedRef.current && !isGuest) {
-      syncCoursesToServer(courseDefinitions, courseRecords);
-    }
-  }, [courseRecords]);
+    loadFromSupabase();
+    const interval = setInterval(loadFromSupabase, 15000);
+    const onFocus = () => loadFromSupabase();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [loadFromSupabase]);
 
   const [selectedCourseId, setSelectedCourseId] = useState<string>(() => {
-    return courseDefinitions[0]?.id || COURSE_DEFINITIONS[0]?.id || 'bgc';
+    return COURSE_DEFINITIONS[0]?.id || 'bgc';
   });
 
   // Safeguard: if selected course was deleted, select first available
@@ -196,12 +159,6 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       (p) => (p.snkNo || '').trim().toLowerCase() === snkNo.trim().toLowerCase()
     );
   };
-
-  // Currently selected soldier in Add Qualification Modal
-  const selectedSoldier = useMemo(() => {
-    if (!formSoldierSnk) return null;
-    return findPerson(formSoldierSnk) || null;
-  }, [personnelList, formSoldierSnk]);
 
   // Matching soldiers when searching in Add Qualification Modal
   const matchingSoldiers = useMemo(() => {
@@ -259,38 +216,9 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     );
   }, [courseDefinitions, selectedCourseId]);
 
-  // Qualified Soldiers list for Selected Course
+  // Qualified Soldiers list for Selected Course (strictly from Supabase `course_cadre`)
   const selectedCourseRoster = useMemo(() => {
     let list = courseRecords.filter((cr) => cr.courseId === selectedCourseId);
-
-    // Merge from master personnel if anyone has matching course in their profile
-    personnelList.forEach((p) => {
-      if (
-        p.courseName &&
-        (p.courseName.toLowerCase().includes(currentCourseDef.shortCode.toLowerCase()) ||
-          p.courseName.toLowerCase().includes(currentCourseDef.name.toLowerCase()))
-      ) {
-        const exists = list.some(
-          (item) => item.snkNo.trim().toLowerCase() === p.snkNo.trim().toLowerCase()
-        );
-        if (!exists) {
-          list.push({
-            id: `p-course-${p.id}`,
-            courseId: selectedCourseId,
-            courseName: currentCourseDef.name,
-            snkNo: p.snkNo,
-            name: p.name,
-            rk: p.rk,
-            battery: p.battery,
-            completionDate: p.courseTo || p.courseFrom || 'Active / Qualified',
-            location: p.courseLocation || currentCourseDef.defaultLocation,
-            grade: 'Qualified',
-            authority: p.authority || 'Unit Nominal Roll',
-            remarks: p.remarks || 'Master Personnel Sync',
-          });
-        }
-      }
-    });
 
     if (btyFilter !== 'All') {
       list = list.filter((cr) => cr.battery === btyFilter);
@@ -312,7 +240,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     }
 
     return list;
-  }, [courseRecords, selectedCourseId, currentCourseDef, personnelList, btyFilter, rosterSearch]);
+  }, [courseRecords, selectedCourseId, btyFilter, rosterSearch]);
 
   // Filtered Course Directory
   const filteredCourses = useMemo(() => {
@@ -382,7 +310,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   };
 
   // Save Course Definition (Name change or new course)
-  const handleSaveCourseDefinition = (e: React.FormEvent) => {
+  const handleSaveCourseDefinition = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isGuest) {
       showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
@@ -405,19 +333,20 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       defaultLocation: courseEditForm.defaultLocation.trim() || '10 Med Regimental Trg Ground',
     };
 
+    await upsertCourseDefinitionToSupabase(updatedCourse);
+
     if (isCreatingNewCourse) {
       setCourseDefinitions((prev) => [...prev, updatedCourse]);
       setSelectedCourseId(updatedCourse.id);
       showNotification(`নতুন কোর্স "${updatedCourse.name}" সফলভাবে যুক্ত করা হয়েছে।`);
     } else {
-      // Find old course to cascade name change across existing records
       const oldCourse = courseDefinitions.find((c) => c.id === updatedCourse.id);
       setCourseDefinitions((prev) =>
         prev.map((c) => (c.id === updatedCourse.id ? updatedCourse : c))
       );
 
-      // Auto-update course name in all qualified soldier records
       if (oldCourse && oldCourse.name !== updatedCourse.name) {
+        await updateCourseCadreNameInSupabase(updatedCourse.id, updatedCourse.name);
         setCourseRecords((prev) =>
           prev.map((cr) =>
             cr.courseId === updatedCourse.id
@@ -433,7 +362,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   };
 
   // Delete Course
-  const handleDeleteCourse = (courseId: string) => {
+  const handleDeleteCourse = async (courseId: string) => {
     if (isGuest) {
       showNotification('গেস্ট মোডে কোর্স মোছা সম্ভব নয়।');
       return;
@@ -450,10 +379,15 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     const count = courseRecords.filter((cr) => cr.courseId === courseId).length;
     const confirmed = window.confirm(
       `আপনি কি নিশ্চিত যে "${targetCourse.name}" কোর্সটি মুছে ফেলতে চান?` +
-        (count > 0 ? `\n\nসতর্কতা: এই কোর্সের অন্তর্ভুক্ত ${count} জন সৈনিকের রেকর্ড রয়েছে, যা তালিকা থেকে বাদ পড়বে।` : '')
+        (count > 0 ? `\n\nসতর্কতা: এই কোর্সের অন্তর্ভুক্ত ${count} জন সৈনিকের রেকর্ড রয়েছে, যা Supabase থেকে বাদ পড়বে।` : '')
     );
 
     if (!confirmed) return;
+
+    await Promise.all([
+      deleteCourseDefinitionFromSupabase(courseId),
+      deleteCourseCadreByCourseIdFromSupabase(courseId),
+    ]);
 
     setCourseDefinitions((prev) => {
       const nextList = prev.filter((c) => c.id !== courseId);
@@ -469,13 +403,13 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   };
 
   // Reset to Factory Default Courses
-  const handleResetDefaultCourses = () => {
+  const handleResetDefaultCourses = async () => {
     if (isGuest) {
       showNotification('গেস্ট মোডে রিসেট করা সম্ভব নয়।');
       return;
     }
     const confirmed = window.confirm(
-      'আপনি কি সকল কোর্স তালিকা মূল অফিশিয়াল ডিফল্ট (১১টি কোর্স) এ রিসেট করতে চান?'
+      'আপনি কি কোর্স তালিকা মূল অফিশিয়াল ডিফল্ট (১১টি কোর্স) এ ফিরিয়ে আনতে চান?'
     );
     if (!confirmed) return;
 
@@ -484,8 +418,8 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     showNotification('কোর্স তালিকা সফলভাবে ডিফল্ট অবস্থায় ফিরিয়ে আনা হয়েছে।');
   };
 
-  // Save Soldier Qualification Record
-  const handleSaveQualification = (e: React.FormEvent) => {
+  // Save Soldier Qualification Record to Supabase `course_cadre`
+  const handleSaveQualification = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isGuest) {
       showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
@@ -506,6 +440,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
 
     const newRecord: CourseQualificationRecord = {
       id: `cq-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      personnelId: soldier.id,
       courseId: course.id,
       courseName: course.name,
       snkNo: soldier.snkNo,
@@ -519,21 +454,37 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       remarks: formRemarks || '',
     };
 
-    setCourseRecords((prev) => [newRecord, ...prev]);
-    setIsAddModalOpen(false);
-    showNotification(
-      `${soldier.name}-এর জন্য '${course.shortCode}' কোর্স কোয়ালিফিকেশন সফলভাবে যুক্ত হয়েছে।`
-    );
+    setIsSaving(true);
+    try {
+      const res = await upsertCourseCadreToSupabase(newRecord);
+      if (!res.success) {
+        if (res.tableMissing) setTableMissing(true);
+        showNotification(`Supabase সংরক্ষণ ব্যর্থ: ${res.error || 'course_cadre টেবিল তৈরি করুন'}`);
+        return;
+      }
+      setCourseRecords((prev) => [newRecord, ...prev]);
+      setIsAddModalOpen(false);
+      showNotification(
+        `${soldier.name}-এর জন্য '${course.shortCode}' কোর্স কোয়ালিফিকেশন Supabase-এ সংরক্ষিত হয়েছে।`
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // Delete Record
-  const handleDeleteRecord = (id: string, name: string) => {
+  // Delete Record from Supabase `course_cadre`
+  const handleDeleteRecord = async (id: string, name: string) => {
     if (isGuest) {
       showNotification('গেস্ট মোডে ডিলিট অনুমোদিত নয়।');
       return;
     }
+    const res = await deleteCourseCadreFromSupabase(id);
+    if (!res.success) {
+      showNotification(`ডিলিট ব্যর্থ: ${res.error || 'Supabase error'}`);
+      return;
+    }
     setCourseRecords((prev) => prev.filter((r) => r.id !== id));
-    showNotification(`${name}-এর কোর্স কোয়ালিফিকেশন রেকর্ড মুছে ফেলা হয়েছে।`);
+    showNotification(`${name}-এর কোর্স কোয়ালিফিকেশন রেকর্ড Supabase থেকে মুছে ফেলা হয়েছে।`);
   };
 
   return (
@@ -565,6 +516,19 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
 
         <div className="flex items-center gap-2 shrink-0">
           <button
+            type="button"
+            onClick={loadFromSupabase}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title="Supabase থেকে রিফ্রেশ করুন"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">রিফ্রেশ</span>
+          </button>
+          <button
             onClick={() => handleOpenAddModal(selectedCourseId)}
             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
@@ -585,6 +549,14 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
           </button>
         </div>
       </div>
+
+      {tableMissing && (
+        <div className={`p-3 rounded-xl border text-xs ${
+          isLight ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-amber-950/30 border-amber-500/40 text-amber-200'
+        }`}>
+          Supabase `course_cadre` ডাটাবেজ সংযোগে সমস্যা রয়েছে। অনুগ্রহ করে রিফ্রেশ করুন।
+        </div>
+      )}
 
       {/* 2. Main Layout: Two Panels (Course List on Left, Who Did It on Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
@@ -824,7 +796,11 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
           </div>
 
           {/* Detailed Table */}
-          {selectedCourseRoster.length === 0 ? (
+          {isLoading ? (
+            <div className="py-12 text-center text-xs text-slate-400">
+              Supabase `course_cadre` থেকে তথ্য লোড হচ্ছে...
+            </div>
+          ) : selectedCourseRoster.length === 0 ? (
             <div className="py-12 text-center space-y-2">
               <div className={`w-10 h-10 mx-auto rounded-lg flex items-center justify-center ${
                 isLight ? 'bg-slate-100 text-slate-400' : 'bg-slate-800 text-slate-500'
@@ -832,10 +808,10 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                 <GraduationCap className="w-5 h-5" />
               </div>
               <p className={`text-xs font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                এই কোর্সে বর্তমানে কোনো উত্তীর্ণ সৈনিক তালিকাভুক্ত নেই
+                Supabase `course_cadre` টেবিলে এই কোর্সের কোনো উত্তীর্ণ সৈনিক তালিকাভুক্ত নেই
               </p>
               <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
-                উপরে &ldquo;সৈনিক যুক্ত করুন&rdquo; বাটনে ক্লিক করে নতুন কোয়ালিফিকেশন যুক্ত করুন।
+                উপরে &ldquo;সৈনিক যুক্ত করুন&rdquo; বাটনে ক্লিক করে Supabase-এ নতুন কোয়ালিফিকেশন যুক্ত করুন।
               </p>
             </div>
           ) : (
@@ -959,7 +935,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       {/* 3. Add Course Qualification Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl shadow-xl p-5 space-y-4">
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-xl shadow-xl p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-emerald-400" />
@@ -1051,7 +1027,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                               type="button"
                               onClick={() => {
                                 setFormSoldierSnk(p.snkNo);
-                                setSoldierSearchQuery('');
+                                setSoldierSearchQuery(`${p.snkNo} — ${p.rk} ${p.name} (${p.battery})`);
                                 setIsSoldierSearchFocused(false);
                               }}
                               className={`w-full p-2.5 text-left text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
@@ -1080,39 +1056,6 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     </div>
                   )}
                 </div>
-
-                {/* Selected Soldier Card */}
-                {selectedSoldier ? (
-                  <div className="mt-2 p-2.5 rounded-lg border bg-emerald-950/30 border-emerald-500/40 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                        <Check className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono font-bold text-amber-400 text-xs">{selectedSoldier.snkNo}</span>
-                          <RankBadge rank={selectedSoldier.rk} size="sm" />
-                          <span className="font-bold text-white text-xs truncate">{selectedSoldier.name}</span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
-                            {selectedSoldier.battery}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
-                          <span>ট্রেড: {selectedSoldier.trade || 'GD'}</span>
-                          <span>•</span>
-                          <span>স্ট্যাটাস: {selectedSoldier.status}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded shrink-0">
-                      নির্বাচিত
-                    </span>
-                  </div>
-                ) : (
-                  <div className="mt-1.5 text-[11px] text-amber-400/90 flex items-center gap-1">
-                    <span>⚠️ অনুগ্রহ করে উপরে সেনা নং বা নাম লিখে সৈনিক নির্বাচন করুন</span>
-                  </div>
-                )}
 
                 {/* Collapsible Full Roster Select Fallback */}
                 <div className="mt-2">
@@ -1212,9 +1155,10 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer shadow-sm"
+                  disabled={isSaving}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold cursor-pointer shadow-sm"
                 >
-                  সংরক্ষণ করুন
+                  {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
                 </button>
               </div>
             </form>

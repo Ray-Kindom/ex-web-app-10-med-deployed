@@ -66,7 +66,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
   const [isSyncingSql, setIsSyncingSql] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
   const [showSupabaseSql, setShowSupabaseSql] = useState(false);
-  const [sqlDbInfo, setSqlDbInfo] = useState<{ connected: boolean; count: number } | null>(null);
+  const [sqlDbInfo, setSqlDbInfo] = useState<{ connected: boolean; status?: string; count: number } | null>(null);
   const [supabaseDbInfo, setSupabaseDbInfo] = useState<{ connected: boolean; count: number } | null>(null);
   const [selectedInspectCollection, setSelectedInspectCollection] = useState<string>('personnel');
   const [inspectSearchQuery, setInspectSearchQuery] = useState('');
@@ -82,10 +82,12 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
       const res = await fetch('/api/sql/status');
       const data = await res.json();
       if (data.status === 'connected') {
-        setSqlDbInfo({ connected: true, count: data.recordsCount?.personnel || 0 });
+        setSqlDbInfo({ connected: true, status: 'connected', count: data.recordsCount?.personnel || 0 });
+      } else {
+        setSqlDbInfo({ connected: false, status: data.status || 'not_configured', count: 0 });
       }
     } catch {
-      setSqlDbInfo(null);
+      setSqlDbInfo({ connected: false, status: 'error', count: 0 });
     }
   }, []);
 
@@ -606,7 +608,7 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
             <Database className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-slate-400 text-[11px] block font-mono">Supabase Cloud DB</span>
+            <span className="text-slate-400 text-[11px] block font-mono">Supabase (pulzsiyjvnshychyxuix)</span>
             <span className="text-xs font-bold text-emerald-300 font-mono flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${supabaseDbInfo?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
               <span>{supabaseDbInfo?.connected ? `Connected (${supabaseDbInfo.count} rows)` : (isSupabaseConfigured() ? 'Ready' : 'Config Needed')}</span>
@@ -629,10 +631,10 @@ export const MasterDatabaseHubTab: React.FC<MasterDatabaseHubTabProps> = ({ onNa
             <Server className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-slate-400 text-[11px] block font-mono">Cloud SQL (us-west1)</span>
+            <span className="text-slate-400 text-[11px] block font-mono">Cloud SQL</span>
             <span className="text-xs font-bold text-indigo-300 font-mono flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${sqlDbInfo?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              <span>{sqlDbInfo?.connected ? `PostgreSQL (${sqlDbInfo.count} rows)` : 'Connecting...'}</span>
+              <span className={`w-2 h-2 rounded-full ${sqlDbInfo?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+              <span>{sqlDbInfo?.connected ? `PostgreSQL (${sqlDbInfo.count} rows)` : (sqlDbInfo ? 'Fallback (Using Supabase)' : 'Checking...')}</span>
             </span>
           </div>
         </div>

@@ -1,1 +1,16 @@
-{}
+{
+  "2026-11-09_Morning Parade_P Bty": {
+    "id": "2026-11-09_Morning Parade_P Bty",
+    "date": "2026-11-09",
+    "typeId": "Morning Parade",
+    "battery": "P Bty",
+    "counts": {
+      "pt-1": {
+        "offr": 2,
+        "jco": 3,
+        "or": 45
+      }
+    },
+    "status": "Confirmed"
+  }
+}

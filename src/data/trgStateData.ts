@@ -4,6 +4,7 @@ export type TrgModuleType = 'RET' | 'IPFT' | 'Gren Firing' | 'Firing';
 
 export interface TrgRecord {
   id: string;
+  personnelId?: string;
   module: TrgModuleType;
   snkNo: string;
   name: string;

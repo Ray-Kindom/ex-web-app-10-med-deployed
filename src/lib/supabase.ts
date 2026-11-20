@@ -1,6 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as directSupabaseClient } from '../supabaseClient.js';
-import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES } from '../types/index.ts';
+import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES, ServiceActivityRecord, ServiceActivityType } from '../types/index.ts';
+import { CourseDefinition, CourseQualificationRecord } from '../data/courseQualificationData.ts';
+import { TrgModuleType, TrgRecord } from '../data/trgStateData.ts';
 
 // Read Vite client-side environment variables or fallback to direct client credentials
 const DEFAULT_SUPABASE_URL = "https://pulzsiyjvnshychyxuix.supabase.co";
@@ -1167,6 +1169,8 @@ export const savePersonnelActivityToDatabase = async (
       try {
         extra = JSON.parse(row.status_details);
       } catch (e) {}
+    } else if (row?.status_details && typeof row.status_details === 'string' && row.status_details.trim()) {
+      extra.details = row.status_details;
     }
     extra.activityHistory = activityHistory;
 
@@ -1181,6 +1185,784 @@ export const savePersonnelActivityToDatabase = async (
     console.warn('savePersonnelActivityToDatabase error:', err);
     return { success: false, error: err?.message };
   }
+};
+
+/**
+ * Helper to detect missing Supabase table errors (PGRST205 / 42P01)
+ */
+const isSupabaseTableMissingError = (err: any): boolean => {
+  const msg = String(err?.message || '').toLowerCase();
+  const code = String(err?.code || '');
+  return (
+    code === 'PGRST205' ||
+    code === '42P01' ||
+    msg.includes('could not find the table') ||
+    msg.includes('does not exist')
+  );
+};
+
+// ============================================================================
+// COURSE CADRE (public.course_cadre & public.course_definitions)
+// ============================================================================
+
+export const fetchCourseCadreFromSupabase = async (): Promise<{
+  success: boolean;
+  records: CourseQualificationRecord[];
+  tableMissing?: boolean;
+  error?: string;
+}> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, records: [], error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('course_cadre')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return {
+        success: false,
+        records: [],
+        tableMissing: isSupabaseTableMissingError(error),
+        error: error.message,
+      };
+    }
+
+    const mapped: CourseQualificationRecord[] = (data || []).map((row: any) => ({
+      id: String(row.id),
+      personnelId: row.personnel_id ? String(row.personnel_id) : undefined,
+      courseId: String(row.course_id || row.courseId || 'bgc'),
+      courseName: String(row.course_name || row.courseName || 'Course / Cadre'),
+      snkNo: String(row.snk_no || row.army_no || row.snkNo || ''),
+      name: String(row.name || ''),
+      rk: String(row.rk || row.rank || 'Snk'),
+      battery: (row.battery || 'HQ Bty') as any,
+      completionDate: String(row.completion_date || row.completionDate || ''),
+      location: String(row.location || ''),
+      grade: String(row.grade || 'Qualified'),
+      authority: row.authority || '',
+      remarks: row.remarks || '',
+    }));
+
+    return { success: true, records: mapped };
+  } catch (err: any) {
+    return {
+      success: false,
+      records: [],
+      tableMissing: isSupabaseTableMissingError(err),
+      error: err?.message || 'Failed to fetch course_cadre',
+    };
+  }
+};
+
+export const upsertCourseCadreToSupabase = async (
+  rec: CourseQualificationRecord
+): Promise<{ success: boolean; tableMissing?: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const row = {
+      id: rec.id,
+      course_id: rec.courseId,
+      course_name: rec.courseName,
+      snk_no: rec.snkNo,
+      name: rec.name,
+      rk: rec.rk,
+      battery: rec.battery,
+      completion_date: rec.completionDate,
+      location: rec.location,
+      grade: rec.grade,
+      authority: rec.authority || '',
+      remarks: rec.remarks || '',
+    };
+
+    const { error } = await client.from('course_cadre').upsert([row], { onConflict: 'id' });
+
+    if (error) {
+      return {
+        success: false,
+        tableMissing: isSupabaseTableMissingError(error),
+        error: error.message,
+      };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return {
+      success: false,
+      tableMissing: isSupabaseTableMissingError(err),
+      error: err?.message,
+    };
+  }
+};
+
+export const deleteCourseCadreFromSupabase = async (
+  id: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const { error } = await client.from('course_cadre').delete().eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+export const deleteCourseCadreByCourseIdFromSupabase = async (
+  courseId: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const { error } = await client.from('course_cadre').delete().eq('course_id', courseId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+export const updateCourseCadreNameInSupabase = async (
+  courseId: string,
+  courseName: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const { error } = await client
+      .from('course_cadre')
+      .update({ course_name: courseName })
+      .eq('course_id', courseId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+export const fetchCourseDefinitionsFromSupabase = async (): Promise<{
+  success: boolean;
+  definitions: CourseDefinition[];
+  tableMissing?: boolean;
+  error?: string;
+}> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, definitions: [], error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('course_definitions')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      return {
+        success: false,
+        definitions: [],
+        tableMissing: isSupabaseTableMissingError(error),
+        error: error.message,
+      };
+    }
+
+    const mapped: CourseDefinition[] = (data || []).map((row: any) => ({
+      id: String(row.id),
+      name: String(row.name || ''),
+      bengaliName: String(row.bengali_name || row.bengaliName || row.name || ''),
+      shortCode: String(row.short_code || row.shortCode || ''),
+      category: (row.category || 'Artillery Specialist') as CourseDefinition['category'],
+      defaultDuration: String(row.default_duration || row.defaultDuration || '4 Weeks'),
+      defaultLocation: String(row.default_location || row.defaultLocation || '10 Med Regimental Trg Ground'),
+    }));
+
+    return { success: true, definitions: mapped };
+  } catch (err: any) {
+    return {
+      success: false,
+      definitions: [],
+      tableMissing: isSupabaseTableMissingError(err),
+      error: err?.message,
+    };
+  }
+};
+
+export const upsertCourseDefinitionToSupabase = async (
+  def: CourseDefinition
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const row = {
+      id: def.id,
+      name: def.name,
+      bengali_name: def.bengaliName,
+      short_code: def.shortCode,
+      category: def.category,
+      default_duration: def.defaultDuration,
+      default_location: def.defaultLocation,
+    };
+    const { error } = await client.from('course_definitions').upsert([row], { onConflict: 'id' });
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+export const deleteCourseDefinitionFromSupabase = async (
+  id: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const { error } = await client.from('course_definitions').delete().eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+// ============================================================================
+// TRAINING STATE (public.trg_state)
+// ============================================================================
+
+export const fetchTrgStateFromSupabase = async (): Promise<{
+  success: boolean;
+  records: TrgRecord[];
+  tableMissing?: boolean;
+  error?: string;
+}> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, records: [], error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('trg_state')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return {
+        success: false,
+        records: [],
+        tableMissing: isSupabaseTableMissingError(error),
+        error: error.message,
+      };
+    }
+
+    const mapped: TrgRecord[] = (data || []).map((row: any) => ({
+      id: String(row.id),
+      personnelId: row.personnel_id ? String(row.personnel_id) : undefined,
+      module: (row.module || 'RET') as TrgModuleType,
+      snkNo: String(row.snk_no || row.army_no || row.snkNo || ''),
+      name: String(row.name || ''),
+      rk: String(row.rk || row.rank || 'Snk'),
+      battery: (row.battery || 'HQ Bty') as any,
+      grade: String(row.grade || 'Qualified'),
+      scoreDetails: String(row.score_details || row.scoreDetails || ''),
+      date: String(row.date || ''),
+      location: String(row.location || ''),
+      status: (row.status || 'Qualified') as TrgRecord['status'],
+      remarks: row.remarks || '',
+    }));
+
+    return { success: true, records: mapped };
+  } catch (err: any) {
+    return {
+      success: false,
+      records: [],
+      tableMissing: isSupabaseTableMissingError(err),
+      error: err?.message || 'Failed to fetch trg_state',
+    };
+  }
+};
+
+export const upsertTrgStateToSupabase = async (
+  rec: TrgRecord
+): Promise<{ success: boolean; tableMissing?: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const row = {
+      id: rec.id,
+      module: rec.module,
+      snk_no: rec.snkNo,
+      name: rec.name,
+      rk: rec.rk,
+      battery: rec.battery,
+      grade: rec.grade,
+      score_details: rec.scoreDetails,
+      date: rec.date,
+      location: rec.location,
+      status: rec.status,
+      remarks: rec.remarks || '',
+    };
+
+    const { error } = await client.from('trg_state').upsert([row], { onConflict: 'id' });
+
+    if (error) {
+      return {
+        success: false,
+        tableMissing: isSupabaseTableMissingError(error),
+        error: error.message,
+      };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return {
+      success: false,
+      tableMissing: isSupabaseTableMissingError(err),
+      error: err?.message,
+    };
+  }
+};
+
+export const deleteTrgStateFromSupabase = async (
+  id: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const { error } = await client.from('trg_state').delete().eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+// Live interconnected Dossier reads directly from public.personnel (status_details.activityHistory),
+// public.course_cadre, public.trg_state, and public.parade_records (duty_%).
+
+// ============================================================================
+// YEAR-PARTITIONED TEAM MANAGEMENT (public.teams or parade_records teams_year_*)
+// Strictly reads/writes database records separated by year (saal)
+// ============================================================================
+
+export const fetchTeamsFromSupabase = async (): Promise<{
+  success: boolean;
+  activeTeams: any[];
+  teamHistory: any[];
+  deletedTeamIds: string[];
+  storageMode?: string;
+  error?: string;
+}> => {
+  // 1. Prefer server API (checks dedicated public.teams or year-partitioned teams_year_* without browser 404s)
+  try {
+    const res = await fetch('/api/teams');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success) {
+        return {
+          success: true,
+          activeTeams: Array.isArray(data.activeTeams) ? data.activeTeams : [],
+          teamHistory: Array.isArray(data.teamHistory) ? data.teamHistory : [],
+          deletedTeamIds: Array.isArray(data.deletedTeamIds) ? data.deletedTeamIds : [],
+          storageMode: data.storageMode,
+        };
+      }
+    }
+  } catch {
+    // Fallback to direct Supabase client below
+  }
+
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, activeTeams: [], teamHistory: [], deletedTeamIds: [], error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('parade_records')
+      .select('*')
+      .like('id', 'teams_year_%')
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+
+    const activeTeams: any[] = [];
+    const teamHistory: any[] = [];
+    const deletedSet = new Set<string>();
+
+    (data || []).forEach((row: any) => {
+      const s = row.summary || {};
+      const rowYear = Number(s.year || row.date || String(row.id).replace('teams_year_', '')) || new Date().getFullYear();
+
+      (Array.isArray(s.activeTeams) ? s.activeTeams : []).forEach((t: any) => {
+        if (t && t.id && !t.isDeleted) {
+          activeTeams.push({ ...t, year: Number(t.year) || rowYear });
+        }
+      });
+      (Array.isArray(s.teamHistory) ? s.teamHistory : []).forEach((t: any) => {
+        if (t && t.id) {
+          teamHistory.push({ ...t, isDeleted: true, year: Number(t.year) || rowYear });
+          deletedSet.add(String(t.id));
+        }
+      });
+      (Array.isArray(s.deletedTeamIds) ? s.deletedTeamIds : []).forEach((id: string) => {
+        if (id) deletedSet.add(String(id));
+      });
+    });
+
+    return {
+      success: true,
+      activeTeams,
+      teamHistory,
+      deletedTeamIds: Array.from(deletedSet),
+      storageMode: 'parade_records_yearly',
+    };
+  } catch (err: any) {
+    return { success: false, activeTeams: [], teamHistory: [], deletedTeamIds: [], error: err?.message };
+  }
+};
+
+export const saveTeamsByYearToSupabase = async (payload: {
+  activeTeams: any[];
+  teamHistory: any[];
+  deletedTeamIds: string[];
+}): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const res = await fetch('/api/teams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success) return { success: true };
+    }
+  } catch {
+    // Fallback to direct Supabase client below
+  }
+
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const resolveYear = (t: any): number =>
+      Number(t?.year) ||
+      (t?.createdAt ? new Date(t.createdAt).getFullYear() : new Date().getFullYear()) ||
+      new Date().getFullYear();
+
+    const byYear = new Map<number, { activeTeams: any[]; teamHistory: any[]; deletedTeamIds: string[] }>();
+    const ensureBucket = (yr: number) => {
+      if (!byYear.has(yr)) byYear.set(yr, { activeTeams: [], teamHistory: [], deletedTeamIds: [] });
+      return byYear.get(yr)!;
+    };
+
+    (payload.activeTeams || []).forEach((t) => {
+      const yr = resolveYear(t);
+      ensureBucket(yr).activeTeams.push({ ...t, year: yr });
+    });
+    (payload.teamHistory || []).forEach((t) => {
+      const yr = resolveYear(t);
+      const bucket = ensureBucket(yr);
+      bucket.teamHistory.push({ ...t, year: yr, isDeleted: true });
+      if (!bucket.deletedTeamIds.includes(t.id)) bucket.deletedTeamIds.push(t.id);
+    });
+
+    const { data: existingRows } = await client
+      .from('parade_records')
+      .select('id, date')
+      .like('id', 'teams_year_%');
+
+    (existingRows || []).forEach((r: any) => {
+      const yr = Number(r.date || String(r.id).replace('teams_year_', ''));
+      if (yr && !byYear.has(yr)) {
+        byYear.set(yr, { activeTeams: [], teamHistory: [], deletedTeamIds: [] });
+      }
+    });
+
+    const rowsToUpsert = Array.from(byYear.entries()).map(([yr, bucket]) => ({
+      id: `teams_year_${yr}`,
+      date: String(yr),
+      battery: 'ALL',
+      submitted_by: 'Team Management',
+      status: 'Active',
+      summary: {
+        year: yr,
+        activeTeams: bucket.activeTeams,
+        teamHistory: bucket.teamHistory,
+        deletedTeamIds: bucket.deletedTeamIds,
+      },
+    }));
+
+    if (rowsToUpsert.length > 0) {
+      const { error } = await client.from('parade_records').upsert(rowsToUpsert, { onConflict: 'id' });
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+export const deleteTeamPermanentlyFromSupabase = async (teamId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}`, { method: 'DELETE' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success) return { success: true };
+    }
+  } catch {}
+  return { success: false, error: 'Failed to permanently delete team' };
+};
+
+export interface DossierDutyRecord {
+  id: string;
+  date: string;
+  sessionType: string;
+  dutyName: string;
+  category: string;
+  location?: string;
+  dutyTime?: string;
+  weaponOrAmmo?: string;
+  remarks?: string;
+  assignedBy?: string;
+}
+
+export interface PersonnelDossierSupabaseResult {
+  courses: CourseQualificationRecord[];
+  trainings: TrgRecord[];
+  activities: ServiceActivityRecord[];
+  duties: DossierDutyRecord[];
+  freshActivityHistory?: ServiceActivityRecord[];
+  tablesMissing: {
+    courseCadre: boolean;
+    trgState: boolean;
+    personnelActivities: boolean;
+  };
+}
+
+export const fetchPersonnelDossierFromSupabase = async (
+  personnelId: string,
+  snkNo: string
+): Promise<PersonnelDossierSupabaseResult> => {
+  const client = getSupabaseClient();
+  const emptyResult: PersonnelDossierSupabaseResult = {
+    courses: [],
+    trainings: [],
+    activities: [],
+    duties: [],
+    tablesMissing: {
+      courseCadre: false,
+      trgState: false,
+      personnelActivities: false,
+    },
+  };
+  if (!client) return emptyResult;
+
+  const cleanId = (personnelId || '').trim();
+  const cleanSnk = (snkNo || '').trim();
+
+  const [courseRes, trgRes, dutyRes, personRes] = await Promise.all([
+    cleanSnk
+      ? client.from('course_cadre').select('*').ilike('snk_no', cleanSnk).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null } as any),
+    cleanSnk
+      ? client.from('trg_state').select('*').ilike('snk_no', cleanSnk).order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null } as any),
+    client.from('parade_records').select('*').like('id', 'duty_%').order('date', { ascending: false }),
+    cleanId
+      ? client.from('personnel').select('id, status_details').eq('id', cleanId).maybeSingle()
+      : cleanSnk
+      ? client.from('personnel').select('id, status_details').ilike('army_no', cleanSnk).maybeSingle()
+      : Promise.resolve({ data: null, error: null } as any),
+  ]);
+
+  const courses: CourseQualificationRecord[] = (courseRes.data || []).map((row: any) => ({
+    id: String(row.id),
+    personnelId: cleanId || undefined,
+    courseId: String(row.course_id || 'bgc'),
+    courseName: String(row.course_name || 'Course / Cadre'),
+    snkNo: String(row.snk_no || ''),
+    name: String(row.name || ''),
+    rk: String(row.rk || 'Snk'),
+    battery: (row.battery || 'HQ Bty') as any,
+    completionDate: String(row.completion_date || ''),
+    location: String(row.location || ''),
+    grade: String(row.grade || 'Qualified'),
+    authority: row.authority || '',
+    remarks: row.remarks || '',
+  }));
+
+  const trainings: TrgRecord[] = (trgRes.data || []).map((row: any) => ({
+    id: String(row.id),
+    personnelId: cleanId || undefined,
+    module: (row.module || 'RET') as TrgModuleType,
+    snkNo: String(row.snk_no || ''),
+    name: String(row.name || ''),
+    rk: String(row.rk || 'Snk'),
+    battery: (row.battery || 'HQ Bty') as any,
+    grade: String(row.grade || 'Qualified'),
+    scoreDetails: String(row.score_details || ''),
+    date: String(row.date || ''),
+    location: String(row.location || ''),
+    status: (row.status || 'Qualified') as TrgRecord['status'],
+    remarks: row.remarks || '',
+  }));
+
+  const duties: DossierDutyRecord[] = [];
+  const lowerId = cleanId.toLowerCase();
+  const lowerSnk = cleanSnk.toLowerCase();
+  (dutyRes.data || []).forEach((row: any) => {
+    const summary = row.summary || {};
+    const assignments = Array.isArray(summary.assignments) ? summary.assignments : [];
+    assignments.forEach((a: any) => {
+      const aId = String(a.personnelId || '').trim().toLowerCase();
+      const aSnk = String(a.snkNo || '').trim().toLowerCase();
+      if ((lowerId && aId === lowerId) || (lowerSnk && aSnk === lowerSnk)) {
+        duties.push({
+          id: String(a.id || `${row.id}_${a.dutyName}`),
+          date: String(a.date || row.date || ''),
+          sessionType: String(a.sessionType || summary.sessionType || 'Morning'),
+          dutyName: String(a.dutyName || 'Regimental Duty'),
+          category: String(a.category || 'Duty'),
+          location: a.location || undefined,
+          dutyTime: a.dutyTime || undefined,
+          weaponOrAmmo: a.weaponOrAmmo || undefined,
+          remarks: a.remarks || undefined,
+          assignedBy: a.assignedBy || summary.savedBy || row.submitted_by || undefined,
+        });
+      }
+    });
+  });
+
+  let freshActivityHistory: ServiceActivityRecord[] | undefined = undefined;
+  if (personRes?.data?.status_details && typeof personRes.data.status_details === 'string' && personRes.data.status_details.trim().startsWith('{')) {
+    try {
+      const extra = JSON.parse(personRes.data.status_details);
+      if (Array.isArray(extra.activityHistory)) {
+        freshActivityHistory = extra.activityHistory;
+      }
+    } catch {}
+  }
+
+  return {
+    courses,
+    trainings,
+    activities: freshActivityHistory || [],
+    duties,
+    freshActivityHistory,
+    tablesMissing: {
+      courseCadre: Boolean(courseRes.error && isSupabaseTableMissingError(courseRes.error)),
+      trgState: Boolean(trgRes.error && isSupabaseTableMissingError(trgRes.error)),
+      personnelActivities: false,
+    },
+  };
+};
+
+/**
+ * SQL Schema DDL for Course Cadre & Trg State Tables
+ */
+export const getCourseAndTrgSchemaSql = (): string => {
+  return `-- =========================================================================
+-- 10 MEDIUM REGIMENT ARTILLERY - COURSE CADRE & TRAINING STATE TABLES
+-- =========================================================================
+
+-- 1. Course & Cadre Qualification Records Table
+create table if not exists public.course_cadre (
+  id text primary key,
+  course_id text not null,
+  course_name text not null,
+  snk_no text not null,
+  name text not null,
+  rk text not null default 'Snk',
+  battery text not null default 'HQ Bty',
+  completion_date text,
+  location text,
+  grade text default 'Qualified',
+  authority text,
+  remarks text,
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists idx_course_cadre_course_id on public.course_cadre (course_id);
+create index if not exists idx_course_cadre_snk_no on public.course_cadre (snk_no);
+
+-- 2. Course Definitions Catalog (Optional custom courses)
+create table if not exists public.course_definitions (
+  id text primary key,
+  name text not null,
+  bengali_name text,
+  short_code text,
+  category text default 'Artillery Specialist',
+  default_duration text default '4 Weeks',
+  default_location text default '10 Med Regimental Trg Ground',
+  created_at timestamp with time zone default now()
+);
+
+-- 3. Training State Records Table (RET, IPFT, Gren Firing, Firing)
+create table if not exists public.trg_state (
+  id text primary key,
+  module text not null,
+  snk_no text not null,
+  name text not null,
+  rk text not null default 'Snk',
+  battery text not null default 'HQ Bty',
+  grade text,
+  score_details text,
+  date text,
+  location text,
+  status text default 'Qualified',
+  remarks text,
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists idx_trg_state_module on public.trg_state (module);
+create index if not exists idx_trg_state_snk_no on public.trg_state (snk_no);
+
+-- 4. Enable RLS & Access Policies
+alter table public.course_cadre enable row level security;
+alter table public.course_definitions enable row level security;
+alter table public.trg_state enable row level security;
+
+drop policy if exists "Allow all access to course_cadre" on public.course_cadre;
+create policy "Allow all access to course_cadre" on public.course_cadre for all using (true) with check (true);
+
+drop policy if exists "Allow all access to course_definitions" on public.course_definitions;
+create policy "Allow all access to course_definitions" on public.course_definitions for all using (true) with check (true);
+
+drop policy if exists "Allow all access to trg_state" on public.trg_state;
+create policy "Allow all access to trg_state" on public.trg_state for all using (true) with check (true);
+
+-- 5. Year-Partitioned Teams Table (Team Management by Year / Saal)
+create table if not exists public.teams (
+  id text primary key,
+  name text not null,
+  year integer not null default 2026,
+  description text,
+  member_ids jsonb not null default '[]'::jsonb,
+  snapshot_members jsonb,
+  is_deleted boolean default false,
+  created_by text,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone,
+  deleted_at timestamp with time zone,
+  deleted_by text
+);
+
+create index if not exists idx_teams_year on public.teams (year desc);
+alter table public.teams enable row level security;
+drop policy if exists "Allow all access to teams" on public.teams;
+create policy "Allow all access to teams" on public.teams for all using (true) with check (true);
+`;
 };
 
 /**
@@ -1259,5 +2041,7 @@ values
   ('owner_admin', 'mdraiyan1512@gmail.com', 'Master Admin', 'Major', 'Admin', 'HQ Bty', true, 'System Bootstrap'),
   ('regt_admin', 'int10med2026@gmail.com', 'Regimental HQ Admin', 'Capt', 'Admin', 'HQ Bty', true, 'System Bootstrap')
 on conflict (email) do nothing;
+
+${getCourseAndTrgSchemaSql()}
 `;
 };

@@ -13,6 +13,7 @@ export interface CourseDefinition {
 
 export interface CourseQualificationRecord {
   id: string;
+  personnelId?: string;
   courseId: string;
   courseName: string;
   snkNo: string;

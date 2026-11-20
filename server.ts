@@ -308,6 +308,45 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  // Supabase Connection Status
+  app.get('/api/supabase/status', async (req, res) => {
+    try {
+      const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://pulzsiyjvnshychyxuix.supabase.co').trim();
+      if (!supabase) {
+        return res.status(503).json({ status: 'not_configured', url: supabaseUrl });
+      }
+      const [usersRes, personnelRes, paradeRes, courseCadreRes, trgStateRes] = await Promise.all([
+        supabase.from('authorized_users').select('id', { count: 'exact', head: true }),
+        supabase.from('personnel').select('id', { count: 'exact', head: true }),
+        supabase.from('parade_records').select('id', { count: 'exact', head: true }),
+        supabase.from('course_cadre').select('id', { count: 'exact' }).limit(1),
+        supabase.from('trg_state').select('id', { count: 'exact' }).limit(1),
+      ]);
+      const error = usersRes.error || personnelRes.error || paradeRes.error;
+      if (error) {
+        return res.status(500).json({ status: 'error', url: supabaseUrl, error: error.message });
+      }
+      res.json({
+        status: 'connected',
+        projectId: 'pulzsiyjvnshychyxuix',
+        url: supabaseUrl,
+        counts: {
+          authorized_users: usersRes.count ?? 0,
+          personnel: personnelRes.count ?? 0,
+          parade_records: paradeRes.count ?? 0,
+          course_cadre: courseCadreRes.error ? null : (courseCadreRes.count ?? 0),
+          trg_state: trgStateRes.error ? null : (trgStateRes.count ?? 0),
+        },
+        tablesReady: {
+          course_cadre: !courseCadreRes.error,
+          trg_state: !trgStateRes.error,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ status: 'error', error: error?.message || 'Supabase status check failed' });
+    }
+  });
+
   // Cloud SQL Status
   app.get('/api/sql/status', async (req, res) => {
     try {
@@ -949,24 +988,257 @@ async function startServer() {
     }
   });
 
-  // 7. Centralized Custom Teams & Team History Database Persistence
-  app.get('/api/teams', (req, res) => {
+  // 7. Supabase-Only Year-Partitioned Team Management API (no hardcoded/mock fallback)
+  app.get('/api/teams', async (req, res) => {
     try {
-      const data = loadServerTeams();
-      res.json({ success: true, ...data });
+      if (!supabase) {
+        return res.json({ success: true, activeTeams: [], teamHistory: [], deletedTeamIds: [], source: 'supabase', storageMode: 'none' });
+      }
+
+      // 1) Prefer dedicated public.teams table if provisioned in Supabase
+      const { data: teamsRows, error: teamsErr } = await supabase
+        .from('teams')
+        .select('*')
+        .order('year', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (!teamsErr && Array.isArray(teamsRows)) {
+        const activeTeams: any[] = [];
+        const teamHistory: any[] = [];
+        const deletedTeamIds: string[] = [];
+
+        teamsRows.forEach((row: any) => {
+          const parsedYear = Number(row.year) || (row.created_at ? new Date(row.created_at).getFullYear() : new Date().getFullYear());
+          const item = {
+            id: String(row.id),
+            name: String(row.name || ''),
+            year: parsedYear,
+            description: row.description || '',
+            memberIds: Array.isArray(row.member_ids) ? row.member_ids : [],
+            snapshotMembers: Array.isArray(row.snapshot_members) ? row.snapshot_members : undefined,
+            createdAt: row.created_at || new Date().toISOString(),
+            updatedAt: row.updated_at || undefined,
+            createdBy: row.created_by || undefined,
+            isDeleted: Boolean(row.is_deleted),
+            deletedAt: row.deleted_at || undefined,
+            deletedBy: row.deleted_by || undefined,
+          };
+          if (item.isDeleted) {
+            teamHistory.push(item);
+            deletedTeamIds.push(item.id);
+          } else {
+            activeTeams.push(item);
+          }
+        });
+
+        return res.json({
+          success: true,
+          activeTeams,
+          teamHistory,
+          deletedTeamIds,
+          source: 'supabase',
+          storageMode: 'teams_table',
+        });
+      }
+
+      // 2) Automatic fallback: Year-partitioned rows inside public.parade_records (`teams_year_<YEAR>`)
+      const { data: yrRows, error: yrErr } = await supabase
+        .from('parade_records')
+        .select('*')
+        .like('id', 'teams_year_%')
+        .order('date', { ascending: false });
+
+      if (yrErr) {
+        return res.json({ success: false, activeTeams: [], teamHistory: [], deletedTeamIds: [], error: yrErr.message, source: 'supabase' });
+      }
+
+      const activeTeams: any[] = [];
+      const teamHistory: any[] = [];
+      const deletedSet = new Set<string>();
+
+      (yrRows || []).forEach((row: any) => {
+        const s = row.summary || {};
+        const rowYear = Number(s.year || row.date || String(row.id).replace('teams_year_', '')) || new Date().getFullYear();
+
+        (Array.isArray(s.activeTeams) ? s.activeTeams : []).forEach((t: any) => {
+          if (t && t.id && !t.isDeleted) {
+            activeTeams.push({ ...t, year: Number(t.year) || rowYear });
+          }
+        });
+        (Array.isArray(s.teamHistory) ? s.teamHistory : []).forEach((t: any) => {
+          if (t && t.id) {
+            teamHistory.push({ ...t, isDeleted: true, year: Number(t.year) || rowYear });
+            deletedSet.add(String(t.id));
+          }
+        });
+        (Array.isArray(s.deletedTeamIds) ? s.deletedTeamIds : []).forEach((id: string) => {
+          if (id) deletedSet.add(String(id));
+        });
+      });
+
+      res.json({
+        success: true,
+        activeTeams,
+        teamHistory,
+        deletedTeamIds: Array.from(deletedSet),
+        source: 'supabase',
+        storageMode: 'parade_records_yearly',
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, activeTeams: [], teamHistory: [], deletedTeamIds: [], error: error.message });
+    }
+  });
+
+  app.post('/api/teams', async (req, res) => {
+    try {
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Supabase not configured' });
+      }
+      const activeTeams: any[] = Array.isArray(req.body.activeTeams) ? req.body.activeTeams : [];
+      const teamHistory: any[] = Array.isArray(req.body.teamHistory) ? req.body.teamHistory : [];
+      const deletedTeamIds: string[] = Array.isArray(req.body.deletedTeamIds) ? req.body.deletedTeamIds : [];
+
+      const resolveYear = (t: any): number =>
+        Number(t?.year) ||
+        (t?.createdAt ? new Date(t.createdAt).getFullYear() : new Date().getFullYear()) ||
+        new Date().getFullYear();
+
+      // Check if public.teams exists
+      const { error: probeErr } = await supabase.from('teams').select('id').limit(1);
+      const hasTeamsTable = !probeErr;
+
+      if (hasTeamsTable) {
+        const allRows = [
+          ...activeTeams.map((t) => ({
+            id: t.id,
+            name: t.name,
+            year: resolveYear(t),
+            description: t.description || '',
+            member_ids: Array.isArray(t.memberIds) ? t.memberIds : [],
+            snapshot_members: Array.isArray(t.snapshotMembers) ? t.snapshotMembers : null,
+            is_deleted: false,
+            created_by: t.createdBy || '',
+            created_at: t.createdAt || new Date().toISOString(),
+            updated_at: t.updatedAt || new Date().toISOString(),
+            deleted_at: null,
+            deleted_by: null,
+          })),
+          ...teamHistory.map((t) => ({
+            id: t.id,
+            name: t.name,
+            year: resolveYear(t),
+            description: t.description || '',
+            member_ids: Array.isArray(t.memberIds) ? t.memberIds : [],
+            snapshot_members: Array.isArray(t.snapshotMembers) ? t.snapshotMembers : null,
+            is_deleted: true,
+            created_by: t.createdBy || '',
+            created_at: t.createdAt || new Date().toISOString(),
+            updated_at: t.updatedAt || new Date().toISOString(),
+            deleted_at: t.deletedAt || new Date().toISOString(),
+            deleted_by: t.deletedBy || '',
+          })),
+        ];
+        if (allRows.length > 0) {
+          const { error: upsertErr } = await supabase.from('teams').upsert(allRows, { onConflict: 'id' });
+          if (upsertErr) return res.status(500).json({ success: false, error: upsertErr.message });
+        }
+        return res.json({ success: true, storageMode: 'teams_table', count: allRows.length });
+      }
+
+      // Group strictly by year into separate `teams_year_<YEAR>` rows inside `parade_records`
+      const byYear = new Map<number, { activeTeams: any[]; teamHistory: any[]; deletedTeamIds: string[] }>();
+      const ensureBucket = (yr: number) => {
+        if (!byYear.has(yr)) byYear.set(yr, { activeTeams: [], teamHistory: [], deletedTeamIds: [] });
+        return byYear.get(yr)!;
+      };
+
+      activeTeams.forEach((t) => {
+        const yr = resolveYear(t);
+        ensureBucket(yr).activeTeams.push({ ...t, year: yr });
+      });
+      teamHistory.forEach((t) => {
+        const yr = resolveYear(t);
+        const bucket = ensureBucket(yr);
+        bucket.teamHistory.push({ ...t, year: yr, isDeleted: true });
+        if (!bucket.deletedTeamIds.includes(t.id)) bucket.deletedTeamIds.push(t.id);
+      });
+
+      // Also fetch existing teams_year_% rows so a year emptied out gets updated cleanly instead of leaving stale teams
+      const { data: existingYrRows } = await supabase
+        .from('parade_records')
+        .select('id, date')
+        .like('id', 'teams_year_%');
+
+      (existingYrRows || []).forEach((r: any) => {
+        const yr = Number(r.date || String(r.id).replace('teams_year_', ''));
+        if (yr && !byYear.has(yr)) {
+          byYear.set(yr, { activeTeams: [], teamHistory: [], deletedTeamIds: [] });
+        }
+      });
+
+      const rowsToUpsert = Array.from(byYear.entries()).map(([yr, bucket]) => ({
+        id: `teams_year_${yr}`,
+        date: String(yr),
+        battery: 'ALL',
+        submitted_by: 'Team Management',
+        status: 'Active',
+        summary: {
+          year: yr,
+          activeTeams: bucket.activeTeams,
+          teamHistory: bucket.teamHistory,
+          deletedTeamIds: Array.from(new Set([...bucket.deletedTeamIds, ...deletedTeamIds.filter((dId) => bucket.teamHistory.some((h) => h.id === dId))])),
+        },
+      }));
+
+      if (rowsToUpsert.length > 0) {
+        const { error: upsertErr } = await supabase.from('parade_records').upsert(rowsToUpsert, { onConflict: 'id' });
+        if (upsertErr) return res.status(500).json({ success: false, error: upsertErr.message });
+      }
+
+      res.json({ success: true, storageMode: 'parade_records_yearly', years: Array.from(byYear.keys()) });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
-  app.post('/api/teams', (req, res) => {
+  app.delete('/api/teams/:id', async (req, res) => {
     try {
-      const { activeTeams, teamHistory, deletedTeamIds } = req.body;
-      saveServerTeams({
-        activeTeams: Array.isArray(activeTeams) ? activeTeams : [],
-        teamHistory: Array.isArray(teamHistory) ? teamHistory : [],
-        deletedTeamIds: Array.isArray(deletedTeamIds) ? deletedTeamIds : [],
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Supabase not configured' });
+      }
+      const targetId = String(req.params.id || '').trim();
+      if (!targetId) {
+        return res.status(400).json({ success: false, error: 'Team id is required' });
+      }
+
+      const { error: probeErr } = await supabase.from('teams').select('id').limit(1);
+      if (!probeErr) {
+        const { error: delErr } = await supabase.from('teams').delete().eq('id', targetId);
+        if (delErr) return res.status(500).json({ success: false, error: delErr.message });
+        return res.json({ success: true });
+      }
+
+      const { data: yrRows, error: fetchErr } = await supabase
+        .from('parade_records')
+        .select('*')
+        .like('id', 'teams_year_%');
+      if (fetchErr) return res.status(500).json({ success: false, error: fetchErr.message });
+
+      const updates: any[] = [];
+      (yrRows || []).forEach((row: any) => {
+        const s = row.summary || {};
+        const nextActive = (Array.isArray(s.activeTeams) ? s.activeTeams : []).filter((t: any) => t.id !== targetId);
+        const nextHist = (Array.isArray(s.teamHistory) ? s.teamHistory : []).filter((t: any) => t.id !== targetId);
+        const nextDel = (Array.isArray(s.deletedTeamIds) ? s.deletedTeamIds : []).filter((d: string) => d !== targetId);
+        updates.push({
+          ...row,
+          summary: { ...s, activeTeams: nextActive, teamHistory: nextHist, deletedTeamIds: nextDel },
+        });
       });
+
+      if (updates.length > 0) {
+        await supabase.from('parade_records').upsert(updates, { onConflict: 'id' });
+      }
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
@@ -987,6 +1259,126 @@ async function startServer() {
     try {
       const { definitions, records } = req.body;
       saveServerCourses({ definitions, records });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 9. Supabase-Only Course Cadre API (no local/mock fallback)
+  app.get('/api/course-cadre', async (req, res) => {
+    try {
+      if (!supabase) {
+        return res.json({ success: true, records: [], source: 'supabase' });
+      }
+      const { data, error } = await supabase
+        .from('course_cadre')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) {
+        return res.json({ success: false, records: [], error: error.message, source: 'supabase' });
+      }
+      res.json({ success: true, records: data || [], source: 'supabase' });
+    } catch (error: any) {
+      res.status(500).json({ success: false, records: [], error: error.message });
+    }
+  });
+
+  app.post('/api/course-cadre', async (req, res) => {
+    try {
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Supabase not configured' });
+      }
+      const rec = req.body;
+      const row: Record<string, any> = {
+        id: rec.id,
+        course_id: rec.course_id || rec.courseId,
+        course_name: rec.course_name || rec.courseName,
+        snk_no: rec.snk_no || rec.snkNo,
+        name: rec.name,
+        rk: rec.rk || 'Snk',
+        battery: rec.battery || 'HQ Bty',
+        completion_date: rec.completion_date || rec.completionDate || '',
+        location: rec.location || '',
+        grade: rec.grade || 'Qualified',
+        authority: rec.authority || '',
+        remarks: rec.remarks || '',
+      };
+      const { error } = await supabase.from('course_cadre').upsert([row], { onConflict: 'id' });
+      if (error) return res.status(500).json({ success: false, error: error.message });
+      res.json({ success: true, record: row });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.delete('/api/course-cadre/:id', async (req, res) => {
+    try {
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Supabase not configured' });
+      }
+      const { error } = await supabase.from('course_cadre').delete().eq('id', req.params.id);
+      if (error) return res.status(500).json({ success: false, error: error.message });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 10. Supabase-Only Training State API (no local/mock fallback)
+  app.get('/api/trg-state', async (req, res) => {
+    try {
+      if (!supabase) {
+        return res.json({ success: true, records: [], source: 'supabase' });
+      }
+      const { data, error } = await supabase
+        .from('trg_state')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) {
+        return res.json({ success: false, records: [], error: error.message, source: 'supabase' });
+      }
+      res.json({ success: true, records: data || [], source: 'supabase' });
+    } catch (error: any) {
+      res.status(500).json({ success: false, records: [], error: error.message });
+    }
+  });
+
+  app.post('/api/trg-state', async (req, res) => {
+    try {
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Supabase not configured' });
+      }
+      const rec = req.body;
+      const row: Record<string, any> = {
+        id: rec.id,
+        module: rec.module,
+        snk_no: rec.snk_no || rec.snkNo,
+        name: rec.name,
+        rk: rec.rk || 'Snk',
+        battery: rec.battery || 'HQ Bty',
+        grade: rec.grade || 'Qualified',
+        score_details: rec.score_details || rec.scoreDetails || '',
+        date: rec.date || '',
+        location: rec.location || '',
+        status: rec.status || 'Qualified',
+        remarks: rec.remarks || '',
+      };
+      const { error } = await supabase.from('trg_state').upsert([row], { onConflict: 'id' });
+      if (error) return res.status(500).json({ success: false, error: error.message });
+      res.json({ success: true, record: row });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.delete('/api/trg-state/:id', async (req, res) => {
+    try {
+      if (!supabase) {
+        return res.status(503).json({ success: false, error: 'Supabase not configured' });
+      }
+      const { error } = await supabase.from('trg_state').delete().eq('id', req.params.id);
+      if (error) return res.status(500).json({ success: false, error: error.message });
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
