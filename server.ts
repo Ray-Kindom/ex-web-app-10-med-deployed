@@ -34,6 +34,7 @@ import {
 } from './src/db/queries.ts';
 import { isSqlConfigured } from './src/db/index.ts';
 import { INITIAL_USERS } from './src/data/initialData.ts';
+import { supabase } from './src/supabaseClient.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE_PATH = path.join(DATA_DIR, 'users.json');
@@ -273,11 +274,12 @@ async function startServer() {
   const app = express();
 
   // Support command line args (--port, --host) and environment variables
+  // In AI Studio / Cloud Run, PORT is set to 8080 for nginx ingress; app must listen on port 3000
   let port = 3000;
   const portArgIdx = process.argv.indexOf('--port');
   if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
     port = parseInt(process.argv[portArgIdx + 1], 10) || 3000;
-  } else if (process.env.PORT) {
+  } else if (process.env.PORT && process.env.PORT !== '8080') {
     port = parseInt(process.env.PORT, 10) || 3000;
   }
 
@@ -482,13 +484,66 @@ async function startServer() {
 
   // --- Centralized User Accounts & State Auto-Sync APIs ---
 
-  // 1. Get all centralized users
-  app.get('/api/users', (req, res) => {
+  // 1. Get all centralized users (Supabase prioritized)
+  app.get('/api/users', async (req, res) => {
     try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('authorized_users')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const deletedSet = new Set(loadDeletedUsers());
+          const mapped = data
+            .map((row: any) => {
+              let parsedApprovedBy = row.approved_by || 'System Bootstrap';
+              let parsedPassword = '';
+              let parsedUsername = '';
+
+              if (row.approved_by && typeof row.approved_by === 'string' && row.approved_by.startsWith('{')) {
+                try {
+                  const meta = JSON.parse(row.approved_by);
+                  if (meta.by) parsedApprovedBy = meta.by;
+                  if (meta.pwd) parsedPassword = meta.pwd;
+                  if (meta.u) parsedUsername = meta.u;
+                } catch (e) {}
+              }
+
+              const isInternalEmail = row.email && row.email.endsWith('@10med.internal');
+              if (!parsedUsername) {
+                parsedUsername = isInternalEmail
+                  ? row.email.replace('@10med.internal', '')
+                  : row.email ? row.email.split('@')[0] : `user_${row.id}`;
+              }
+
+              return {
+                id: row.id,
+                username: parsedUsername,
+                password: parsedPassword,
+                name: row.name,
+                rank: row.rank,
+                role: row.role,
+                assignedBattery: row.assigned_battery,
+                assignedBatteries: ['Admin', 'CO', 'Offr', 'RSM'].includes(row.role)
+                  ? ['HQ Bty', 'P Bty', 'Q Bty', 'R Bty']
+                  : [row.assigned_battery],
+                email: row.email,
+                isApproved: row.is_approved !== false,
+                approvedBy: parsedApprovedBy,
+                approvedAt: row.approved_at,
+              };
+            })
+            .filter((u: any) => !deletedSet.has(String(u.id).toLowerCase()));
+
+          return res.json({ success: true, count: mapped.length, users: mapped, source: 'supabase' });
+        }
+      }
       const users = loadServerUsers();
       res.json({ success: true, count: users.length, users });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      const users = loadServerUsers();
+      res.json({ success: true, count: users.length, users });
     }
   });
 
@@ -633,11 +688,32 @@ async function startServer() {
     }
   });
 
-  // 5b. Centralized Parade Records API
-  app.get('/api/parade-records', (req, res) => {
+  // 5b. Centralized Parade Records API (Supabase prioritized)
+  app.get('/api/parade-records', async (req, res) => {
     try {
+      if (supabase) {
+        const { data, error } = await supabase.from('parade_records').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const recordMap: Record<string, any> = {};
+          data.forEach((row: any) => {
+            if (row.id?.startsWith('duty_') || row.id?.startsWith('state_')) return;
+            if (row.summary && typeof row.summary === 'object') {
+              const key = row.summary.id || row.id.replace('parade_', '');
+              recordMap[key] = {
+                ...row.summary,
+                id: key,
+                date: row.date || row.summary.date,
+                battery: row.battery || row.summary.battery,
+                status: row.status || row.summary.status,
+              };
+            }
+          });
+          if (Object.keys(recordMap).length > 0) {
+            return res.json({ success: true, count: Object.keys(recordMap).length, records: recordMap, source: 'supabase' });
+          }
+        }
+      }
       let records = loadServerParadeRecords();
-      // Also check if app_state has more records
       if (fs.existsSync(APP_STATE_FILE_PATH)) {
         try {
           const appState = JSON.parse(fs.readFileSync(APP_STATE_FILE_PATH, 'utf-8')) || {};
@@ -648,7 +724,8 @@ async function startServer() {
       }
       res.json({ success: true, count: Object.keys(records).length, records });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      let records = loadServerParadeRecords();
+      res.json({ success: true, count: Object.keys(records).length, records });
     }
   });
 
@@ -683,9 +760,32 @@ async function startServer() {
     }
   });
 
-  // 5c. Centralized Duty Detailing & Assignments API
-  app.get('/api/duty-assignments', (req, res) => {
+  // 5c. Centralized Duty Detailing & Assignments API (Supabase prioritized)
+  app.get('/api/duty-assignments', async (req, res) => {
     try {
+      if (supabase) {
+        const { data, error } = await supabase.from('parade_records').select('*').like('id', 'duty_%');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const assignments: Record<string, any[]> = {};
+          const statuses: Record<string, any> = {};
+          data.forEach((row: any) => {
+            const summary = row.summary || {};
+            const sessionType = summary.sessionType || 'morning';
+            const key = `${row.date}_${sessionType}`;
+            if (Array.isArray(summary.assignments) && summary.assignments.length > 0) {
+              assignments[key] = summary.assignments;
+            }
+            if (summary.status || row.status) {
+              statuses[key] = {
+                status: summary.status || row.status || 'Saved',
+                savedAt: summary.savedAt || row.created_at,
+                savedBy: summary.savedBy || row.submitted_by,
+              };
+            }
+          });
+          return res.json({ success: true, assignments, statuses, rosterList: [], source: 'supabase' });
+        }
+      }
       let data = loadServerDutyData();
       if (fs.existsSync(APP_STATE_FILE_PATH)) {
         try {
@@ -729,13 +829,61 @@ async function startServer() {
     }
   });
 
-  // 6. Centralized Personnel & Military History Server Disk Persistence
-  app.get('/api/personnel', (req, res) => {
+  // 6. Centralized Personnel & Military History (Supabase prioritized)
+  app.get('/api/personnel', async (req, res) => {
     try {
+      if (supabase) {
+        const pageSize = 1000;
+        let data: any[] = [];
+        let from = 0;
+        let queryError: any = null;
+        while (true) {
+          const { data: chunk, error } = await supabase
+            .from('personnel')
+            .select('*')
+            .range(from, from + pageSize - 1);
+          if (error) {
+            queryError = error;
+            break;
+          }
+          if (!chunk || chunk.length === 0) break;
+          data = data.concat(chunk);
+          if (chunk.length < pageSize) break;
+          from += pageSize;
+        }
+
+        if (!queryError && data.length > 0) {
+          const mapped = data.map((row: any) => {
+            let extra: any = {};
+            if (row.status_details && typeof row.status_details === 'string' && row.status_details.trim().startsWith('{')) {
+              try {
+                extra = JSON.parse(row.status_details);
+              } catch (e) {}
+            }
+            return {
+              id: row.id,
+              snkNo: row.army_no || row.id,
+              rk: row.rank || 'Snk',
+              name: row.name || '',
+              battery: row.battery || 'HQ Bty',
+              trade: row.trade || 'Gnr',
+              status: row.parade_status || 'In Unit',
+              statusDetails: extra.details || (typeof row.status_details === 'string' && !row.status_details.trim().startsWith('{') ? row.status_details : ''),
+              medicalCategory: row.medical_category || 'AYE',
+              phone: row.contact_no || '',
+              mobileNo: row.contact_no || '',
+              bloodGroup: row.blood_group || '',
+              ...extra,
+            };
+          });
+          return res.json({ success: true, count: mapped.length, data: mapped, source: 'supabase' });
+        }
+      }
       const list = loadServerPersonnel();
-      res.json({ success: true, count: list.length, data: list });
+      res.json({ success: true, count: list.length, data: list, source: 'disk' });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      const list = loadServerPersonnel();
+      res.json({ success: true, count: list.length, data: list, source: 'fallback' });
     }
   });
 
@@ -864,9 +1012,15 @@ async function startServer() {
     });
   }
 
+  httpServer.on('error', (err: any) => {
+    console.error('[Server HTTP Error]:', err?.message || err);
+  });
+
   httpServer.listen(port, host, () => {
     console.log(`Server running on http://${host}:${port}`);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('[Server Failed to Start]:', err);
+});

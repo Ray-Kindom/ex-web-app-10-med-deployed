@@ -1,26 +1,35 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES } from '../types';
+import { supabase as directSupabaseClient } from '../supabaseClient.js';
+import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES } from '../types/index.ts';
 
-// Read Vite client-side environment variables for Supabase project credentials
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || (import.meta.env as any).SUPABASE_URL || '').trim();
-const SUPABASE_ANON_KEY = (
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  (import.meta.env as any).VITE_SUPABASE_PUBLISHABLE_KEY ||
-  (import.meta.env as any).SUPABASE_PUBLISHABLE_KEY ||
-  ''
+// Read Vite client-side environment variables or fallback to direct client credentials
+const DEFAULT_SUPABASE_URL = "https://pulzsiyjvnshychyxuix.supabase.co";
+const DEFAULT_SUPABASE_KEY = "sb_publishable_m28aWJJe6dXa5kZHV1NU8w_BMDt2uz5";
+
+const SUPABASE_URL = (
+  (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process?.env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process?.env?.SUPABASE_URL) ||
+  DEFAULT_SUPABASE_URL
 ).trim();
 
-let clientInstance: SupabaseClient | null = null;
+const SUPABASE_ANON_KEY = (
+  (typeof import.meta !== 'undefined' && import.meta?.env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process?.env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process?.env?.SUPABASE_PUBLISHABLE_KEY) ||
+  DEFAULT_SUPABASE_KEY
+).trim();
+
+let clientInstance: SupabaseClient | null = (directSupabaseClient as unknown as SupabaseClient) || null;
 
 export const isSupabaseConfigured = (): boolean => {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+  return true;
 };
 
-export const getSupabaseClient = (): SupabaseClient | null => {
-  if (!isSupabaseConfigured()) return null;
+export const getSupabaseClient = (): SupabaseClient => {
   if (!clientInstance) {
     try {
-      clientInstance = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      clientInstance = (directSupabaseClient as unknown as SupabaseClient) || createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
@@ -28,7 +37,7 @@ export const getSupabaseClient = (): SupabaseClient | null => {
       });
     } catch (err) {
       console.warn('Failed to initialize Supabase client:', err);
-      return null;
+      return directSupabaseClient as unknown as SupabaseClient;
     }
   }
   return clientInstance;
@@ -216,6 +225,58 @@ export const syncAuthorizedUsersToSupabase = async (
     return { success: true, count: payload.length };
   } catch (err: any) {
     return { success: false, count: 0, error: err?.message || 'Supabase sync failed' };
+  }
+};
+
+/**
+ * Upsert a single Authorized User to Supabase without pruning other users
+ */
+export const upsertAuthorizedUserToSupabase = async (
+  u: UserAccount
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase configured নয়।' };
+  }
+
+  try {
+    const userEmail =
+      u.email && u.email.trim().length > 0
+        ? u.email.toLowerCase().trim()
+        : `${(u.username || u.id).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}@10med.internal`;
+
+    const finalU =
+      u.username ||
+      (userEmail.endsWith('@10med.internal')
+        ? userEmail.replace('@10med.internal', '')
+        : userEmail.split('@')[0]);
+
+    const userMeta = JSON.stringify({
+      by: u.approvedBy || 'Admin',
+      pwd: u.password || '',
+      u: finalU,
+    });
+
+    const row = {
+      id: u.id || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      email: userEmail,
+      name: u.name || u.username,
+      rank: u.rank || 'Capt',
+      role: u.role || 'Offr',
+      assigned_battery: u.assignedBattery || (u.assignedBatteries && u.assignedBatteries[0]) || 'HQ Bty',
+      is_approved: u.isApproved !== false,
+      approved_by: userMeta,
+      approved_at: u.approvedAt || new Date().toISOString(),
+    };
+
+    const { error } = await client
+      .from('authorized_users')
+      .upsert([row], { onConflict: 'email' });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Supabase user upsert failed' };
   }
 };
 
@@ -713,14 +774,24 @@ export const fetchPersonnelFromSupabase = async (): Promise<{
   }
 
   try {
-    const { data, error } = await client
-      .from('personnel')
-      .select('*')
-      .limit(2000);
+    const pageSize = 1000;
+    let allRows: any[] = [];
+    let from = 0;
 
-    if (error) throw error;
+    while (true) {
+      const { data, error } = await client
+        .from('personnel')
+        .select('*')
+        .range(from, from + pageSize - 1);
 
-    const mappedList: Personnel[] = (data || []).map((row: any) => {
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allRows = allRows.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const mappedList: Personnel[] = allRows.map((row: any) => {
       let extra: Record<string, any> = {};
       if (row.status_details && typeof row.status_details === 'string' && row.status_details.trim().startsWith('{')) {
         try {
@@ -905,13 +976,15 @@ export const fetchParadeRecordsFromSupabase = async (): Promise<{
   try {
     const { data, error } = await client
       .from('parade_records')
-      .select('*')
-      .like('id', 'parade_%');
+      .select('*');
 
     if (error) throw error;
 
     const recordMap: Record<string, DateWiseParadeRecord> = {};
     (data || []).forEach((row: any) => {
+      if (row.id?.startsWith('duty_') || row.id?.startsWith('state_')) {
+        return;
+      }
       if (row.summary && typeof row.summary === 'object') {
         const rec = row.summary as DateWiseParadeRecord;
         const key = rec.id || row.id.replace('parade_', '');

@@ -74,6 +74,7 @@ import {
 import {
   isSupabaseConfigured,
   syncAuthorizedUsersToSupabase,
+  upsertAuthorizedUserToSupabase,
   deleteAuthorizedUserFromSupabase,
   syncPersonnelToSupabase,
   fetchAuthorizedUsersFromSupabase,
@@ -3140,24 +3141,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     let isMounted = true;
     const loadPersonnel = async () => {
-      // 1. Primary: Fetch from centralized server persistence (/api/personnel)
-      try {
-        const sRes = await fetch('/api/personnel', { cache: 'no-store' });
-        const sData = await sRes.json();
-        if (!isMounted) return;
-        if (sData.success && Array.isArray(sData.data) && sData.data.length > 0) {
-          setPersonnelList(sData.data);
-          setIsPersonnelLoading(false);
-          try {
-            localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(sData.data));
-          } catch (e) {}
-          return;
-        }
-      } catch (err) {
-        console.warn('Server personnel fetch error:', err);
-      }
-
-      // 2. Secondary fallback: Fetch from Supabase PostgreSQL Cloud if configured
+      // 1. Primary: Fetch only the data available in Supabase database
       if (isSupabaseConfigured()) {
         try {
           const res = await fetchPersonnelFromSupabase();
@@ -3173,6 +3157,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (err) {
           console.warn('Supabase personnel bootstrap error:', err);
         }
+      }
+
+      // 2. Secondary fallback: Server persistence
+      try {
+        const sRes = await fetch('/api/personnel', { cache: 'no-store' });
+        const sData = await sRes.json();
+        if (!isMounted) return;
+        if (sData.success && Array.isArray(sData.data) && sData.data.length > 0) {
+          setPersonnelList(sData.data);
+          setIsPersonnelLoading(false);
+          try {
+            localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(sData.data));
+          } catch (e) {}
+          return;
+        }
+      } catch (err) {
+        console.warn('Server personnel fetch error:', err);
       }
 
       // 3. Tertiary fallback: Browser cache
@@ -3211,6 +3212,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     let isMounted = true;
     const loadParadeRecords = async () => {
+      // 1. Primary: Fetch from Supabase database
+      if (isSupabaseConfigured()) {
+        try {
+          const res = await fetchParadeRecordsFromSupabase();
+          if (isMounted && res.success && res.records && Object.keys(res.records).length > 0) {
+            setParadeRecords((prev) => ({ ...prev, ...res.records }));
+            return;
+          }
+        } catch (e) {
+          console.warn('Supabase parade records fetch notice:', e);
+        }
+      }
+
+      // 2. Secondary fallback: Server persistence
       try {
         const sRes = await fetch('/api/parade-records', { cache: 'no-store' });
         const sData = await sRes.json();
@@ -3218,16 +3233,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setParadeRecords((prev) => ({ ...prev, ...sData.records }));
         }
       } catch (e) {}
-
-      if (isSupabaseConfigured()) {
-        fetchParadeRecordsFromSupabase()
-          .then((res) => {
-            if (isMounted && res.success && res.records) {
-              setParadeRecords((prev) => ({ ...prev, ...res.records }));
-            }
-          })
-          .catch(() => {});
-      }
     };
 
     loadParadeRecords();
@@ -3248,6 +3253,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     let isMounted = true;
     const loadDutyAssignments = async () => {
+      // 1. Primary: Fetch from Supabase database
+      if (isSupabaseConfigured()) {
+        try {
+          const res = await fetchAllDutyDetailingFromSupabase();
+          if (isMounted && res.success && res.records && res.records.length > 0) {
+            setParadeDutyAssignments((prev) => {
+              const next = { ...prev };
+              res.records!.forEach((r) => {
+                const key = `${r.date}_${r.sessionType}`;
+                if (r.assignments && r.assignments.length > 0) {
+                  next[key] = r.assignments;
+                }
+              });
+              return next;
+            });
+
+            setDutySessionStatuses((prev) => {
+              const next = { ...prev };
+              res.records!.forEach((r) => {
+                const key = `${r.date}_${r.sessionType}`;
+                if (r.status) {
+                  next[key] = r.status;
+                }
+              });
+              return next;
+            });
+            return;
+          }
+        } catch (e) {
+          console.warn('Supabase duty assignments fetch notice:', e);
+        }
+      }
+
+      // 2. Secondary fallback: Server persistence
       try {
         const sRes = await fetch('/api/duty-assignments', { cache: 'no-store' });
         const sData = await sRes.json();
@@ -4422,7 +4461,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (backupData.paradeRecords && typeof backupData.paradeRecords === 'object') {
         setParadeRecords(backupData.paradeRecords);
         if (isSupabaseConfigured()) {
-          saveParadeRecordToSupabase(backupData.paradeRecords).catch(() => {});
+          Object.values(backupData.paradeRecords).forEach((rec: any) => {
+            if (rec && rec.id) {
+              saveParadeRecordToSupabase(rec).catch(() => {});
+            }
+          });
         }
       }
       if (backupData.customLogo) {
@@ -4617,7 +4660,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Sync to Supabase Cloud for cross-browser persistence
     if (isSupabaseConfigured()) {
-      syncAuthorizedUsersToSupabase([newUser]).catch((e) =>
+      upsertAuthorizedUserToSupabase(newUser).catch((e) =>
         console.warn('Supabase sync error on addUser:', e)
       );
     }
@@ -4628,29 +4671,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showNotification('গেস্ট মোডে ইউজার তথ্য পরিবর্তন করা যাবে না (GUEST — VIEW ONLY)।');
       return;
     }
-    let finalUpdated: UserAccount | null = null;
-    let updatedNextList: UserAccount[] = [];
-    setUsersList((prev) => {
-      const next = prev.map((u) => {
-        if (u.id === id) {
-          finalUpdated = { ...u, ...updated };
-          if (currentUser.id === id || (currentUser.email && u.email && currentUser.email.toLowerCase() === u.email.toLowerCase())) {
-            setCurrentUserState(finalUpdated);
-            sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(finalUpdated));
-          }
-          return finalUpdated;
-        }
-        return u;
-      });
-      updatedNextList = next;
-      return next;
-    });
+    const existingTarget = usersList.find((u) => u.id === id);
+    const finalUpdated: UserAccount | null = existingTarget ? { ...existingTarget, ...updated } : null;
+    const updatedNextList = finalUpdated
+      ? usersList.map((u) => (u.id === id ? finalUpdated : u))
+      : usersList;
 
     if (finalUpdated) {
+      setUsersList(updatedNextList);
+      if (
+        currentUser.id === id ||
+        (currentUser.email && existingTarget?.email && currentUser.email.toLowerCase() === existingTarget.email.toLowerCase())
+      ) {
+        setCurrentUserState(finalUpdated);
+        sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(finalUpdated));
+      }
+
       removeDeletedUserIdentifier([
-        (finalUpdated as UserAccount).id,
-        (finalUpdated as UserAccount).username,
-        (finalUpdated as UserAccount).email,
+        finalUpdated.id,
+        finalUpdated.username,
+        finalUpdated.email,
       ]);
 
       // Sync to centralized server / database
@@ -4665,16 +4705,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Sync to Firestore
     if (finalUpdated) {
       syncDoc(setDoc(doc(db, 'users', id), sanitizeForFirestore(finalUpdated), { merge: true }), 'update user');
-      const uEmail = (finalUpdated as UserAccount).email;
+      const uEmail = finalUpdated.email;
       if (uEmail) {
         setAccessRequests((prev) =>
           prev.map((r) => {
             if (r.email.toLowerCase() === uEmail.toLowerCase()) {
               const updatedReq: GoogleAccessRequest = {
                 ...r,
-                assignedRole: (finalUpdated as UserAccount).role,
-                assignedRank: (finalUpdated as UserAccount).rank,
-                assignedBattery: (finalUpdated as UserAccount).assignedBattery,
+                assignedRole: finalUpdated.role,
+                assignedRank: finalUpdated.rank,
+                assignedBattery: finalUpdated.assignedBattery,
               };
               syncDoc(setDoc(doc(db, 'access_requests', r.id), sanitizeForFirestore(updatedReq), { merge: true }), 'sync user to req');
               return updatedReq;
@@ -4686,7 +4726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Sync updated user to Supabase Cloud for cross-browser persistence
       if (isSupabaseConfigured()) {
-        syncAuthorizedUsersToSupabase([finalUpdated]).catch((e) =>
+        upsertAuthorizedUserToSupabase(finalUpdated).catch((e) =>
           console.warn('Supabase sync error on updateUser:', e)
         );
       }
