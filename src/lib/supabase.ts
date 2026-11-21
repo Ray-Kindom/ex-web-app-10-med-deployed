@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as directSupabaseClient } from '../supabaseClient.js';
 import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES, ServiceActivityRecord, ServiceActivityType, FamilyManRecord, LeaveManagementRecord } from '../types/index.ts';
 import { CourseDefinition, CourseQualificationRecord } from '../data/courseQualificationData.ts';
-import { TrgModuleType, TrgRecord } from '../data/trgStateData.ts';
+import { TrgModuleType, TrgRecord, IpftBoardDef, inferIpftBiannual, parseTrgMetaFromRemarks, serializeTrgMetaToRemarks } from '../data/trgStateData.ts';
 
 // Read Vite client-side environment variables or fallback to direct client credentials
 const DEFAULT_SUPABASE_URL = "https://pulzsiyjvnshychyxuix.supabase.co";
@@ -1561,12 +1561,13 @@ export const deleteCourseDefinitionFromSupabase = async (
 export const fetchTrgStateFromSupabase = async (): Promise<{
   success: boolean;
   records: TrgRecord[];
+  boardDefs: IpftBoardDef[];
   tableMissing?: boolean;
   error?: string;
 }> => {
   const client = getSupabaseClient();
   if (!client) {
-    return { success: false, records: [], error: 'Supabase client is not configured.' };
+    return { success: false, records: [], boardDefs: [], error: 'Supabase client is not configured.' };
   }
 
   try {
@@ -1579,34 +1580,97 @@ export const fetchTrgStateFromSupabase = async (): Promise<{
       return {
         success: false,
         records: [],
+        boardDefs: [],
         tableMissing: isSupabaseTableMissingError(error),
         error: error.message,
       };
     }
 
-    const mapped: TrgRecord[] = (data || []).map((row: any) => ({
-      id: String(row.id),
-      personnelId: row.personnel_id ? String(row.personnel_id) : undefined,
-      module: (row.module || 'RET') as TrgModuleType,
-      snkNo: String(row.snk_no || row.army_no || row.snkNo || ''),
-      name: String(row.name || ''),
-      rk: String(row.rk || row.rank || 'Snk'),
-      battery: (row.battery || 'HQ Bty') as any,
-      grade: String(row.grade || 'Qualified'),
-      scoreDetails: String(row.score_details || row.scoreDetails || ''),
-      date: String(row.date || ''),
-      location: String(row.location || ''),
-      status: (row.status || 'Qualified') as TrgRecord['status'],
-      remarks: row.remarks || '',
-    }));
+    const mapped: TrgRecord[] = [];
+    const boardDefs: IpftBoardDef[] = [];
 
-    return { success: true, records: mapped };
+    (data || []).forEach((row: any) => {
+      const meta = parseTrgMetaFromRemarks(row.remarks);
+      if (row.snk_no === '__IPFT_BOARD__' || row.grade === '__BOARD_DEF__') {
+        const bDate = String(row.date || '');
+        const bName = meta.boardName || String(row.name || '').trim() || 'Board';
+        boardDefs.push({
+          id: String(row.id),
+          boardName: bName,
+          date: bDate,
+          biannual: meta.biannual || inferIpftBiannual({ date: bDate }),
+          createdAt: row.created_at ? String(row.created_at) : undefined,
+        });
+        return;
+      }
+
+      mapped.push({
+        id: String(row.id),
+        personnelId: row.personnel_id ? String(row.personnel_id) : undefined,
+        module: (row.module || 'RET') as TrgModuleType,
+        snkNo: String(row.snk_no || row.army_no || row.snkNo || ''),
+        name: String(row.name || ''),
+        rk: String(row.rk || row.rank || 'Snk'),
+        battery: (row.battery || 'HQ Bty') as any,
+        grade: String(row.grade || 'Qualified'),
+        scoreDetails: String(row.score_details || row.scoreDetails || ''),
+        date: String(row.date || ''),
+        location: String(row.location || ''),
+        status: (row.status || 'Qualified') as TrgRecord['status'],
+        remarks: meta.cleanRemarks,
+        biannual: meta.biannual,
+        boardName: meta.boardName,
+      });
+    });
+
+    return { success: true, records: mapped, boardDefs };
   } catch (err: any) {
     return {
       success: false,
       records: [],
+      boardDefs: [],
       tableMissing: isSupabaseTableMissingError(err),
       error: err?.message || 'Failed to fetch trg_state',
+    };
+  }
+};
+
+export const upsertIpftBoardToSupabase = async (
+  board: IpftBoardDef
+): Promise<{ success: boolean; tableMissing?: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const row = {
+      id: board.id,
+      module: 'IPFT',
+      snk_no: '__IPFT_BOARD__',
+      name: board.boardName.trim(),
+      rk: '',
+      battery: 'HQ Bty',
+      grade: '__BOARD_DEF__',
+      score_details: '',
+      date: board.date,
+      location: '',
+      status: 'Pending',
+      remarks: serializeTrgMetaToRemarks('', board.biannual, board.boardName.trim()),
+    };
+
+    const { error } = await client.from('trg_state').upsert([row], { onConflict: 'id' });
+    if (error) {
+      return {
+        success: false,
+        tableMissing: isSupabaseTableMissingError(error),
+        error: error.message,
+      };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return {
+      success: false,
+      tableMissing: isSupabaseTableMissingError(err),
+      error: err?.message,
     };
   }
 };
@@ -1618,6 +1682,11 @@ export const upsertTrgStateToSupabase = async (
   if (!client) return { success: false, error: 'Supabase client is not configured.' };
 
   try {
+    const encodedRemarks =
+      rec.module === 'IPFT'
+        ? serializeTrgMetaToRemarks(rec.remarks, rec.biannual, rec.boardName)
+        : (rec.remarks || '');
+
     const row = {
       id: rec.id,
       module: rec.module,
@@ -1630,7 +1699,7 @@ export const upsertTrgStateToSupabase = async (
       date: rec.date,
       location: rec.location,
       status: rec.status,
-      remarks: rec.remarks || '',
+      remarks: encodedRemarks,
     };
 
     const { error } = await client.from('trg_state').upsert([row], { onConflict: 'id' });
@@ -1975,21 +2044,28 @@ export const fetchPersonnelDossierFromSupabase = async (
     remarks: row.remarks || '',
   }));
 
-  const trainings: TrgRecord[] = (trgRes.data || []).map((row: any) => ({
-    id: String(row.id),
-    personnelId: cleanId || undefined,
-    module: (row.module || 'RET') as TrgModuleType,
-    snkNo: String(row.snk_no || ''),
-    name: String(row.name || ''),
-    rk: String(row.rk || 'Snk'),
-    battery: (row.battery || 'HQ Bty') as any,
-    grade: String(row.grade || 'Qualified'),
-    scoreDetails: String(row.score_details || ''),
-    date: String(row.date || ''),
-    location: String(row.location || ''),
-    status: (row.status || 'Qualified') as TrgRecord['status'],
-    remarks: row.remarks || '',
-  }));
+  const trainings: TrgRecord[] = (trgRes.data || [])
+    .filter((row: any) => row.snk_no !== '__IPFT_BOARD__' && row.grade !== '__BOARD_DEF__')
+    .map((row: any) => {
+      const meta = parseTrgMetaFromRemarks(row.remarks);
+      return {
+        id: String(row.id),
+        personnelId: cleanId || undefined,
+        module: (row.module || 'RET') as TrgModuleType,
+        snkNo: String(row.snk_no || ''),
+        name: String(row.name || ''),
+        rk: String(row.rk || 'Snk'),
+        battery: (row.battery || 'HQ Bty') as any,
+        grade: String(row.grade || 'Qualified'),
+        scoreDetails: String(row.score_details || ''),
+        date: String(row.date || ''),
+        location: String(row.location || ''),
+        status: (row.status || 'Qualified') as TrgRecord['status'],
+        remarks: meta.cleanRemarks,
+        biannual: meta.biannual,
+        boardName: meta.boardName,
+      };
+    });
 
   const duties: DossierDutyRecord[] = [];
   const lowerId = cleanId.toLowerCase();

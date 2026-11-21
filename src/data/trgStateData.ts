@@ -1,6 +1,8 @@
 import { Battery } from '../types';
 
 export type TrgModuleType = 'RET' | 'IPFT' | 'Gren Firing' | 'Firing';
+export type TrgBiannualType = '1st Biannual' | '2nd Biannual';
+export type IpftResultType = 'Passed' | 'Failed' | 'Not Appeared';
 
 export interface TrgRecord {
   id: string;
@@ -14,9 +16,96 @@ export interface TrgRecord {
   scoreDetails: string;
   date: string;
   location: string;
-  status: 'Qualified' | 'Passed' | 'Distinction' | 'Pending' | 'Re-test';
+  status: 'Qualified' | 'Passed' | 'Distinction' | 'Failed' | 'Not Appeared' | 'Pending' | 'Re-test';
   remarks?: string;
+  biannual?: TrgBiannualType;
+  boardName?: string;
 }
+
+export interface IpftBoardDef {
+  id: string;
+  boardName: string;
+  date: string;
+  biannual: TrgBiannualType;
+  createdAt?: string;
+}
+
+const META_REGEX = /\s*\[META:(\{.*?\})\]\s*$/;
+
+export const parseTrgMetaFromRemarks = (
+  rawRemarks?: string | null
+): { cleanRemarks: string; biannual?: TrgBiannualType; boardName?: string } => {
+  const text = String(rawRemarks || '');
+  const match = text.match(META_REGEX);
+  if (!match) {
+    return { cleanRemarks: text.trim() };
+  }
+  const cleanRemarks = text.replace(META_REGEX, '').trim();
+  try {
+    const parsed = JSON.parse(match[1]);
+    return {
+      cleanRemarks,
+      biannual:
+        parsed?.biannual === '1st Biannual' || parsed?.biannual === '2nd Biannual'
+          ? parsed.biannual
+          : undefined,
+      boardName: typeof parsed?.boardName === 'string' && parsed.boardName.trim() ? parsed.boardName.trim() : undefined,
+    };
+  } catch {
+    return { cleanRemarks };
+  }
+};
+
+export const serializeTrgMetaToRemarks = (
+  remarks?: string,
+  biannual?: TrgBiannualType,
+  boardName?: string
+): string => {
+  const { cleanRemarks } = parseTrgMetaFromRemarks(remarks);
+  const meta: Record<string, string> = {};
+  if (biannual) meta.biannual = biannual;
+  if (boardName && boardName.trim()) meta.boardName = boardName.trim();
+  if (Object.keys(meta).length === 0) return cleanRemarks;
+  const tag = `[META:${JSON.stringify(meta)}]`;
+  return cleanRemarks ? `${cleanRemarks} ${tag}` : tag;
+};
+
+export const inferIpftBiannual = (rec: Pick<TrgRecord, 'biannual' | 'date'>): TrgBiannualType => {
+  if (rec.biannual === '1st Biannual' || rec.biannual === '2nd Biannual') {
+    return rec.biannual;
+  }
+  if (rec.date) {
+    const parts = rec.date.split('-');
+    const month = Number(parts[1]);
+    if (month >= 1 && month <= 6) return '1st Biannual';
+    if (month >= 7 && month <= 12) return '2nd Biannual';
+  }
+  return '1st Biannual';
+};
+
+export const inferIpftBoardName = (rec: Pick<TrgRecord, 'boardName' | 'date'>): string => {
+  if (rec.boardName && rec.boardName.trim()) return rec.boardName.trim();
+  if (rec.date) {
+    const d = new Date(rec.date);
+    if (!Number.isNaN(d.getTime())) {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `Board (${monthNames[d.getMonth()]} ${d.getFullYear()})`;
+    }
+  }
+  return 'Main Board';
+};
+
+export const getIpftResultCategory = (rec: Pick<TrgRecord, 'status' | 'grade'>): IpftResultType => {
+  const st = (rec.status || '').toLowerCase();
+  const gr = (rec.grade || '').toLowerCase();
+  if (st === 'not appeared' || st === 'pending' || gr.includes('not appeared') || gr.includes('absent')) {
+    return 'Not Appeared';
+  }
+  if (st === 'failed' || st === 're-test' || gr.includes('fail')) {
+    return 'Failed';
+  }
+  return 'Passed';
+};
 
 export const INITIAL_TRG_RECORDS: TrgRecord[] = [
   // ================= RET (Ready Evaluation Test) =================

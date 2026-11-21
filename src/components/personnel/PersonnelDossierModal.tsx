@@ -1026,10 +1026,24 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
                             {t.module}
                           </span>
+                          {t.biannual && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                              {t.biannual}
+                            </span>
+                          )}
+                          {t.boardName && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-300 border border-slate-600/40">
+                              {t.boardName}
+                            </span>
+                          )}
                           <span className="font-bold text-xs">{t.grade}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
                             t.status === 'Distinction'
                               ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              : t.status === 'Failed' || t.status === 'Re-test'
+                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                              : t.status === 'Not Appeared' || t.status === 'Pending'
+                              ? 'bg-slate-500/15 text-slate-300 border-slate-500/30'
                               : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                           }`}>
                             {t.status}

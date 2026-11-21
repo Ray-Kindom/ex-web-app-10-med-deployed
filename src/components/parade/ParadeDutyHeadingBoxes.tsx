@@ -221,14 +221,23 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     return DUTY_BOXES.find((b) => b.category === activeCategory);
   }, [activeCategory]);
 
-  // Dynamic available roles for dropdown
+  // Dynamic available roles for dropdown (deduplicated across multi-year team records)
   const availableRoles = useMemo(() => {
     if (activeCategory === 'Team') {
-      const names = (customTeams || []).map((t) => t.name);
-      if (names.length > 0) return names;
+      const seen = new Set<string>();
+      const uniqueNames: string[] = [];
+      (customTeams || []).forEach((t) => {
+        const trimmed = (t.name || '').trim();
+        const key = trimmed.toLowerCase();
+        if (trimmed && !seen.has(key)) {
+          seen.add(key);
+          uniqueNames.push(trimmed);
+        }
+      });
+      if (uniqueNames.length > 0) return uniqueNames;
       return ['Aslt Course', 'Cricket', 'Athletics Team', 'SL Course', 'Firing Team'];
     }
-    return activeBoxDef?.defaultRoles || [];
+    return Array.from(new Set(activeBoxDef?.defaultRoles || []));
   }, [activeCategory, customTeams, activeBoxDef]);
 
   // When active category changes or available roles change, set selected duty option
@@ -247,12 +256,15 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     }
   }, [activeCategory, availableRoles]);
 
-  // Team object matching current selected role
+  // Team object matching current selected role (prefer newest year record)
   const currentTeamObj = useMemo(() => {
     if (activeCategory !== 'Team') return null;
-    return (customTeams || []).find(
-      (t) => t.name.toLowerCase().trim() === selectedDutyName.toLowerCase().trim()
+    const target = selectedDutyName.toLowerCase().trim();
+    const matches = (customTeams || []).filter(
+      (t) => (t.name || '').toLowerCase().trim() === target
     );
+    if (matches.length === 0) return null;
+    return [...matches].sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0))[0];
   }, [activeCategory, customTeams, selectedDutyName]);
 
   // Members of current team currently detailed for this dutyName
@@ -625,8 +637,8 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                       }}
                       className="w-full bg-slate-950 border border-slate-700 hover:border-slate-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-rose-500 appearance-none cursor-pointer pr-7"
                     >
-                      {(availableRoles || []).map((role) => (
-                        <option key={role} value={role} className="bg-slate-900 text-white">
+                      {(availableRoles || []).map((role, idx) => (
+                        <option key={`${role}-${idx}`} value={role} className="bg-slate-900 text-white">
                           {role}
                         </option>
                       ))}
@@ -804,7 +816,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                 isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-slate-100'
               }`}>
                 {groupedSubCategories.map((group, gIdx) => (
-                  <div key={group.dutyName} className={gIdx > 0 ? (isLight ? 'border-t border-slate-200' : 'border-t border-slate-800') : ''}>
+                  <div key={`${group.dutyName}-${gIdx}`} className={gIdx > 0 ? (isLight ? 'border-t border-slate-200' : 'border-t border-slate-800') : ''}>
                     {/* Sub-category / Group header with delete button */}
                     <div className={`flex items-center justify-between px-3 py-1.5 border-b text-xs font-mono ${
                       isLight ? 'bg-slate-100/90 border-slate-200 text-slate-800' : 'bg-slate-950/90 border-slate-800 text-slate-200'
@@ -837,7 +849,7 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
                     <div className={isLight ? 'divide-y divide-slate-100' : 'divide-y divide-slate-800/60'}>
                       {group.personnel.map((assigned, idx) => (
                         <div
-                          key={assigned.id}
+                          key={`${assigned.id}-${idx}`}
                           className={`px-3 py-1.5 flex items-center justify-between gap-2 transition-colors ${
                             isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
                           }`}
