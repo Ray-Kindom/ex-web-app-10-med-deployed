@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as directSupabaseClient } from '../supabaseClient.js';
-import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES, ServiceActivityRecord, ServiceActivityType } from '../types/index.ts';
+import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES, ServiceActivityRecord, ServiceActivityType, FamilyManRecord, LeaveManagementRecord } from '../types/index.ts';
 import { CourseDefinition, CourseQualificationRecord } from '../data/courseQualificationData.ts';
 import { TrgModuleType, TrgRecord } from '../data/trgStateData.ts';
 
@@ -502,6 +502,126 @@ export const upsertSinglePersonnelToSupabase = async (
   } catch (err: any) {
     console.warn('Supabase upsertSinglePersonnel error:', err?.message);
     return { success: false, error: err?.message };
+  }
+};
+
+/**
+ * Propagate personnel identity changes (battery, rank, name, snkNo, trade)
+ * across secondary Supabase tables & state blobs (`course_cadre`, `trg_state`,
+ * `family_man_state`, `leave_management`, and `duty_*` parade_records).
+ */
+export const syncPersonnelProfileAcrossTablesInSupabase = async (
+  p: Personnel,
+  previousSnkNo?: string
+): Promise<void> => {
+  const client = getSupabaseClient();
+  if (!client) return;
+
+  const cleanSnk = (p.snkNo || '').trim();
+  const cleanPrevSnk = (previousSnkNo || '').trim();
+  const snkCandidates = Array.from(
+    new Set([cleanSnk, cleanPrevSnk].filter(Boolean))
+  );
+
+  try {
+    // 1. Update `course_cadre` rows for this soldier
+    for (const snk of snkCandidates) {
+      await client
+        .from('course_cadre')
+        .update({
+          snk_no: cleanSnk || snk,
+          name: p.name,
+          rk: p.rk,
+          battery: p.battery,
+        })
+        .ilike('snk_no', snk);
+    }
+
+    // 2. Update `trg_state` rows for this soldier
+    for (const snk of snkCandidates) {
+      await client
+        .from('trg_state')
+        .update({
+          snk_no: cleanSnk || snk,
+          name: p.name,
+          rk: p.rk,
+          battery: p.battery,
+        })
+        .ilike('snk_no', snk);
+    }
+
+    // 3. Update `family_man_state` & `leave_management` stored inside `parade_records`
+    const matchesSoldier = (rec: { personnelId?: string; snkNo?: string }) => {
+      if (rec.personnelId && rec.personnelId === p.id) return true;
+      const rSnk = (rec.snkNo || '').trim().toLowerCase();
+      return Boolean(
+        rSnk &&
+          snkCandidates.some((c) => c.toLowerCase() === rSnk)
+      );
+    };
+
+    const [fmRes, lmRes] = await Promise.all([
+      fetchFamilyManStateFromSupabase().catch(() => ({ success: false, records: [] as FamilyManRecord[] })),
+      fetchLeaveManagementFromSupabase().catch(() => ({ success: false, records: [] as LeaveManagementRecord[] })),
+    ]);
+
+    if (fmRes.success && fmRes.records.length > 0) {
+      let changed = false;
+      const nextFm = fmRes.records.map((rec) => {
+        if (!matchesSoldier(rec)) return rec;
+        if (
+          rec.rk === p.rk &&
+          rec.name === p.name &&
+          rec.battery === p.battery &&
+          rec.snkNo === p.snkNo &&
+          rec.trade === (p.trade || rec.trade)
+        ) {
+          return rec;
+        }
+        changed = true;
+        return {
+          ...rec,
+          personnelId: p.id,
+          snkNo: p.snkNo,
+          rk: p.rk,
+          name: p.name,
+          battery: p.battery,
+          trade: p.trade || rec.trade || '-',
+        };
+      });
+      if (changed) {
+        await saveFamilyManStateToSupabase(nextFm);
+      }
+    }
+
+    if (lmRes.success && lmRes.records.length > 0) {
+      let changed = false;
+      const nextLm = lmRes.records.map((rec) => {
+        if (!matchesSoldier(rec)) return rec;
+        if (
+          rec.rk === p.rk &&
+          rec.name === p.name &&
+          rec.battery === p.battery &&
+          rec.snkNo === p.snkNo
+        ) {
+          return rec;
+        }
+        changed = true;
+        return {
+          ...rec,
+          personnelId: p.id,
+          snkNo: p.snkNo,
+          rk: p.rk,
+          name: p.name,
+          battery: p.battery,
+        };
+      });
+      if (changed) {
+        await saveLeaveManagementToSupabase(nextLm);
+      }
+    }
+  } catch (err: any) {
+    console.warn('Cross-table personnel sync note:', err?.message);
   }
 };
 
@@ -1724,6 +1844,58 @@ export const deleteTeamPermanentlyFromSupabase = async (teamId: string): Promise
   return { success: false, error: 'Failed to permanently delete team' };
 };
 
+// ============================================================================
+// FAMILY MAN STATE (In Living / Out Living) - Strictly Supabase Persisted
+// ============================================================================
+
+export const fetchFamilyManStateFromSupabase = async (): Promise<{
+  success: boolean;
+  records: FamilyManRecord[];
+  error?: string;
+}> => {
+  const res = await fetchSystemStateFromSupabase('family_man_state');
+  if (!res.success) {
+    return { success: false, records: [], error: res.error };
+  }
+  const list = Array.isArray(res.data?.records) ? res.data.records : Array.isArray(res.data) ? res.data : [];
+  return { success: true, records: list };
+};
+
+export const saveFamilyManStateToSupabase = async (
+  records: FamilyManRecord[]
+): Promise<{ success: boolean; error?: string }> => {
+  return saveSystemStateToSupabase('family_man_state', {
+    records,
+    updatedAt: new Date().toISOString(),
+  });
+};
+
+// ============================================================================
+// LEAVE MANAGEMENT (P/Lve, C/Lve, Ni Pass) - Strictly Supabase Persisted
+// ============================================================================
+
+export const fetchLeaveManagementFromSupabase = async (): Promise<{
+  success: boolean;
+  records: LeaveManagementRecord[];
+  error?: string;
+}> => {
+  const res = await fetchSystemStateFromSupabase('leave_management');
+  if (!res.success) {
+    return { success: false, records: [], error: res.error };
+  }
+  const list = Array.isArray(res.data?.records) ? res.data.records : Array.isArray(res.data) ? res.data : [];
+  return { success: true, records: list };
+};
+
+export const saveLeaveManagementToSupabase = async (
+  records: LeaveManagementRecord[]
+): Promise<{ success: boolean; error?: string }> => {
+  return saveSystemStateToSupabase('leave_management', {
+    records,
+    updatedAt: new Date().toISOString(),
+  });
+};
+
 export interface DossierDutyRecord {
   id: string;
   date: string;
@@ -1771,7 +1943,7 @@ export const fetchPersonnelDossierFromSupabase = async (
   const cleanId = (personnelId || '').trim();
   const cleanSnk = (snkNo || '').trim();
 
-  const [courseRes, trgRes, dutyRes, personRes] = await Promise.all([
+  const [courseRes, trgRes, dutyRes, personRes, leaveRes] = await Promise.all([
     cleanSnk
       ? client.from('course_cadre').select('*').ilike('snk_no', cleanSnk).order('created_at', { ascending: false })
       : Promise.resolve({ data: [], error: null } as any),
@@ -1784,6 +1956,7 @@ export const fetchPersonnelDossierFromSupabase = async (
       : cleanSnk
       ? client.from('personnel').select('id, status_details').ilike('army_no', cleanSnk).maybeSingle()
       : Promise.resolve({ data: null, error: null } as any),
+    fetchLeaveManagementFromSupabase().catch(() => ({ success: false, records: [] as LeaveManagementRecord[] })),
   ]);
 
   const courses: CourseQualificationRecord[] = (courseRes.data || []).map((row: any) => ({
@@ -1854,10 +2027,50 @@ export const fetchPersonnelDossierFromSupabase = async (
     } catch {}
   }
 
+  // Merge Leave Management records (P/Lve, C/Lve, Ni Pass) directly for this soldier
+  const leaveActivities: ServiceActivityRecord[] = [];
+  const existingActs = freshActivityHistory || [];
+  (leaveRes?.records || []).forEach((rec) => {
+    const rId = String(rec.personnelId || '').trim().toLowerCase();
+    const rSnk = String(rec.snkNo || '').trim().toLowerCase();
+    const matches = (lowerId && rId === lowerId) || (lowerSnk && rSnk === lowerSnk);
+    if (!matches || rec.status === 'Cancelled') return;
+
+    const alreadyInHistory = existingActs.some(
+      (a) =>
+        (rec.activityId && a.id === rec.activityId) ||
+        (a.type === 'Leave' && a.subType === rec.leaveType && a.startDate === rec.startDate)
+    );
+    if (!alreadyInHistory) {
+      leaveActivities.push({
+        id: rec.activityId || rec.id,
+        type: 'Leave',
+        subType: rec.leaveType,
+        title:
+          rec.leaveType === 'Ni Pass'
+            ? 'Night Pass (নাইট পাস)'
+            : rec.leaveType === 'C/Lve'
+            ? 'Casual Leave (নৈমিত্তিক ছুটি)'
+            : 'Privilege Leave (বাৎসরিক ছুটি)',
+        startDate: rec.startDate,
+        endDate: rec.endDate,
+        durationDays: rec.durationDays,
+        location: rec.addressOrDestination,
+        authority: rec.authority,
+        remarks: rec.remarks,
+        status: rec.status === 'Active' ? 'Active' : 'Completed',
+        recordedAt: rec.recordedAt,
+        recordedBy: rec.recordedBy || 'Leave Management',
+        sourceTable: 'out_of_unit',
+        sourceId: rec.id,
+      });
+    }
+  });
+
   return {
     courses,
     trainings,
-    activities: freshActivityHistory || [],
+    activities: [...leaveActivities, ...(freshActivityHistory || [])],
     duties,
     freshActivityHistory,
     tablesMissing: {

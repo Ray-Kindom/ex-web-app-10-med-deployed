@@ -589,6 +589,47 @@ export interface CustomTeam {
   snapshotMembers?: TeamMemberSnapshot[];
 }
 
+export type LivingCategory = 'In Living' | 'Out Living';
+
+export interface FamilyManRecord {
+  id: string;
+  personnelId: string;
+  snkNo: string;
+  rk: string;
+  name: string;
+  battery: Battery;
+  trade?: string;
+  livingType: LivingCategory;
+  quarterOrAddress?: string;
+  sinceDate?: string;
+  expiryDate?: string;
+  remarks?: string;
+  updatedAt?: string;
+}
+
+export type LeaveRecordType = 'P/Lve' | 'C/Lve' | 'Ni Pass';
+
+export interface LeaveManagementRecord {
+  id: string;
+  personnelId: string;
+  snkNo: string;
+  rk: string;
+  name: string;
+  battery: Battery;
+  leaveType: LeaveRecordType;
+  startDate: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  durationDays: number;
+  addressOrDestination?: string;
+  authority?: string;
+  remarks?: string;
+  status: 'Active' | 'Completed' | 'Cancelled';
+  year: number;
+  activityId?: string;
+  recordedBy?: string;
+  recordedAt: string;
+}
+
 export interface ParadeDutyAssignment {
   id: string;
   personnelId: string;

@@ -221,7 +221,7 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
           subtitle="Privilege / Casual"
           icon={PlaneTakeoff}
           color="purple"
-          onClick={() => scrollToTroops()}
+          onClick={() => setActivePage('leave_management')}
         />
         <StatCard
           title="Course / Trg"

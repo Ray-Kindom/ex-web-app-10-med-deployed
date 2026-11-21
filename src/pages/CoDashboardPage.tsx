@@ -26,7 +26,7 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
   onViewDossier,
   onOpenPrintModal,
 }) => {
-  const { personnelList, getBatterySummaries, getRegimentalTotals, theme } = useApp();
+  const { personnelList, getBatterySummaries, getRegimentalTotals, setActivePage, theme } = useApp();
   const isLight = theme === 'light';
   const totals = getRegimentalTotals();
   const summaries = getBatterySummaries();
@@ -154,6 +154,7 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
           subtitle="Leave Roster"
           icon={PlaneTakeoff}
           colorScheme="purple"
+          onClick={() => setActivePage('leave_management')}
         />
         <StatCard
           title="Cadres / Courses"
@@ -165,7 +166,10 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
       </div>
 
       {/* Battery Consolidated State Matrix */}
-      <ParadeStateSummaryGrid onOpenPrintModal={onOpenPrintModal} />
+      <ParadeStateSummaryGrid
+        onOpenPrintModal={onOpenPrintModal}
+        onOpenLeaveModal={() => setActivePage('leave_management')}
+      />
 
       {/* Critical Command Briefing Points */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

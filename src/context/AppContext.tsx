@@ -83,6 +83,7 @@ import {
   saveDutyDetailingToSupabase,
   fetchAllDutyDetailingFromSupabase,
   upsertSinglePersonnelToSupabase,
+  syncPersonnelProfileAcrossTablesInSupabase,
   deleteSinglePersonnelFromSupabase,
   verifyUserCredentialsInSupabase,
   fetchPersonnelFromSupabase,
@@ -4434,6 +4435,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     const actorName = `${currentUser.rank} ${currentUser.name}`;
+    const prevPerson = personnelList.find((p) => p.id === id);
 
     let updatedRecord: Personnel | null = null;
     setPersonnelList((prev) => {
@@ -4453,18 +4455,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('Personnel Updated', `Modified record for ID: ${id}`, 'PERSONNEL');
     // Write to Firestore
     if (updatedRecord) {
-      syncDoc(setDoc(doc(db, 'personnel', id), sanitizeForFirestore(updatedRecord), { merge: true }), 'update personnel');
-      // Sync to Supabase Cloud (personnel row + embedded status_details.activityHistory)
+      const finalRecord: Personnel = updatedRecord;
+      const identityChanged =
+        !prevPerson ||
+        prevPerson.battery !== finalRecord.battery ||
+        prevPerson.rk !== finalRecord.rk ||
+        prevPerson.name !== finalRecord.name ||
+        prevPerson.snkNo !== finalRecord.snkNo ||
+        prevPerson.trade !== finalRecord.trade;
+
+      if (identityChanged) {
+        const snkMatches = (val?: string) => {
+          if (!val) return false;
+          const v = val.trim().toLowerCase();
+          return (
+            v === (finalRecord.snkNo || '').trim().toLowerCase() ||
+            (prevPerson?.snkNo ? v === prevPerson.snkNo.trim().toLowerCase() : false)
+          );
+        };
+
+        // Keep in-memory Duty Roster synced
+        setDutyRoster((prevRoster) =>
+          prevRoster.map((duty) => ({
+            ...duty,
+            assignedPersonnel: (duty.assignedPersonnel || []).map((soldier) =>
+              soldier.id === id || snkMatches(soldier.snkNo)
+                ? {
+                    ...soldier,
+                    snkNo: finalRecord.snkNo,
+                    rank: finalRecord.rk,
+                    name: finalRecord.name,
+                    battery: finalRecord.battery,
+                  }
+                : soldier
+            ),
+          }))
+        );
+
+        // Keep in-memory Parade Duty Assignments synced
+        setParadeDutyAssignments((prevMap) => {
+          const nextMap: Record<string, ParadeDutyAssignment[]> = {};
+          let anyChanged = false;
+          Object.keys(prevMap).forEach((key) => {
+            const arr = prevMap[key] || [];
+            let keyChanged = false;
+            const nextArr = arr.map((a) => {
+              if (a.soldierId === id || snkMatches(a.snkNo)) {
+                keyChanged = true;
+                anyChanged = true;
+                return {
+                  ...a,
+                  snkNo: finalRecord.snkNo,
+                  rank: finalRecord.rk,
+                  name: finalRecord.name,
+                  battery: finalRecord.battery,
+                };
+              }
+              return a;
+            });
+            nextMap[key] = keyChanged ? nextArr : arr;
+          });
+          return anyChanged ? nextMap : prevMap;
+        });
+      }
+
+      syncDoc(setDoc(doc(db, 'personnel', id), sanitizeForFirestore(finalRecord), { merge: true }), 'update personnel');
+      // Sync to Supabase Cloud (personnel row + embedded status_details.activityHistory + secondary tables)
       if (isSupabaseConfigured()) {
-        upsertSinglePersonnelToSupabase(updatedRecord).catch((e) =>
+        upsertSinglePersonnelToSupabase(finalRecord).catch((e) =>
           console.warn('Supabase update soldier note:', e)
         );
+        if (identityChanged) {
+          syncPersonnelProfileAcrossTablesInSupabase(finalRecord, prevPerson?.snkNo).catch((e) =>
+            console.warn('Supabase cross-table sync note:', e)
+          );
+        }
       }
       // Sync to server disk
       fetch('/api/personnel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person: updatedRecord }),
+        body: JSON.stringify({ person: finalRecord }),
       }).catch(() => {});
     }
   };

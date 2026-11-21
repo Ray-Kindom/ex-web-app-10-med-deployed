@@ -171,8 +171,25 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Current assignments for this date and session
-  const allAssignments = getParadeDutyAssignments(date, sessionType);
+  // Current assignments for this date and session (enriched dynamically with live personnelList data)
+  const rawAssignments = getParadeDutyAssignments(date, sessionType);
+  const allAssignments = useMemo(() => {
+    return rawAssignments.map((a) => {
+      const live = personnelList.find(
+        (p) =>
+          p.id === a.soldierId ||
+          (p.snkNo && a.snkNo && p.snkNo.trim().toLowerCase() === a.snkNo.trim().toLowerCase())
+      );
+      if (!live) return a;
+      return {
+        ...a,
+        snkNo: live.snkNo || a.snkNo,
+        rank: live.rk || a.rank,
+        name: live.name || a.name,
+        battery: live.battery || a.battery,
+      };
+    });
+  }, [rawAssignments, personnelList]);
 
   // Filter assignments by battery if filterBattery is a specific battery
   const displayAssignments = useMemo(() => {

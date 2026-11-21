@@ -82,12 +82,43 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const [formLocation, setFormLocation] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
 
-  // Helper to find soldier by Army / Snk No
-  const findPerson = (snkNo: string): Personnel | undefined => {
-    return personnelList.find(
-      (p) => (p.snkNo || '').trim().toLowerCase() === snkNo.trim().toLowerCase()
-    );
-  };
+  // Live lookup map for main personnel database
+  const personnelMap = useMemo(() => {
+    const map = new Map<string, Personnel>();
+    (personnelList || []).forEach((p) => {
+      if (p.id) map.set(p.id, p);
+      if (p.snkNo) map.set(p.snkNo.trim().toLowerCase(), p);
+    });
+    return map;
+  }, [personnelList]);
+
+  // Helper to find soldier by Army / Snk No or ID
+  const findPerson = useCallback(
+    (snkNo: string, personnelId?: string): Personnel | undefined => {
+      if (personnelId && personnelMap.has(personnelId)) {
+        return personnelMap.get(personnelId);
+      }
+      if (!snkNo) return undefined;
+      return personnelMap.get(snkNo.trim().toLowerCase());
+    },
+    [personnelMap]
+  );
+
+  // Enrich every training record dynamically with live rank, name, battery, snkNo
+  const syncedRecords = useMemo(() => {
+    return records.map((r) => {
+      const live = findPerson(r.snkNo, r.personnelId);
+      if (!live) return r;
+      return {
+        ...r,
+        personnelId: live.id,
+        snkNo: live.snkNo || r.snkNo,
+        name: live.name || r.name,
+        rk: live.rk || r.rk,
+        battery: live.battery || r.battery,
+      };
+    });
+  }, [records, findPerson]);
 
   // Module counts
   const moduleCounts = useMemo(() => {
@@ -97,17 +128,17 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       'Gren Firing': 0,
       Firing: 0,
     };
-    records.forEach((r) => {
+    syncedRecords.forEach((r) => {
       if (counts[r.module] !== undefined) {
         counts[r.module]++;
       }
     });
     return counts;
-  }, [records]);
+  }, [syncedRecords]);
 
   // Filtered Records for Selected Module
   const filteredRecords = useMemo(() => {
-    let result = records.filter((r) => r.module === selectedModule);
+    let result = syncedRecords.filter((r) => r.module === selectedModule);
 
     if (btyFilter !== 'All') {
       result = result.filter((r) => r.battery === btyFilter);
@@ -146,7 +177,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     }
 
     return result;
-  }, [records, selectedModule, btyFilter, gradeFilter, searchQuery]);
+  }, [syncedRecords, selectedModule, btyFilter, gradeFilter, searchQuery]);
 
   // Open Add Record Modal
   const handleOpenAddModal = (defaultMod?: TrgModuleType) => {

@@ -413,12 +413,11 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
         <StatCard
           title="Lve"
           value={totals.totalLeave}
-          subtitle="P/Lve & C/Lve"
+          subtitle="P/Lve, C/Lve & Ni Pass"
           icon={PlaneTakeoff}
           colorScheme="purple"
-          badge={totals.totalLeave > 0 ? `${totals.totalLeave} Soldiers` : 'Nil Leave'}
-          active={inlineCategory?.id === 'Leave'}
-          onClick={() => handleToggleCategory('Leave', 'Leave (P/Lve & C/Lve) Troops', 'ছুটিতে থাকা সৈনিকদের বিস্তারিত তালিকা', 'purple')}
+          badge={totals.totalLeave > 0 ? `${totals.totalLeave} Soldiers` : 'Lve Mgt'}
+          onClick={() => setActivePage('leave_management')}
         />
         <StatCard
           title="Course"
@@ -793,6 +792,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
           selectedBattery={selectedBattery}
           onSelectBattery={(bty) => handleSelectBatteryBox(bty)}
           onOpenPrintModal={onOpenPrintModal}
+          onOpenLeaveModal={() => setActivePage('leave_management')}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -802,6 +802,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
             selectedBattery={selectedBattery}
             onSelectBattery={(bty) => handleSelectBatteryBox(bty)}
             onOpenPrintModal={onOpenPrintModal}
+            onOpenLeaveModal={() => setActivePage('leave_management')}
           />
 
           {/* Sub-Unit Quick Navigation Cards (Clicking any box automatically displays that battery's nominal roll) */}

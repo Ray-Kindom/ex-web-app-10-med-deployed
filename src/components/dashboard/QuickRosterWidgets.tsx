@@ -401,7 +401,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
       };
 
       list.push({
-        id: personToUse.id,
+        id: `appt-${item.order}-${personToUse.id}`,
         snkNo: item.snkNo,
         name: livePerson?.name || item.name,
         rk: livePerson?.rk || item.rk,
@@ -455,7 +455,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
       if (apptTitle) {
         usedNos.add((p.snkNo || '').toLowerCase());
         list.push({
-          id: p.id,
+          id: `appt-dyn-${p.id}`,
           snkNo: p.snkNo,
           name: p.name,
           rk: p.rk,
@@ -795,7 +795,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
           <div className="mt-3 space-y-1.5">
             {appointmentHolders.slice(0, 3).map((item, idx) => (
               <div
-                key={item.id || idx}
+                key={`${item.id}-${idx}`}
                 className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/70 dark:bg-slate-850"
               >
                 <div className="flex items-center gap-2 truncate">
@@ -864,7 +864,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
           <div className="mt-3 space-y-1.5">
             {rpPersonnelList.slice(0, 3).map((item, idx) => (
               <div
-                key={item.id || idx}
+                key={`${item.id}-${idx}`}
                 className={`flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
                   isLight
                     ? 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
@@ -1109,7 +1109,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       const person = item.personnel;
                       return (
                         <tr
-                          key={item.id || idx}
+                          key={`${item.id}-${idx}`}
                           className={`transition-colors group ${isLight ? 'hover:bg-slate-50/80' : 'hover:bg-slate-800/40'}`}
                         >
                           {/* SL */}
@@ -1217,7 +1217,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                       const person = item.personnel;
                       return (
                         <tr
-                          key={item.id || idx}
+                          key={`${item.id}-${idx}`}
                           className={`transition-colors group ${isLight ? 'hover:bg-slate-50/80' : 'hover:bg-slate-800/40'}`}
                         >
                           {/* SL */}

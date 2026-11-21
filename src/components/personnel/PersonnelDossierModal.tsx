@@ -246,17 +246,39 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
     };
   }, [dossierData, mergedActivities]);
 
-  // 3. Leaves / Chuti (P/Lve, C/Lve, Leave)
+  // 3. Leaves / Chuti (P/Lve, C/Lve, Ni Pass, Leave)
   const leavesList = useMemo(() => {
     return mergedActivities.filter(
       (a) =>
         a.type === 'Leave' ||
         a.subType === 'P/Lve' ||
         a.subType === 'C/Lve' ||
+        a.subType === 'Ni Pass' ||
         a.title.toLowerCase().includes('leave') ||
-        a.title.includes('ছুটি')
+        a.title.toLowerCase().includes('ni pass') ||
+        a.title.toLowerCase().includes('night pass') ||
+        a.title.includes('ছুটি') ||
+        a.title.includes('নাইট পাস')
     );
   }, [mergedActivities]);
+
+  const leaveTypeBreakdown = useMemo(() => {
+    let pLve = 0;
+    let cLve = 0;
+    let niPass = 0;
+    leavesList.forEach((l) => {
+      const sub = (l.subType || '').toLowerCase();
+      const title = (l.title || '').toLowerCase();
+      if (sub === 'ni pass' || title.includes('ni pass') || title.includes('night pass') || title.includes('নাইট পাস')) {
+        niPass++;
+      } else if (sub === 'c/lve' || title.includes('casual')) {
+        cLve++;
+      } else {
+        pLve++;
+      }
+    });
+    return { pLve, cLve, niPass };
+  }, [leavesList]);
 
   const totalLeaveDays = useMemo(() => {
     return leavesList.reduce((acc, item) => {
@@ -371,7 +393,9 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
 
     const defaultTitle =
       actType === 'Leave'
-        ? actSubType === 'C/Lve'
+        ? actSubType === 'Ni Pass'
+          ? 'Night Pass (নাইট পাস)'
+          : actSubType === 'C/Lve'
           ? 'Casual Leave (নৈমিত্তিক ছুটি)'
           : 'Privilege Leave (বাৎসরিক ছুটি)'
         : actTitle.trim() || `${actType} Activity`;
@@ -638,6 +662,7 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                     >
                       <option value="P/Lve">P/Lve (বাৎসরিক ছুটি)</option>
                       <option value="C/Lve">C/Lve (নৈমিত্তিক ছুটি)</option>
+                      <option value="Ni Pass">Ni Pass (নাইট পাস)</option>
                     </select>
                   ) : (
                     <input
@@ -1200,18 +1225,29 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                 isLight ? 'bg-purple-50/40 border-purple-200' : 'bg-slate-950/70 border-purple-900/40'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h4
                   className={`text-[11px] font-bold uppercase tracking-wider font-mono flex items-center gap-1.5 ${
                     isLight ? 'text-purple-800' : 'text-purple-400'
                   }`}
                 >
                   <PlaneTakeoff className="w-3.5 h-3.5" />
-                  <span>ছুটির ইতিহাস (Leave / Chuti History — P/Lve & C/Lve)</span>
+                  <span>ছুটি ও নাইট পাস ইতিহাস (P/Lve, C/Lve & Ni Pass)</span>
                 </h4>
-                <span className="text-[11px] font-mono font-bold opacity-80">
-                  {leavesList.length} বার {totalLeaveDays > 0 ? `(মোট ${totalLeaveDays} দিন)` : ''}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                    P/Lve: {leaveTypeBreakdown.pLve}
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/30">
+                    C/Lve: {leaveTypeBreakdown.cLve}
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                    Ni Pass: {leaveTypeBreakdown.niPass}
+                  </span>
+                  <span className="text-[11px] font-mono font-bold opacity-80 ml-1">
+                    মোট {leavesList.length} বার {totalLeaveDays > 0 ? `(${totalLeaveDays} দিন)` : ''}
+                  </span>
+                </div>
               </div>
 
               {leavesList.length === 0 ? (

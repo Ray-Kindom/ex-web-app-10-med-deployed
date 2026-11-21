@@ -1,37 +1,41 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { CustomTeam, Personnel, Battery, ALL_BATTERIES } from '../types';
+import { CustomTeam, Personnel, Battery } from '../types';
 import { sortBySeniority } from '../utils/seniorityUtils';
+import { RankBadge } from '../components/common/RankBadge';
+import { StatusBadge } from '../components/common/StatusBadge';
 import {
   Users,
   Plus,
   Trash2,
-  Edit2,
+  Edit3,
   Search,
   Check,
   X,
   ShieldAlert,
   ArrowRight,
   UserPlus,
-  Calendar,
   RefreshCw,
   RotateCcw,
   Undo2,
   AlertTriangle,
-  History,
-  Eye,
-  EyeOff,
   Archive,
-  Database,
-  Table2,
-  LayoutGrid,
-  Printer,
+  ChevronRight,
   ChevronDown,
-  ChevronUp,
+  Printer,
 } from 'lucide-react';
 
 interface TeamsPageProps {
   onViewDossier?: (p: Personnel) => void;
+}
+
+interface TeamGroup {
+  key: string;
+  name: string;
+  records: CustomTeam[]; // sorted newest year first
+  years: number[];
+  latestYear: number;
+  hasActive: boolean;
 }
 
 const resolveYear = (team: Partial<CustomTeam>): number =>
@@ -65,26 +69,42 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
   const isLight = theme === 'light';
   const currentYear = new Date().getFullYear();
 
-  // Tabs & View Mode
-  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [selectedYear, setSelectedYear] = useState<number | 'All'>('All');
-  const [expandedRosterIds, setExpandedRosterIds] = useState<Record<string, boolean>>({});
-  const [expandAllRosters, setExpandAllRosters] = useState(false);
+  // Directory & Search State
+  const [teamSearchQuery, setTeamSearchQuery] = useState('');
+  const [selectedTeamKey, setSelectedTeamKey] = useState<string>('');
+  const [selectedTeamRecordId, setSelectedTeamRecordId] = useState<string>('');
+  const [isMobileTeamDropdownOpen, setIsMobileTeamDropdownOpen] = useState(false);
+  const mobileDropdownRef = useRef<HTMLDivElement>(null);
 
-  const toggleRosterExpand = (id: string) => {
-    setExpandedRosterIds((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (mobileDropdownRef.current && !mobileDropdownRef.current.contains(e.target as Node)) {
+        setIsMobileTeamDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  // Create / Edit Team Modal state
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  // Right Panel Roster Filters
+  const [btyFilter, setBtyFilter] = useState<Battery | 'EME' | 'All'>('All');
+  const [rosterSearch, setRosterSearch] = useState('');
+
+  // Inline Quick Add Soldier State
+  const [isInlineAddOpen, setIsInlineAddOpen] = useState(false);
+  const [inlineSearchQuery, setInlineSearchQuery] = useState('');
+
+  // Minimal Add Year Inline Input State
+  const [isAddingYear, setIsAddingYear] = useState(false);
+  const [newYearInput, setNewYearInput] = useState<string>(String(currentYear));
+  const newYearInputRef = useRef<HTMLInputElement>(null);
+
+  // Minimal Create / Rename Team Modal (Just Team Name, matching Course & Cadre)
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [editingTeamGroup, setEditingTeamGroup] = useState<TeamGroup | null>(null);
   const [teamNameInput, setTeamNameInput] = useState('');
-  const [teamYearInput, setTeamYearInput] = useState<number>(currentYear);
-  const [teamDescInput, setTeamDescInput] = useState('');
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
 
-  // Delete / Undo / Trash states
+  // Delete / Undo / Trash Modals
   const [teamPendingDelete, setTeamPendingDelete] = useState<CustomTeam | null>(null);
   const [teamPendingPermDelete, setTeamPendingPermDelete] = useState<CustomTeam | null>(null);
   const [activeUndoToast, setActiveUndoToast] = useState<{ team: CustomTeam; expiresAt: number } | null>(null);
@@ -99,62 +119,149 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     return () => clearTimeout(timer);
   }, [activeUndoToast]);
 
-  // Member picker search & filter inside Modal
-  const [memberSearchQuery, setMemberSearchQuery] = useState('');
-  const [pickerBatteryFilter, setPickerBatteryFilter] = useState<Battery | 'All'>('All');
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Team search filter
-  const [teamFilterQuery, setTeamFilterQuery] = useState('');
-
-  // Inline quick add soldier
-  const [inlineAddingTeamId, setInlineAddingTeamId] = useState<string | null>(null);
-  const [inlineSearchQuery, setInlineSearchQuery] = useState('');
-
-  // Map of personnel by ID and snkNo for fast lookup
+  // Live lookup map for main personnel database
   const personnelMap = useMemo(() => {
     const map = new Map<string, Personnel>();
     (personnelList || []).forEach((p) => {
-      map.set(p.id, p);
+      if (p.id) map.set(p.id, p);
       if (p.snkNo) {
         map.set(p.snkNo, p);
+        map.set(p.snkNo.trim().toLowerCase(), p);
       }
     });
     return map;
   }, [personnelList]);
 
-  // All available years from DB teams + current/previous year
-  const availableYears = useMemo(() => {
-    const yearSet = new Set<number>([currentYear, currentYear - 1]);
-    customTeams.forEach((t) => yearSet.add(resolveYear(t)));
-    teamHistory.forEach((t) => yearSet.add(resolveYear(t)));
-    return Array.from(yearSet).sort((a, b) => b - a);
-  }, [customTeams, teamHistory, currentYear]);
+  // Combine active + archived year records so clicking a team lets user view every year
+  const combinedSourceTeams = useMemo(() => {
+    const seenIds = new Set<string>();
+    const list: CustomTeam[] = [];
 
-  // Count teams per year for current activeTab
-  const yearTeamCounts = useMemo(() => {
-    const source = activeTab === 'active' ? customTeams : teamHistory;
-    const counts: Record<number, number> = {};
-    source.forEach((t) => {
-      const yr = resolveYear(t);
-      counts[yr] = (counts[yr] || 0) + 1;
+    customTeams.forEach((t) => {
+      if (!seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        list.push(t);
+      }
     });
-    return counts;
-  }, [activeTab, customTeams, teamHistory]);
+    teamHistory.forEach((t) => {
+      if (!seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        list.push(t);
+      }
+    });
+    return list;
+  }, [customTeams, teamHistory]);
 
-  // Resolve full member objects for either Active or Archived team
+  // Group teams by normalized team name
+  const teamGroups = useMemo<TeamGroup[]>(() => {
+    const map = new Map<string, CustomTeam[]>();
+
+    combinedSourceTeams.forEach((t) => {
+      const normalized = (t.name || 'Untitled Team').trim().toLowerCase();
+      const existing = map.get(normalized) || [];
+      existing.push(t);
+      map.set(normalized, existing);
+    });
+
+    const groups: TeamGroup[] = [];
+    map.forEach((records, key) => {
+      const sortedRecords = [...records].sort((a, b) => {
+        const yDiff = resolveYear(b) - resolveYear(a);
+        if (yDiff !== 0) return yDiff;
+        if (Boolean(a.isDeleted) !== Boolean(b.isDeleted)) {
+          return a.isDeleted ? 1 : -1;
+        }
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      });
+
+      const years = Array.from(new Set(sortedRecords.map((r) => resolveYear(r)))).sort((a, b) => b - a);
+      const displayName = sortedRecords[0]?.name || key;
+
+      groups.push({
+        key,
+        name: displayName,
+        records: sortedRecords,
+        years,
+        latestYear: years[0] || currentYear,
+        hasActive: sortedRecords.some((r) => !r.isDeleted),
+      });
+    });
+
+    return groups.sort((a, b) => a.name.localeCompare(b.name));
+  }, [combinedSourceTeams, currentYear]);
+
+  // Filtered left team list
+  const filteredTeamGroups = useMemo(() => {
+    if (!teamSearchQuery.trim()) return teamGroups;
+    const q = teamSearchQuery.toLowerCase().trim();
+    return teamGroups.filter((grp) => grp.name.toLowerCase().includes(q));
+  }, [teamGroups, teamSearchQuery]);
+
+  // Keep selectedTeamKey valid
+  useEffect(() => {
+    if (filteredTeamGroups.length === 0) {
+      if (selectedTeamKey) setSelectedTeamKey('');
+      return;
+    }
+    const stillVisible = filteredTeamGroups.some((g) => g.key === selectedTeamKey);
+    if (!stillVisible) {
+      setSelectedTeamKey(filteredTeamGroups[0].key);
+    }
+  }, [filteredTeamGroups, selectedTeamKey]);
+
+  const currentTeamGroup = useMemo(() => {
+    return filteredTeamGroups.find((g) => g.key === selectedTeamKey) || filteredTeamGroups[0] || null;
+  }, [filteredTeamGroups, selectedTeamKey]);
+
+  // Keep selectedTeamRecordId synced within selected team group
+  useEffect(() => {
+    if (!currentTeamGroup || currentTeamGroup.records.length === 0) {
+      if (selectedTeamRecordId) setSelectedTeamRecordId('');
+      return;
+    }
+
+    const existsInGroup = currentTeamGroup.records.some((r) => r.id === selectedTeamRecordId);
+    if (!existsInGroup) {
+      setSelectedTeamRecordId(currentTeamGroup.records[0].id);
+      setIsInlineAddOpen(false);
+      setIsAddingYear(false);
+    }
+  }, [currentTeamGroup, selectedTeamRecordId]);
+
+  const activeTeamRecord = useMemo(() => {
+    if (!currentTeamGroup) return null;
+    return currentTeamGroup.records.find((r) => r.id === selectedTeamRecordId) || currentTeamGroup.records[0] || null;
+  }, [currentTeamGroup, selectedTeamRecordId]);
+
+  const handleSelectTeamGroup = (grp: TeamGroup) => {
+    setSelectedTeamKey(grp.key);
+    setSelectedTeamRecordId(grp.records[0]?.id || '');
+    setRosterSearch('');
+    setBtyFilter('All');
+    setIsInlineAddOpen(false);
+    setIsAddingYear(false);
+    setIsMobileTeamDropdownOpen(false);
+  };
+
+  // Resolve full member objects for a team record (live synced with personnelList)
   const resolveTeamMembers = (team: CustomTeam) => {
     if (team.isDeleted && Array.isArray(team.snapshotMembers) && team.snapshotMembers.length > 0) {
-      return team.snapshotMembers.map((m) => ({
-        id: m.id,
-        snkNo: m.snkNo,
-        rk: m.rk,
-        name: m.name,
-        battery: m.battery,
-        trade: m.trade || '-',
-        status: m.status || 'Archived',
-        livePerson: personnelMap.get(m.id) || personnelMap.get(m.snkNo),
-      }));
+      return team.snapshotMembers.map((m) => {
+        const live =
+          personnelMap.get(m.id) ||
+          (m.snkNo ? personnelMap.get(m.snkNo.trim().toLowerCase()) || personnelMap.get(m.snkNo) : undefined);
+
+        return {
+          id: live?.id || m.id,
+          snkNo: live?.snkNo || m.snkNo,
+          rk: live?.rk || m.rk,
+          name: live?.name || m.name,
+          battery: live?.battery || m.battery,
+          trade: live?.trade || m.trade || '-',
+          status: live?.status || m.status || 'Archived',
+          livePerson: live,
+        };
+      });
     }
 
     const resolved = (team.memberIds || [])
@@ -173,99 +280,154 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     }));
   };
 
-  // Filtered teams (Year + Search, sorted by Year desc then name)
-  const filteredTeams = useMemo(() => {
-    let list = [...customTeams];
-    if (selectedYear !== 'All') {
-      list = list.filter((t) => resolveYear(t) === selectedYear);
-    }
-    if (teamFilterQuery.trim()) {
-      const q = teamFilterQuery.toLowerCase().trim();
-      list = list.filter(
-        (t) =>
-          t.name.toLowerCase().includes(q) ||
-          String(resolveYear(t)).includes(q) ||
-          (t.description && t.description.toLowerCase().includes(q))
-      );
-    }
-    return list.sort((a, b) => resolveYear(b) - resolveYear(a) || a.name.localeCompare(b.name));
-  }, [customTeams, selectedYear, teamFilterQuery]);
+  // Resolved & filtered roster for the selected team + selected year box
+  const activeTeamMembersAll = useMemo(() => {
+    if (!activeTeamRecord) return [];
+    return resolveTeamMembers(activeTeamRecord);
+  }, [activeTeamRecord, personnelMap, ranksList]);
 
-  const filteredHistoryTeams = useMemo(() => {
-    let list = [...teamHistory];
-    if (selectedYear !== 'All') {
-      list = list.filter((t) => resolveYear(t) === selectedYear);
-    }
-    if (teamFilterQuery.trim()) {
-      const q = teamFilterQuery.toLowerCase().trim();
-      list = list.filter(
-        (t) =>
-          t.name.toLowerCase().includes(q) ||
-          String(resolveYear(t)).includes(q) ||
-          (t.description && t.description.toLowerCase().includes(q)) ||
-          (t.deletedBy && t.deletedBy.toLowerCase().includes(q))
-      );
-    }
-    return list.sort((a, b) => resolveYear(b) - resolveYear(a));
-  }, [teamHistory, selectedYear, teamFilterQuery]);
+  const filteredRosterMembers = useMemo(() => {
+    return activeTeamMembersAll.filter((m) => {
+      if (btyFilter !== 'All' && m.battery !== btyFilter) return false;
+      if (rosterSearch.trim()) {
+        const q = rosterSearch.toLowerCase().trim();
+        const live = m.livePerson;
+        const liveLoc = live
+          ? live.outOfUnitLocation ||
+            live.location ||
+            live.leaveAddress ||
+            live.courseName ||
+            live.hospitalName ||
+            live.comdAssignment ||
+            live.statusDetails ||
+            ''
+          : '';
+        const match =
+          (m.snkNo || '').toLowerCase().includes(q) ||
+          (m.name || '').toLowerCase().includes(q) ||
+          (m.rk || '').toLowerCase().includes(q) ||
+          (m.trade || '').toLowerCase().includes(q) ||
+          (m.battery || '').toLowerCase().includes(q) ||
+          (m.status || '').toLowerCase().includes(q) ||
+          (live?.outOfUnitCategory || '').toLowerCase().includes(q) ||
+          liveLoc.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [activeTeamMembersAll, btyFilter, rosterSearch]);
 
-  // Open form for creating a new team
-  const handleOpenCreateForm = () => {
-    setEditingTeamId(null);
+  // Inline quick add search results
+  const inlineSearchResults = useMemo(() => {
+    if (!activeTeamRecord || !isInlineAddOpen || !inlineSearchQuery.trim()) return [];
+    const q = inlineSearchQuery.toLowerCase().trim();
+    const existingSet = new Set(activeTeamRecord.memberIds || []);
+    return sortBySeniority(
+      (personnelList || []).filter((p) => {
+        if (existingSet.has(p.id)) return false;
+        return (
+          (p.snkNo || '').toLowerCase().includes(q) ||
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.rk || '').toLowerCase().includes(q) ||
+          (p.trade || '').toLowerCase().includes(q) ||
+          (p.battery || '').toLowerCase().includes(q)
+        );
+      }),
+      ranksList
+    ).slice(0, 8);
+  }, [activeTeamRecord, isInlineAddOpen, inlineSearchQuery, personnelList, ranksList]);
+
+  // Minimal Team Name Modal Handlers
+  const handleOpenAddTeam = () => {
+    setEditingTeamGroup(null);
     setTeamNameInput('');
-    setTeamYearInput(selectedYear === 'All' ? currentYear : selectedYear);
-    setTeamDescInput('');
-    setSelectedMemberIds([]);
-    setMemberSearchQuery('');
-    setIsFormOpen(true);
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 100);
+    setIsTeamModalOpen(true);
   };
 
-  // Open form for editing an existing team
-  const handleOpenEditForm = (team: CustomTeam) => {
-    setEditingTeamId(team.id);
-    setTeamNameInput(team.name);
-    setTeamYearInput(resolveYear(team));
-    setTeamDescInput(team.description || '');
-    setSelectedMemberIds([...(team.memberIds || [])]);
-    setMemberSearchQuery('');
-    setIsFormOpen(true);
+  const handleOpenRenameTeam = (grp: TeamGroup) => {
+    setEditingTeamGroup(grp);
+    setTeamNameInput(grp.name);
+    setIsTeamModalOpen(true);
   };
 
-  const handleToggleMember = (personnelId: string) => {
-    setSelectedMemberIds((prev) =>
-      prev.includes(personnelId) ? prev.filter((id) => id !== personnelId) : [...prev, personnelId]
-    );
-  };
-
-  const handleSaveTeam = (e: React.FormEvent) => {
+  const handleSaveTeamName = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teamNameInput.trim()) {
-      showNotification('অনুগ্রহ করে টিমের একটি নাম দিন।');
+    const trimmedName = teamNameInput.trim();
+    if (!trimmedName) {
+      showNotification('অনুগ্রহ করে টিমের নাম লিখুন।');
       return;
     }
-    const parsedYear = Math.min(2100, Math.max(2000, Number(teamYearInput) || currentYear));
 
-    if (editingTeamId) {
-      updateCustomTeam(editingTeamId, {
-        name: teamNameInput.trim(),
-        year: parsedYear,
-        description: teamDescInput.trim(),
-        memberIds: selectedMemberIds,
-      });
+    if (editingTeamGroup) {
+      // Rename all active records belonging to this team
+      const activeRecs = editingTeamGroup.records.filter((r) => !r.isDeleted);
+      if (activeRecs.length > 0) {
+        activeRecs.forEach((rec) => {
+          updateCustomTeam(rec.id, { name: trimmedName });
+        });
+      }
+      setSelectedTeamKey(trimmedName.toLowerCase());
     } else {
-      addCustomTeam({
-        name: teamNameInput.trim(),
-        year: parsedYear,
-        description: teamDescInput.trim(),
-        memberIds: selectedMemberIds,
+      const existing = teamGroups.find((g) => g.key === trimmedName.toLowerCase());
+      if (existing) {
+        setSelectedTeamKey(existing.key);
+        showNotification(`"${existing.name}" টিম ইতোমধ্যে তালিকায় আছে।`);
+        setIsTeamModalOpen(false);
+        return;
+      }
+      const created = addCustomTeam({
+        name: trimmedName,
+        year: currentYear,
+        description: '',
+        memberIds: [],
       });
+      setSelectedTeamKey(trimmedName.toLowerCase());
+      setSelectedTeamRecordId(created.id);
     }
 
-    setIsFormOpen(false);
-    setEditingTeamId(null);
+    setIsTeamModalOpen(false);
+    setEditingTeamGroup(null);
+  };
+
+  // Minimal Add Year Box Handler
+  const handleOpenInlineYearAdd = () => {
+    if (!currentTeamGroup) return;
+    const existingYears = new Set(currentTeamGroup.years);
+    let suggested = currentYear;
+    if (existingYears.has(suggested)) {
+      suggested = currentTeamGroup.latestYear + 1;
+      while (existingYears.has(suggested)) suggested++;
+    }
+    setNewYearInput(String(suggested));
+    setIsAddingYear(true);
+    setTimeout(() => newYearInputRef.current?.focus(), 50);
+  };
+
+  const handleConfirmAddYear = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentTeamGroup) return;
+    const parsedYear = Number(newYearInput);
+    if (!Number.isFinite(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+      showNotification('সঠিক সাল দিন (২০০০–২১০০)।');
+      return;
+    }
+
+    const existingForYear = currentTeamGroup.records.find((r) => resolveYear(r) === parsedYear);
+    if (existingForYear) {
+      setSelectedTeamRecordId(existingForYear.id);
+      setIsAddingYear(false);
+      showNotification(`${parsedYear} সাল ইতোমধ্যে এই টিমে রয়েছে।`);
+      return;
+    }
+
+    const created = addCustomTeam({
+      name: currentTeamGroup.name,
+      year: parsedYear,
+      description: '',
+      memberIds: [],
+    });
+    setSelectedTeamRecordId(created.id);
+    setIsAddingYear(false);
   };
 
   const handleRequestDeleteTeam = (team: CustomTeam) => {
@@ -301,627 +463,966 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     setActiveUndoToast(null);
   };
 
-  const handleToggleExpandAll = () => {
-    const next = !expandAllRosters;
-    setExpandAllRosters(next);
-    const list = activeTab === 'active' ? filteredTeams : filteredHistoryTeams;
-    const map: Record<string, boolean> = {};
-    list.forEach((t) => {
-      map[t.id] = next;
-    });
-    setExpandedRosterIds(map);
-  };
-
-  const handlePrintTeams = () => {
-    const list = activeTab === 'active' ? filteredTeams : filteredHistoryTeams;
-    const map: Record<string, boolean> = {};
-    list.forEach((t) => {
-      map[t.id] = true;
-    });
-    setExpandAllRosters(true);
-    setExpandedRosterIds(map);
+  const handlePrintSelectedTeam = () => {
     setTimeout(() => {
       window.print();
-    }, 120);
+    }, 80);
   };
-
-  // Filtered available personnel in picker modal
-  const filteredPickerPersonnel = useMemo(() => {
-    let list = personnelList || [];
-    if (pickerBatteryFilter !== 'All') {
-      list = list.filter((p) => p.battery === pickerBatteryFilter);
-    }
-    if (memberSearchQuery.trim()) {
-      const q = memberSearchQuery.toLowerCase().trim();
-      list = list.filter((p) => {
-        const snk = (p.snkNo || '').toLowerCase();
-        const name = (p.name || '').toLowerCase();
-        const rk = (p.rk || '').toLowerCase();
-        return snk.includes(q) || name.includes(q) || rk.includes(q);
-      });
-    }
-    return sortBySeniority(list, ranksList);
-  }, [personnelList, pickerBatteryFilter, memberSearchQuery, ranksList]);
 
   const handleGoToDutyDetailing = (teamName: string) => {
     setActivePage('duty_detail');
     showNotification(`Duty Detailing-এ "${teamName}" টিম লোড করার জন্য প্রস্তুত।`);
   };
 
-  const currentList = activeTab === 'active' ? filteredTeams : filteredHistoryTeams;
-
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-4 px-2 sm:px-4 py-3">
-      {/* 1. TOP HEADER & CONTROLS */}
+    <div className="space-y-4 pb-12 animate-fadeIn">
+      {/* 1. Header Bar: Clean & Minimal (matching Course & Cadre) */}
       <div
-        className={`rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border ${
-          isLight ? 'bg-white border-slate-200' : 'bg-slate-900/95 border-slate-800'
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border p-4 rounded-xl shadow-sm ${
+          isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
         }`}
       >
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-600 to-amber-600 flex items-center justify-center text-white shadow-lg shadow-rose-950/40 shrink-0">
-            <Users className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+            <Users className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className={`text-lg sm:text-xl font-bold tracking-wide ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                Team Management / টিম ম্যানেজমেন্ট
+              <h1 className={`text-lg font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                Team Management
               </h1>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-500 border border-rose-500/30 font-mono font-bold">
-                {activeTab === 'active' ? `${customTeams.length} টি সক্রিয়` : `${teamHistory.length} টি হিস্ট্রিতে`}
-              </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 font-mono font-semibold flex items-center gap-1">
-                <Database className="w-3 h-3" />
-                <span>Supabase Year DB</span>
+              <span
+                className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
+                  isLight
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                }`}
+              >
+                {teamGroups.length} টি টিম
               </span>
             </div>
-            <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-              ডাটাবেজে থাকা সাল-ভিত্তিক টিমের তালিকা দেখুন — প্রয়োজনে যেকোনো সালের পুরো সদস্য তালিকা এক্সপ্যান্ড বা প্রিন্ট করুন।
+            <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              10 Medium Regiment Artillery — টিম নির্বাচন করে সাল অনুযায়ী সদস্য তালিকা দেখুন
             </p>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 w-full lg:w-auto flex-wrap print:hidden">
-          {/* Search team */}
-          <div className="relative flex-1 min-w-[180px] sm:w-52">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={teamFilterQuery}
-              onChange={(e) => setTeamFilterQuery(e.target.value)}
-              placeholder="টিম বা সাল খুঁজুন..."
-              className={`w-full pl-8 pr-7 py-2 rounded-xl border text-xs focus:outline-none focus:border-rose-500 ${
-                isLight
-                  ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-                  : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
-              }`}
-            />
-            {teamFilterQuery && (
-              <button
-                type="button"
-                onClick={() => setTeamFilterQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {/* Refresh from Supabase */}
+        {/* Right Controls */}
+        <div className="flex items-center gap-2 flex-wrap print:hidden">
           <button
             type="button"
             onClick={() => refreshTeamsFromDatabase()}
             disabled={teamsLoading}
-            className={`px-3 py-2 rounded-xl border text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
               isLight
-                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-                : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
             }`}
-            title="ডাটাবেজ থেকে পুনরায় লোড করুন"
+            title="ডাটাবেজ থেকে রিফ্রেশ করুন"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${teamsLoading ? 'animate-spin text-rose-500' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${teamsLoading ? 'animate-spin text-emerald-500' : ''}`} />
             <span className="hidden sm:inline">রিফ্রেশ</span>
           </button>
 
-          {/* Deleted Teams Recovery */}
+          {activeTeamRecord && (
+            <button
+              type="button"
+              onClick={handlePrintSelectedTeam}
+              className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                isLight
+                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                  : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
+              }`}
+              title="প্রিন্ট করুন"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">প্রিন্ট</span>
+            </button>
+          )}
+
           {recentlyDeletedTeams && recentlyDeletedTeams.length > 0 && (
             <button
               type="button"
               onClick={() => setIsTrashModalOpen(true)}
-              className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 border border-amber-500/30 text-xs font-mono font-bold transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
-              title="আর্কাইভ / মোছা টিম পুনরুদ্ধার করুন"
+              className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                isLight
+                  ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
+                  : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300'
+              }`}
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>পুনরুদ্ধার ({recentlyDeletedTeams.length})</span>
             </button>
           )}
+        </div>
+      </div>
 
-          {!isGuest && (
+      {/* 2. Main Layout: Two Panels (Minimal Team Names on Left, Year Boxes + Roster on Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* Left Panel: Minimal Team Name List */}
+        <div
+          className={`lg:col-span-4 border rounded-xl p-3.5 space-y-3 print:hidden ${
+            isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
+          }`}
+        >
+          <div
+            className={`flex items-center justify-between pb-2 border-b gap-2 ${
+              isLight ? 'border-slate-200' : 'border-slate-800'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Users className="w-4 h-4 text-emerald-500 shrink-0" />
+              <h2 className={`text-xs font-bold uppercase tracking-wider truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                টিম তালিকা
+              </h2>
+            </div>
+            {!isGuest && (
+              <button
+                type="button"
+                onClick={handleOpenAddTeam}
+                className="px-2 py-1 rounded-md text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1 cursor-pointer shadow-xs shrink-0"
+                title="নতুন টিমের নাম যোগ করুন"
+              >
+                <Plus className="w-3 h-3" />
+                <span>নতুন টিম</span>
+              </button>
+            )}
+          </div>
+
+          {/* Mobile Dropdown Selector (< lg) */}
+          <div className="lg:hidden relative" ref={mobileDropdownRef}>
             <button
               type="button"
-              onClick={handleOpenCreateForm}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white text-xs font-bold font-mono transition-all cursor-pointer shadow-lg shadow-rose-900/30 flex items-center gap-2 shrink-0"
+              onClick={() => setIsMobileTeamDropdownOpen((prev) => !prev)}
+              className={`w-full p-2.5 rounded-lg border flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
+                isLight
+                  ? 'bg-emerald-50/70 border-emerald-500/60 text-slate-900'
+                  : 'bg-slate-950 border-emerald-500/50 text-white'
+              }`}
             >
-              <Plus className="w-4 h-4" />
-              <span>নতুন টিম যোগ করুন</span>
+              <div className="min-w-0 flex-1 flex items-center gap-2">
+                <span className={`text-xs font-bold truncate ${isLight ? 'text-emerald-900' : 'text-emerald-400'}`}>
+                  {currentTeamGroup ? currentTeamGroup.name : 'টিম নির্বাচন করুন...'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {currentTeamGroup && (
+                  <span
+                    className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${
+                      isLight
+                        ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    }`}
+                  >
+                    {currentTeamGroup.records[0] ? resolveTeamMembers(currentTeamGroup.records[0]).length : 0} জন
+                  </span>
+                )}
+                <ChevronDown
+                  className={`w-4 h-4 text-emerald-500 transition-transform ${
+                    isMobileTeamDropdownOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </div>
             </button>
+
+            {isMobileTeamDropdownOpen && (
+              <div
+                className={`mt-2 p-2 rounded-xl border shadow-xl space-y-2 ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800'
+                }`}
+              >
+                <div className="relative">
+                  <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <input
+                    type="text"
+                    placeholder="টিমের নাম লিখুন..."
+                    value={teamSearchQuery}
+                    onChange={(e) => setTeamSearchQuery(e.target.value)}
+                    className={`w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-emerald-500 ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                        : 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-500'
+                    }`}
+                  />
+                  {teamSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTeamSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-1 max-h-64 overflow-y-auto pr-0.5">
+                  {teamsLoading && filteredTeamGroups.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">লোড হচ্ছে...</div>
+                  ) : filteredTeamGroups.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">কোনো টিম নেই</div>
+                  ) : (
+                    filteredTeamGroups.map((grp) => {
+                      const isSelected = currentTeamGroup?.key === grp.key;
+                      const latestRec = grp.records[0];
+                      const memberCount = latestRec ? resolveTeamMembers(latestRec).length : 0;
+
+                      return (
+                        <div
+                          key={grp.key}
+                          onClick={() => handleSelectTeamGroup(grp)}
+                          className={`p-2 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                            isSelected
+                              ? isLight
+                                ? 'bg-emerald-50 border-emerald-500'
+                                : 'bg-slate-800 border-emerald-500/70'
+                              : isLight
+                              ? 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                              : 'bg-slate-900/70 border-slate-800 hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <span
+                            className={`text-xs font-semibold truncate ${
+                              isSelected
+                                ? isLight
+                                  ? 'text-emerald-900 font-bold'
+                                  : 'text-emerald-400 font-bold'
+                                : isLight
+                                ? 'text-slate-900'
+                                : 'text-white'
+                            }`}
+                          >
+                            {grp.name}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                                isSelected
+                                  ? isLight
+                                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : isLight
+                                  ? 'bg-white text-slate-700 border-slate-200'
+                                  : 'bg-slate-900 text-slate-300 border-slate-800'
+                              }`}
+                            >
+                              {memberCount} জন
+                            </span>
+                            {grp.hasActive && !isGuest && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsMobileTeamDropdownOpen(false);
+                                  handleOpenRenameTeam(grp);
+                                }}
+                                className={`p-1 rounded cursor-pointer ${
+                                  isLight ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-white'
+                                }`}
+                                title="টিমের নাম পরিবর্তন করুন"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Team List (lg and above) */}
+          <div className="hidden lg:block space-y-3">
+            {/* Search Team Name */}
+            <div className="relative">
+              <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
+              <input
+                type="text"
+                placeholder="টিমের নাম লিখুন..."
+                value={teamSearchQuery}
+                onChange={(e) => setTeamSearchQuery(e.target.value)}
+                className={`w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-emerald-500 ${
+                  isLight
+                    ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                    : 'bg-slate-950 border-slate-800 text-slate-200 placeholder-slate-500'
+                }`}
+              />
+              {teamSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTeamSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Clean Team List Items (No Year Clutter) */}
+            <div className="space-y-1.5 max-h-[620px] overflow-y-auto pr-0.5 scrollbar-thin">
+              {teamsLoading && filteredTeamGroups.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-400">
+                  লোড হচ্ছে...
+                </div>
+              ) : filteredTeamGroups.length === 0 ? (
+                <div
+                  className={`py-8 text-center text-xs rounded-lg border border-dashed ${
+                    isLight ? 'border-slate-200 text-slate-500' : 'border-slate-800 text-slate-400'
+                  }`}
+                >
+                  কোনো টিম নেই
+                </div>
+              ) : (
+                filteredTeamGroups.map((grp) => {
+                  const isSelected = currentTeamGroup?.key === grp.key;
+                  const latestRec = grp.records[0];
+                  const memberCount = latestRec ? resolveTeamMembers(latestRec).length : 0;
+
+                  return (
+                    <div
+                      key={grp.key}
+                      onClick={() => handleSelectTeamGroup(grp)}
+                      className={`group p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                        isSelected
+                          ? isLight
+                            ? 'bg-emerald-50 border-emerald-500 shadow-xs'
+                            : 'bg-slate-800 border-emerald-500/70 shadow-xs'
+                          : isLight
+                          ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                          : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/40 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold truncate">
+                          <span
+                            className={
+                              isSelected
+                                ? isLight
+                                  ? 'text-emerald-900 font-bold'
+                                  : 'text-emerald-400 font-bold'
+                                : isLight
+                                ? 'text-slate-900'
+                                : 'text-white'
+                            }
+                          >
+                            {grp.name}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span
+                          className={`text-xs font-mono font-bold tabular-nums px-2 py-0.5 rounded border ${
+                            isSelected
+                              ? isLight
+                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : isLight
+                              ? 'bg-white text-slate-700 border-slate-200'
+                              : 'bg-slate-900 text-slate-300 border-slate-800'
+                          }`}
+                        >
+                          {memberCount} জন
+                        </span>
+
+                        {grp.hasActive && !isGuest && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenRenameTeam(grp);
+                            }}
+                            className={`p-1 rounded transition-colors cursor-pointer ${
+                              isSelected
+                                ? isLight
+                                  ? 'hover:bg-emerald-200 text-emerald-800'
+                                  : 'hover:bg-slate-700 text-emerald-300'
+                                : isLight
+                                ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-200'
+                                : 'text-slate-500 hover:text-white hover:bg-slate-800'
+                            }`}
+                            title="টিমের নাম পরিবর্তন করুন"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 transition-transform ${
+                            isSelected ? 'text-emerald-500 translate-x-0.5' : isLight ? 'text-slate-400' : 'text-slate-600'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel: Selected Team -> Minimal Year Boxes on Top + Member Table */}
+        <div
+          className={`lg:col-span-8 border rounded-xl p-4 space-y-4 ${
+            isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
+          }`}
+        >
+          {!currentTeamGroup || !activeTeamRecord ? (
+            <div className="py-14 text-center space-y-3">
+              <div
+                className={`w-11 h-11 mx-auto rounded-xl flex items-center justify-center ${
+                  isLight ? 'bg-slate-100 text-slate-400' : 'bg-slate-800 text-slate-500'
+                }`}
+              >
+                <Users className="w-5 h-5" />
+              </div>
+              <p className={`text-sm font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                কোনো টিম নির্বাচিত নেই
+              </p>
+              <p className={`text-xs max-w-md mx-auto ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                বাম পাশ থেকে একটি টিম নির্বাচন করুন অথবা নতুন টিম যোগ করুন।
+              </p>
+              {!isGuest && (
+                <button
+                  type="button"
+                  onClick={handleOpenAddTeam}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>নতুন টিম</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Team Header */}
+              <div
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b ${
+                  isLight ? 'border-slate-200' : 'border-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {activeTeamRecord.name}
+                  </h3>
+                  <span
+                    className={`text-xs font-mono font-semibold px-2 py-0.5 rounded border ${
+                      isLight
+                        ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                        : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    }`}
+                  >
+                    {resolveYear(activeTeamRecord)}
+                  </span>
+                  <span
+                    className={`text-xs font-mono font-semibold px-2 py-0.5 rounded border ${
+                      isLight
+                        ? 'bg-slate-100 text-slate-800 border-slate-300'
+                        : 'bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    {activeTeamMembersAll.length} জন
+                  </span>
+                  {activeTeamRecord.isDeleted && (
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30 font-semibold">
+                      আর্কাইভ
+                    </span>
+                  )}
+                </div>
+
+                {/* Team Action Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap shrink-0 print:hidden">
+                  {!activeTeamRecord.isDeleted ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleGoToDutyDetailing(activeTeamRecord.name)}
+                        className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
+                          isLight
+                            ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                            : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
+                        }`}
+                        title="Duty Detailing পেজে যান"
+                      >
+                        <ShieldAlert className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Duty</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+
+                      {!isGuest && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsInlineAddOpen((prev) => !prev);
+                              setInlineSearchQuery('');
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            <span>সৈনিক যুক্ত করুন</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDeleteTeam(activeTeamRecord)}
+                            className="p-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition-colors cursor-pointer"
+                            title={`${resolveYear(activeTeamRecord)} সালের এই রেকর্ড আর্কাইভ / ডিলিট করুন`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    !isGuest && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => restoreCustomTeam(activeTeamRecord)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>পুনরুদ্ধার</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTeamPendingPermDelete(activeTeamRecord)}
+                          className="p-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 cursor-pointer"
+                          title="স্থায়ীভাবে মুছুন"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* Minimal Year Boxes Strip */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {currentTeamGroup.records.map((rec) => {
+                  const yr = resolveYear(rec);
+                  const count = resolveTeamMembers(rec).length;
+                  const isYearSelected = rec.id === activeTeamRecord.id;
+
+                  return (
+                    <button
+                      key={rec.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTeamRecordId(rec.id);
+                        setIsInlineAddOpen(false);
+                      }}
+                      className={`px-3.5 py-2 rounded-lg border font-mono text-xs transition-all cursor-pointer flex items-center gap-2 ${
+                        isYearSelected
+                          ? isLight
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold shadow-xs'
+                            : 'bg-emerald-500/15 border-emerald-500 text-emerald-300 font-bold shadow-xs'
+                          : isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <span>{yr}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          isYearSelected
+                            ? isLight
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-emerald-500/20 text-emerald-300'
+                            : isLight
+                            ? 'bg-white text-slate-500 border border-slate-200'
+                            : 'bg-slate-900 text-slate-400 border border-slate-800'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* Minimal Inline "+ সাল" Box */}
+                {!isGuest && (
+                  !isAddingYear ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenInlineYearAdd}
+                      className={`px-3 py-2 rounded-lg border border-dashed text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1 print:hidden ${
+                        isLight
+                          ? 'border-slate-300 text-slate-600 hover:border-emerald-500 hover:text-emerald-700 hover:bg-emerald-50/40'
+                          : 'border-slate-700 text-slate-400 hover:border-emerald-500/70 hover:text-emerald-300 hover:bg-emerald-500/10'
+                      }`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>সাল</span>
+                    </button>
+                  ) : (
+                    <form
+                      onSubmit={handleConfirmAddYear}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border print:hidden ${
+                        isLight ? 'bg-white border-emerald-500' : 'bg-slate-950 border-emerald-500'
+                      }`}
+                    >
+                      <input
+                        ref={newYearInputRef}
+                        type="number"
+                        min={2000}
+                        max={2100}
+                        value={newYearInput}
+                        onChange={(e) => setNewYearInput(e.target.value)}
+                        placeholder="2025"
+                        className={`w-16 text-xs font-mono font-bold bg-transparent focus:outline-none ${
+                          isLight ? 'text-slate-900' : 'text-white'
+                        }`}
+                        required
+                      />
+                      <button
+                        type="submit"
+                        className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold cursor-pointer"
+                      >
+                        যোগ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingYear(false)}
+                        className="p-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+                  )
+                )}
+              </div>
+
+              {/* Quick Inline Soldier Add Panel */}
+              {isInlineAddOpen && !activeTeamRecord.isDeleted && !isGuest && (
+                <div
+                  className={`p-3 rounded-lg border space-y-2 print:hidden ${
+                    isLight ? 'bg-emerald-50/60 border-emerald-200' : 'bg-slate-950 border-emerald-500/30'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className={isLight ? 'text-emerald-900' : 'text-emerald-300'}>
+                      {resolveYear(activeTeamRecord)} সালের &ldquo;{activeTeamRecord.name}&rdquo;-এ সৈনিক যুক্ত করুন:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsInlineAddOpen(false)}
+                      className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={inlineSearchQuery}
+                    onChange={(e) => setInlineSearchQuery(e.target.value)}
+                    placeholder="সেনা নং, নাম বা পদবি লিখুন..."
+                    className={`w-full px-3 py-1.5 rounded-lg border text-xs focus:outline-none focus:border-emerald-500 ${
+                      isLight
+                        ? 'bg-white border-slate-300 text-slate-900'
+                        : 'bg-slate-900 border-slate-700 text-white'
+                    }`}
+                    autoFocus
+                  />
+                  {inlineSearchResults.length > 0 && (
+                    <div
+                      className={`divide-y max-h-44 overflow-y-auto rounded-lg border ${
+                        isLight ? 'bg-white border-slate-200 divide-slate-100' : 'bg-slate-900 border-slate-800 divide-slate-800'
+                      }`}
+                    >
+                      {inlineSearchResults.map((soldier) => (
+                        <div key={soldier.id} className="p-2 px-3 flex items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono font-bold text-emerald-500 shrink-0">{soldier.snkNo}</span>
+                            <RankBadge rank={soldier.rk} size="sm" />
+                            <span className="font-medium truncate">{soldier.name}</span>
+                            <span className="text-[11px] font-mono text-slate-400 shrink-0">({soldier.battery})</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              addMemberToTeam(activeTeamRecord.id, soldier.id);
+                              showNotification(`${soldier.rk} ${soldier.name} টিমে যোগ করা হয়েছে।`);
+                            }}
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer shrink-0"
+                          >
+                            + যোগ করুন
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Filter & Search Bar */}
+              <div
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 rounded-lg border print:hidden ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-1 text-xs flex-wrap">
+                  {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      onClick={() => setBtyFilter(b)}
+                      className={`px-2 py-1 rounded font-medium transition-colors cursor-pointer ${
+                        btyFilter === b
+                          ? 'bg-emerald-600 text-white font-semibold'
+                          : isLight
+                          ? 'text-slate-600 hover:text-slate-900'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {b === 'All' ? 'সব' : b.replace(' Bty', '')}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative">
+                  <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <input
+                    type="text"
+                    placeholder="সেনা নং, নাম বা স্টেটাস খুঁজুন..."
+                    value={rosterSearch}
+                    onChange={(e) => setRosterSearch(e.target.value)}
+                    className={`pl-8 pr-2.5 py-1 text-xs rounded-lg border focus:outline-none focus:border-emerald-500 w-full sm:w-56 ${
+                      isLight
+                        ? 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
+                        : 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-500'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Member Roster Table */}
+              {filteredRosterMembers.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <div
+                    className={`w-10 h-10 mx-auto rounded-lg flex items-center justify-center ${
+                      isLight ? 'bg-slate-100 text-slate-400' : 'bg-slate-800 text-slate-500'
+                    }`}
+                  >
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <p className={`text-xs font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    {activeTeamMembersAll.length === 0
+                      ? `${resolveYear(activeTeamRecord)} সালে এই টিমে কোনো সদস্য নেই`
+                      : 'ফিল্টার অনুযায়ী কোনো সৈনিক পাওয়া যায়নি'}
+                  </p>
+                  {activeTeamMembersAll.length === 0 && !activeTeamRecord.isDeleted && !isGuest && (
+                    <p className="text-[11px] text-slate-500">
+                      উপরে &ldquo;সৈনিক যুক্ত করুন&rdquo; বাটনে ক্লিক করে সদস্য যোগ করুন।
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className={`overflow-x-auto rounded-lg border ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr
+                        className={`border-b text-[11px] uppercase tracking-wider font-mono ${
+                          isLight
+                            ? 'border-slate-200 bg-slate-100 text-slate-700'
+                            : 'border-slate-800 bg-slate-950/70 text-slate-400'
+                        }`}
+                      >
+                        <th className="py-2.5 px-3 w-10 text-center">#</th>
+                        <th className="py-2.5 px-3">সেনা নং</th>
+                        <th className="py-2.5 px-3">পদবি ও নাম</th>
+                        <th className="py-2.5 px-3">ব্যাটারী</th>
+                        <th className="py-2.5 px-3">ট্রেড</th>
+                        <th className="py-2.5 px-3">বর্তমান স্টেটাস</th>
+                        {!activeTeamRecord.isDeleted && !isGuest && (
+                          <th className="py-2.5 px-3 text-right print:hidden">অ্যাকশন</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody
+                      className={`divide-y ${
+                        isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'
+                      }`}
+                    >
+                      {filteredRosterMembers.map((m, idx) => {
+                        const livePerson = m.livePerson;
+                        const personObj: Personnel = livePerson || {
+                          id: m.id,
+                          snkNo: m.snkNo,
+                          rk: m.rk,
+                          trade: m.trade || '-',
+                          name: m.name,
+                          battery: (m.battery as Battery) || 'HQ Bty',
+                          status: m.status || 'In Unit',
+                          phone: '',
+                        };
+                        const liveLocationDetails = livePerson
+                          ? livePerson.outOfUnitLocation ||
+                            livePerson.location ||
+                            livePerson.leaveAddress ||
+                            livePerson.courseName ||
+                            livePerson.hospitalName ||
+                            livePerson.comdAssignment ||
+                            livePerson.statusDetails
+                          : undefined;
+
+                        return (
+                          <tr
+                            key={m.id || `${m.snkNo}-${idx}`}
+                            className={`transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'}`}
+                          >
+                            <td className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-500">
+                              {idx + 1}
+                            </td>
+                            <td
+                              className={`py-2.5 px-3 font-mono font-bold whitespace-nowrap ${
+                                isLight ? 'text-emerald-700' : 'text-emerald-400'
+                              }`}
+                            >
+                              {m.snkNo}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <RankBadge rank={m.rk} size="sm" />
+                                {onViewDossier && livePerson ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onViewDossier(personObj)}
+                                    className={`font-medium hover:underline cursor-pointer text-left transition-colors ${
+                                      isLight
+                                        ? 'text-slate-900 hover:text-emerald-700'
+                                        : 'text-white hover:text-emerald-400'
+                                    }`}
+                                    title="ক্লিক করে ডসিয়ার দেখুন"
+                                  >
+                                    {m.name}
+                                  </button>
+                                ) : (
+                                  <span className={isLight ? 'text-slate-900 font-medium' : 'text-white font-medium'}>
+                                    {m.name}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-[11px] font-mono border ${
+                                  isLight
+                                    ? 'bg-slate-100 text-slate-800 border-slate-300'
+                                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                                }`}
+                              >
+                                {m.battery}
+                              </span>
+                            </td>
+                            <td className={`py-2.5 px-3 font-mono text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                              {m.trade || '-'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <StatusBadge
+                                status={personObj.status}
+                                outOfUnitCategory={personObj.outOfUnitCategory}
+                                details={liveLocationDetails}
+                                size="sm"
+                              />
+                            </td>
+                            {!activeTeamRecord.isDeleted && !isGuest && (
+                              <td className="py-2.5 px-3 text-right print:hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => removeMemberFromTeam(activeTeamRecord.id, m.id)}
+                                  className="p-1.5 rounded hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
+                                  title="টিম থেকে বাদ দিন"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* 2. NAVIGATION TABS, YEAR SELECTOR & VIEW MODE */}
-      <div
-        className={`p-3 rounded-2xl border space-y-3 print:hidden ${
-          isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-950/70 border-slate-800/80'
-        }`}
-      >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Active vs History Tabs */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setActiveTab('active')}
-              className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === 'active'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-900/30'
-                  : isLight
-                  ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
-                  : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>সক্রিয় টিম (Active)</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  activeTab === 'active'
-                    ? 'bg-rose-700 text-white'
-                    : isLight
-                    ? 'bg-slate-200 text-slate-700'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                {customTeams.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('history')}
-              className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === 'history'
-                  ? 'bg-amber-600 text-white shadow-md shadow-amber-900/30'
-                  : isLight
-                  ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
-                  : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              <span>আর্কাইভ / হিস্ট্রি</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  activeTab === 'history'
-                    ? 'bg-amber-700 text-white'
-                    : isLight
-                    ? 'bg-slate-200 text-slate-700'
-                    : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                {teamHistory.length}
-              </span>
-            </button>
-          </div>
-
-          {/* View Mode & Full List Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div
-              className={`inline-flex rounded-xl p-1 border ${
-                isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-900 border-slate-800'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  viewMode === 'table'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : isLight
-                    ? 'text-slate-600 hover:text-slate-900'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Table2 className="w-3.5 h-3.5" />
-                <span>ডাটাবেজ টেবিল</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('cards')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  viewMode === 'cards'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : isLight
-                    ? 'text-slate-600 hover:text-slate-900'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>কার্ড ভিউ</span>
-              </button>
-            </div>
-
-            {viewMode === 'table' && currentList.length > 0 && (
-              <button
-                type="button"
-                onClick={handleToggleExpandAll}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
-                  isLight
-                    ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
-                    : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200'
-                }`}
-              >
-                {expandAllRosters ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5 text-amber-500" />}
-                <span>{expandAllRosters ? 'সব তালিকা লুকান' : 'সব টিমের পুরো তালিকা দেখুন'}</span>
-              </button>
-            )}
-
-            {currentList.length > 0 && (
-              <button
-                type="button"
-                onClick={handlePrintTeams}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
-                  isLight
-                    ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
-                    : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200'
-                }`}
-                title="পুরো তালিকা প্রিন্ট করুন"
-              >
-                <Printer className="w-3.5 h-3.5 text-emerald-500" />
-                <span>প্রিন্ট</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Year Partition Selector Pills */}
-        <div
-          className={`pt-2.5 border-t flex items-center gap-2 flex-wrap ${
-            isLight ? 'border-slate-200' : 'border-slate-800/80'
-          }`}
-        >
-          <span
-            className={`text-xs font-mono font-bold flex items-center gap-1.5 mr-1 ${
-              isLight ? 'text-slate-600' : 'text-slate-400'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5 text-rose-500" />
-            <span>সাল অনুযায়ী ডাটাবেজ টেবিল:</span>
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setSelectedYear('All')}
-            className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
-              selectedYear === 'All'
-                ? 'bg-rose-600 text-white shadow-sm'
-                : isLight
-                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            সকল সাল ({activeTab === 'active' ? customTeams.length : teamHistory.length})
-          </button>
-
-          {availableYears.map((yr) => {
-            const count = yearTeamCounts[yr] || 0;
-            const isSelected = selectedYear === yr;
-            return (
-              <button
-                key={yr}
-                type="button"
-                onClick={() => setSelectedYear(yr)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isSelected
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : isLight
-                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
-                    : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
-                }`}
-              >
-                <span>{yr} সাল</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                    isSelected
-                      ? 'bg-rose-700 text-white'
-                      : isLight
-                      ? 'bg-slate-200 text-slate-700'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 3. CREATE / EDIT TEAM MODAL */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto print:hidden">
+      {/* 3. MINIMAL ADD / RENAME TEAM MODAL (Just Team Name, identical to Course & Cadre) */}
+      {isTeamModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn print:hidden">
           <div
-            className={`border rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${
-              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
+            className={`relative w-full max-w-md border rounded-xl shadow-2xl p-5 space-y-4 ${
+              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
             }`}
           >
-            <div
-              className={`px-5 py-4 border-b flex items-center justify-between ${
-                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-rose-600/20 text-rose-500 border border-rose-500/30 flex items-center justify-center">
-                  <Users className="w-4 h-4" />
+            <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+                  {editingTeamGroup ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold">
-                    {editingTeamId ? 'টিম এডিট করুন / Edit Team' : 'নতুন টিম তৈরি করুন / Create Team'}
-                  </h2>
+                  <h3 className="text-sm font-bold">
+                    {editingTeamGroup ? 'টিমের নাম পরিবর্তন করুন' : 'নতুন টিম যুক্ত করুন'}
+                  </h3>
                   <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                    টিমের নাম, সাল (Year) এবং সৈনিক তালিকা নির্ধারণ করে ডাটাবেজে সংরক্ষণ করুন
+                    {editingTeamGroup
+                      ? 'শুধুমাত্র টিমের নাম পরিবর্তন হবে'
+                      : 'শুধুমাত্র টিমের নাম লিখে যুক্ত করুন'}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                onClick={() => setIsTeamModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveTeam} className="p-5 space-y-4 overflow-y-auto flex-1">
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                <div className="sm:col-span-5 space-y-1">
-                  <label className="text-xs font-mono font-semibold block">
-                    টিমের নাম (Team Name) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={teamNameInput}
-                    onChange={(e) => setTeamNameInput(e.target.value)}
-                    placeholder="যেমন: Athletics Team, Firing Team..."
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-rose-500 font-mono ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900'
-                        : 'bg-slate-950 border-slate-700 text-white'
-                    }`}
-                  />
-                </div>
-
-                <div className="sm:col-span-2 space-y-1">
-                  <label className="text-xs font-mono font-semibold block">
-                    সাল (Year) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={2000}
-                    max={2100}
-                    value={teamYearInput}
-                    onChange={(e) => setTeamYearInput(Number(e.target.value) || currentYear)}
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-rose-500 font-mono font-bold ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900'
-                        : 'bg-slate-950 border-slate-700 text-white'
-                    }`}
-                  />
-                </div>
-
-                <div className="sm:col-span-5 space-y-1">
-                  <label className="text-xs font-mono font-semibold block">
-                    বিবরণ / নোট (Description)
-                  </label>
-                  <input
-                    type="text"
-                    value={teamDescInput}
-                    onChange={(e) => setTeamDescInput(e.target.value)}
-                    placeholder="যেমন: বার্ষিক প্রতিযোগিতা দল..."
-                    className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:border-rose-500 ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900'
-                        : 'bg-slate-950 border-slate-700 text-white'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Selected Soldiers Chips */}
-              <div className={`space-y-2 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-mono font-bold flex items-center gap-2">
-                    <span>নির্বাচিত সদস্যবৃন্দ:</span>
-                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-500 font-mono text-[11px] font-bold border border-rose-500/30">
-                      {selectedMemberIds.length} জন
-                    </span>
-                  </label>
-                  {selectedMemberIds.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedMemberIds([])}
-                      className="text-[11px] font-mono text-rose-500 hover:underline cursor-pointer"
-                    >
-                      সব বাতিল করুন
-                    </button>
-                  )}
-                </div>
-
-                {selectedMemberIds.length > 0 ? (
-                  <div
-                    className={`flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 border rounded-xl ${
-                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'
-                    }`}
-                  >
-                    {selectedMemberIds.map((id) => {
-                      const p = personnelMap.get(id);
-                      if (!p) return null;
-                      return (
-                        <span
-                          key={id}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono ${
-                            isLight
-                              ? 'bg-white text-slate-800 border-slate-300'
-                              : 'bg-slate-800 text-slate-200 border-slate-700'
-                          }`}
-                        >
-                          <span className="font-bold text-rose-500">{p.snkNo}</span>
-                          <span>{p.rk} {p.name}</span>
-                          <span className="text-[10px] text-slate-400">({p.battery})</span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleMember(id)}
-                            className="text-slate-400 hover:text-rose-500 ml-0.5 cursor-pointer"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div
-                    className={`p-3 rounded-xl border border-dashed text-center text-xs font-mono ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-500' : 'bg-slate-950/50 border-slate-800 text-slate-500'
-                    }`}
-                  >
-                    এখনও কোনো সৈনিক নির্বাচন করা হয়নি। নিচের তালিকা থেকে সিলেক্ট করুন।
-                  </div>
-                )}
-              </div>
-
-              {/* Soldier Search & Picker */}
-              <div className={`space-y-2 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                  <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      value={memberSearchQuery}
-                      onChange={(e) => setMemberSearchQuery(e.target.value)}
-                      placeholder="সৈনিক খুঁজুন (Army No, Name, Rank)..."
-                      className={`w-full pl-8 pr-3 py-1.5 rounded-lg border text-xs focus:outline-none focus:border-rose-500 font-mono ${
-                        isLight
-                          ? 'bg-slate-50 border-slate-300 text-slate-900'
-                          : 'bg-slate-950 border-slate-700 text-white'
-                      }`}
-                    />
-                  </div>
-                  <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-                    {(['All', ...ALL_BATTERIES] as const).map((bty) => (
-                      <button
-                        key={bty}
-                        type="button"
-                        onClick={() => setPickerBatteryFilter(bty)}
-                        className={`px-2 py-1 rounded-md text-[11px] font-mono font-semibold transition-all cursor-pointer ${
-                          pickerBatteryFilter === bty
-                            ? 'bg-rose-600 text-white'
-                            : isLight
-                            ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {bty}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div
-                  className={`border rounded-xl overflow-hidden max-h-56 overflow-y-auto divide-y ${
-                    isLight ? 'border-slate-200 divide-slate-100 bg-white' : 'border-slate-800 divide-slate-800 bg-slate-950'
+            <form onSubmit={handleSaveTeamName} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1.5">
+                  টিমের নাম (Team Name) <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={teamNameInput}
+                  onChange={(e) => setTeamNameInput(e.target.value)}
+                  placeholder="যেমন: Athletics Team, Shooting Team"
+                  className={`w-full rounded-lg border p-2.5 focus:outline-none focus:border-emerald-500 ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
                   }`}
-                >
-                  {filteredPickerPersonnel.length > 0 ? (
-                    filteredPickerPersonnel.map((soldier) => {
-                      const isSelected = selectedMemberIds.includes(soldier.id);
-                      return (
-                        <div
-                          key={soldier.id}
-                          onClick={() => handleToggleMember(soldier.id)}
-                          className={`p-2 px-3 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
-                            isSelected
-                              ? isLight
-                                ? 'bg-rose-50 border-l-2 border-rose-500'
-                                : 'bg-rose-950/40 border-l-2 border-rose-500'
-                              : isLight
-                              ? 'hover:bg-slate-50'
-                              : 'hover:bg-slate-900'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {}}
-                              className="rounded border-slate-400 text-rose-600 pointer-events-none"
-                            />
-                            <span className="text-xs font-mono font-bold text-rose-500">
-                              {soldier.snkNo}
-                            </span>
-                            <span className="text-xs font-semibold truncate">
-                              {soldier.rk} {soldier.name}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400">
-                              ({soldier.battery})
-                            </span>
-                            <span
-                              className={`text-[10px] px-1.5 rounded font-mono ${
-                                isLight ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-400'
-                              }`}
-                            >
-                              {soldier.trade}
-                            </span>
-                          </div>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded font-mono font-bold shrink-0 ${
-                              isSelected
-                                ? 'bg-rose-600 text-white'
-                                : isLight
-                                ? 'bg-slate-100 text-slate-700'
-                                : 'bg-slate-800 text-slate-300'
-                            }`}
-                          >
-                            {isSelected ? 'Selected' : '+ Add'}
-                          </span>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="p-4 text-center text-xs font-mono text-slate-500">
-                      কোনো সৈনিক খুঁজে পাওয়া যায়নি।
-                    </div>
-                  )}
-                </div>
+                  required
+                  autoFocus
+                />
               </div>
 
               <div className={`pt-3 border-t flex items-center justify-end gap-2 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
                 <button
                   type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className={`px-4 py-2 rounded-xl text-xs font-mono font-semibold cursor-pointer ${
-                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  onClick={() => setIsTeamModalOpen(false)}
+                  className={`px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                    isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                   }`}
                 >
                   বাতিল
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-mono font-bold shadow-lg shadow-rose-900/30 flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer shadow-sm transition-colors inline-flex items-center gap-1.5"
                 >
-                  <Check className="w-4 h-4" />
-                  <span>{editingTeamId ? 'ডাটাবেজে আপডেট করুন' : 'ডাটাবেজে সংরক্ষণ করুন'}</span>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{editingTeamGroup ? 'সংরক্ষণ করুন' : 'টিম তৈরি করুন'}</span>
                 </button>
               </div>
             </form>
@@ -929,759 +1430,46 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
         </div>
       )}
 
-      {/* 4. MAIN CONTENT: LOADING / EMPTY / DATABASE TABLE OR CARDS */}
-      {teamsLoading && currentList.length === 0 ? (
-        <div
-          className={`p-12 text-center rounded-2xl border space-y-3 ${
-            isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-slate-800'
-          }`}
-        >
-          <RefreshCw className="w-7 h-7 animate-spin text-rose-500 mx-auto" />
-          <p className={`text-sm font-mono ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
-            Supabase ডাটাবেজ থেকে টিমের তালিকা লোড হচ্ছে...
-          </p>
-        </div>
-      ) : currentList.length === 0 ? (
-        <div
-          className={`p-12 text-center border border-dashed rounded-2xl space-y-3 ${
-            isLight ? 'bg-white border-slate-300' : 'bg-slate-900/50 border-slate-800'
-          }`}
-        >
-          <div
-            className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center ${
-              isLight ? 'bg-slate-100 text-slate-500' : 'bg-slate-800 text-slate-400'
-            }`}
-          >
-            {activeTab === 'active' ? <Database className="w-6 h-6" /> : <Archive className="w-6 h-6" />}
-          </div>
-          <h3 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
-            {selectedYear === 'All'
-              ? activeTab === 'active'
-                ? 'ডাটাবেজে কোনো সক্রিয় টিম সংরক্ষিত নেই'
-                : 'আর্কাইভ হিস্ট্রিতে কোনো টিম নেই'
-              : `${selectedYear} সালে ডাটাবেজে কোনো টিম সংরক্ষিত নেই`}
-          </h3>
-          <p className={`text-xs max-w-md mx-auto ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-            এই ভিউতে শুধুমাত্র Supabase ডাটাবেজে সংরক্ষিত রেকর্ড দেখানো হয়। প্রয়োজন অনুযায়ী নতুন টিম তৈরি করে নির্দিষ্ট সালে সংরক্ষণ করুন।
-          </p>
-          {activeTab === 'active' && !isGuest && (
-            <button
-              type="button"
-              onClick={handleOpenCreateForm}
-              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold font-mono transition-colors cursor-pointer inline-flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>নতুন টিম তৈরি করুন ({selectedYear === 'All' ? currentYear : selectedYear})</span>
-            </button>
-          )}
-        </div>
-      ) : viewMode === 'table' ? (
-        /* --- YEAR-PARTITIONED DATABASE TABLE VIEW --- */
-        <div
-          className={`rounded-2xl border shadow-xl overflow-hidden ${
-            isLight ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-slate-800'
-          }`}
-        >
-          <div
-            className={`px-4 py-3 border-b flex items-center justify-between gap-2 flex-wrap ${
-              isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Table2 className="w-4 h-4 text-rose-500" />
-              <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                {selectedYear === 'All'
-                  ? 'সকল সালের টিম ডাটাবেজ তালিকা'
-                  : `${selectedYear} সালের টিম ডাটাবেজ টেবিল`}
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-500 text-[11px] font-mono font-bold border border-rose-500/30">
-                মোট {currentList.length}টি টিম
-              </span>
-            </div>
-            <span className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              "পুরো তালিকা" ক্লিক করলে ওই টিমের সকল সৈনিকের তালিকা দেখা যাবে
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr
-                  className={`border-b text-[11px] font-mono uppercase tracking-wider ${
-                    isLight
-                      ? 'bg-slate-100 border-slate-200 text-slate-600'
-                      : 'bg-slate-950 border-slate-800 text-slate-400'
-                  }`}
-                >
-                  <th className="py-3 px-3 text-center w-12">SL</th>
-                  <th className="py-3 px-3 w-24">সাল (Year)</th>
-                  <th className="py-3 px-3">টিমের নাম ও বিবরণ</th>
-                  <th className="py-3 px-3 text-center w-28">সদস্য</th>
-                  <th className="py-3 px-3">ব্যাটারি বিভাজন</th>
-                  <th className="py-3 px-3 text-center w-28">অবস্থা</th>
-                  <th className="py-3 px-3 text-right print:hidden">অ্যাকশন</th>
-                </tr>
-              </thead>
-              <tbody className={isLight ? 'divide-y divide-slate-200' : 'divide-y divide-slate-800'}>
-                {currentList.map((team, idx) => {
-                  const yr = resolveYear(team);
-                  const members = resolveTeamMembers(team);
-                  const isExpanded = Boolean(expandedRosterIds[team.id]);
-                  const btyBreakdown: Record<string, number> = {
-                    'HQ Bty': 0,
-                    'P Bty': 0,
-                    'Q Bty': 0,
-                    'R Bty': 0,
-                  };
-                  members.forEach((m) => {
-                    if (btyBreakdown[m.battery] !== undefined) {
-                      btyBreakdown[m.battery]++;
-                    }
-                  });
-
-                  return (
-                    <React.Fragment key={team.id}>
-                      <tr
-                        className={`transition-colors ${
-                          isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'
-                        }`}
-                      >
-                        <td className="py-3 px-3 text-center font-mono text-xs text-slate-400">
-                          {idx + 1}.
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/15 text-rose-500 border border-rose-500/30 text-xs font-mono font-bold">
-                            {yr}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                            {team.name}
-                          </div>
-                          {team.description && (
-                            <div className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                              {team.description}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border ${
-                              isLight
-                                ? 'bg-slate-100 text-slate-800 border-slate-300'
-                                : 'bg-slate-800 text-amber-300 border-slate-700'
-                            }`}
-                          >
-                            {members.length} জন
-                          </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-1 flex-wrap text-[11px] font-mono">
-                            {ALL_BATTERIES.map((bty) => (
-                              <span
-                                key={bty}
-                                className={`px-1.5 py-0.5 rounded border ${
-                                  isLight
-                                    ? 'bg-slate-100 text-slate-700 border-slate-200'
-                                    : 'bg-slate-950 text-slate-300 border-slate-800'
-                                }`}
-                              >
-                                {bty.replace(' Bty', '')}: {btyBreakdown[bty]}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          {activeTab === 'active' ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[11px] font-mono font-bold">
-                              সক্রিয়
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[11px] font-mono font-bold">
-                              আর্কাইভ
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-right print:hidden">
-                          <div className="inline-flex items-center gap-1.5 flex-wrap justify-end">
-                            <button
-                              type="button"
-                              onClick={() => toggleRosterExpand(team.id)}
-                              className={`px-2.5 py-1.5 rounded-lg border text-xs font-mono font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
-                                isExpanded
-                                  ? 'bg-rose-600 text-white border-rose-600'
-                                  : isLight
-                                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
-                              }`}
-                            >
-                              {isExpanded ? (
-                                <>
-                                  <ChevronUp className="w-3.5 h-3.5" />
-                                  <span>লুকান</span>
-                                </>
-                              ) : (
-                                <>
-                                  <ChevronDown className="w-3.5 h-3.5 text-amber-500" />
-                                  <span>পুরো তালিকা ({members.length})</span>
-                                </>
-                              )}
-                            </button>
-
-                            {activeTab === 'active' ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleGoToDutyDetailing(team.name)}
-                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-500 border border-emerald-500/30 text-xs font-mono font-bold cursor-pointer"
-                                  title="Duty Detailing-এ লোড করুন"
-                                >
-                                  Duty
-                                </button>
-                                {!isGuest && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEditForm(team)}
-                                      className={`p-1.5 rounded-lg border cursor-pointer ${
-                                        isLight
-                                          ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-amber-600'
-                                          : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-400'
-                                      }`}
-                                      title="এডিট"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRequestDeleteTeam(team)}
-                                      className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 cursor-pointer"
-                                      title="আর্কাইভ / ডিলিট"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </>
-                                )}
-                              </>
-                            ) : (
-                              !isGuest && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      restoreCustomTeam(team);
-                                      setActiveTab('active');
-                                    }}
-                                    className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-mono font-bold cursor-pointer flex items-center gap-1"
-                                  >
-                                    <RotateCcw className="w-3 h-3" />
-                                    <span>Restore</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setTeamPendingPermDelete(team)}
-                                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 cursor-pointer"
-                                    title="ডাটাবেজ থেকে স্থায়ীভাবে মুছুন"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </>
-                              )
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* EXPANDED FULL MEMBER ROSTER ROW */}
-                      {isExpanded && (
-                        <tr>
-                          <td
-                            colSpan={7}
-                            className={`p-3 sm:p-4 ${
-                              isLight ? 'bg-slate-50/90' : 'bg-slate-950/70'
-                            }`}
-                          >
-                            <div
-                              className={`rounded-xl border overflow-hidden ${
-                                isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
-                              }`}
-                            >
-                              <div
-                                className={`px-3 py-2 border-b flex items-center justify-between text-xs font-mono font-bold ${
-                                  isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300'
-                                }`}
-                              >
-                                <span>
-                                  {team.name} ({yr} সাল) — সম্পূর্ণ সদস্য তালিকা ({members.length} জন)
-                                </span>
-                                {activeTab === 'active' && !isGuest && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEditForm(team)}
-                                    className="text-rose-500 hover:underline cursor-pointer print:hidden"
-                                  >
-                                    + সদস্য পরিবর্তন করুন
-                                  </button>
-                                )}
-                              </div>
-
-                              {members.length > 0 ? (
-                                <table className="w-full text-xs border-collapse">
-                                  <thead>
-                                    <tr
-                                      className={`border-b text-[11px] font-mono ${
-                                        isLight
-                                          ? 'bg-slate-50 border-slate-200 text-slate-600'
-                                          : 'bg-slate-950/60 border-slate-800 text-slate-400'
-                                      }`}
-                                    >
-                                      <th className="py-2 px-3 text-center w-12">SL</th>
-                                      <th className="py-2 px-3">Army No</th>
-                                      <th className="py-2 px-3">Rank & Name</th>
-                                      <th className="py-2 px-3 text-center">Battery</th>
-                                      <th className="py-2 px-3 text-center">Trade</th>
-                                      <th className="py-2 px-3 text-center">Status</th>
-                                      {activeTab === 'active' && !isGuest && (
-                                        <th className="py-2 px-3 text-right print:hidden">Action</th>
-                                      )}
-                                    </tr>
-                                  </thead>
-                                  <tbody className={isLight ? 'divide-y divide-slate-100' : 'divide-y divide-slate-800/70'}>
-                                    {members.map((m, mIdx) => (
-                                      <tr
-                                        key={m.id || mIdx}
-                                        className={isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'}
-                                      >
-                                        <td className="py-2 px-3 text-center font-mono text-slate-400">
-                                          {mIdx + 1}.
-                                        </td>
-                                        <td className="py-2 px-3 font-mono font-bold">
-                                          <span
-                                            className={`px-1.5 py-0.5 rounded border ${
-                                              isLight
-                                                ? 'bg-slate-100 text-slate-900 border-slate-300'
-                                                : 'bg-slate-800 text-amber-300 border-slate-700'
-                                            }`}
-                                          >
-                                            {m.snkNo}
-                                          </span>
-                                        </td>
-                                        <td className="py-2 px-3 font-semibold">
-                                          {onViewDossier && m.livePerson ? (
-                                            <button
-                                              type="button"
-                                              onClick={() => onViewDossier(m.livePerson!)}
-                                              className="hover:text-rose-500 hover:underline cursor-pointer text-left"
-                                            >
-                                              {m.rk} {m.name}
-                                            </button>
-                                          ) : (
-                                            <span>
-                                              {m.rk} {m.name}
-                                            </span>
-                                          )}
-                                        </td>
-                                        <td className="py-2 px-3 text-center font-mono font-bold">{m.battery}</td>
-                                        <td className="py-2 px-3 text-center font-mono text-slate-400">{m.trade}</td>
-                                        <td className="py-2 px-3 text-center">
-                                          <span
-                                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                                              m.status === 'In Unit' || m.status === 'Present'
-                                                ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                                                : 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
-                                            }`}
-                                          >
-                                            {m.status}
-                                          </span>
-                                        </td>
-                                        {activeTab === 'active' && !isGuest && (
-                                          <td className="py-2 px-3 text-right print:hidden">
-                                            <button
-                                              type="button"
-                                              onClick={() => removeMemberFromTeam(team.id, m.id)}
-                                              className="p-1 rounded text-slate-400 hover:text-rose-500 cursor-pointer"
-                                              title="টিম থেকে বাদ দিন"
-                                            >
-                                              <X className="w-3.5 h-3.5" />
-                                            </button>
-                                          </td>
-                                        )}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              ) : (
-                                <div className="p-4 text-center text-xs font-mono text-slate-500">
-                                  এই টিমে এখনও কোনো সদস্য যুক্ত নেই।
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        /* --- CARD VIEW (Active & History) --- */
-        <div className="space-y-4">
-          {currentList.map((team) => {
-            const yr = resolveYear(team);
-            const members = resolveTeamMembers(team);
-            const btyBreakdown: Record<string, number> = {
-              'HQ Bty': 0,
-              'P Bty': 0,
-              'Q Bty': 0,
-              'R Bty': 0,
-            };
-            members.forEach((m) => {
-              if (btyBreakdown[m.battery] !== undefined) {
-                btyBreakdown[m.battery]++;
-              }
-            });
-
-            const isInlineAdding = activeTab === 'active' && inlineAddingTeamId === team.id;
-            const inlineSearchResults =
-              isInlineAdding && inlineSearchQuery.trim()
-                ? sortBySeniority(
-                    personnelList.filter((p) => {
-                      if (team.memberIds.includes(p.id)) return false;
-                      const q = inlineSearchQuery.toLowerCase().trim();
-                      return (
-                        (p.snkNo || '').toLowerCase().includes(q) ||
-                        (p.name || '').toLowerCase().includes(q) ||
-                        (p.rk || '').toLowerCase().includes(q)
-                      );
-                    }),
-                    ranksList
-                  ).slice(0, 8)
-                : [];
-
-            return (
-              <div
-                key={team.id}
-                className={`border rounded-2xl shadow-xl overflow-hidden transition-all ${
-                  isLight ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div
-                  className={`p-4 sm:p-5 border-b flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-                    isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span
-                        className={`w-3 h-3 rounded-full shrink-0 ${
-                          activeTab === 'active' ? 'bg-rose-500' : 'bg-amber-500'
-                        }`}
-                      />
-                      <h2 className={`text-base sm:text-lg font-bold tracking-wide ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                        {team.name}
-                      </h2>
-                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-rose-500/15 text-rose-500 border border-rose-500/30">
-                        {yr} সাল
-                      </span>
-                      <span
-                        className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border ${
-                          isLight
-                            ? 'bg-slate-100 text-slate-800 border-slate-300'
-                            : 'bg-slate-800 text-amber-300 border-slate-700'
-                        }`}
-                      >
-                        {members.length} জন সদস্য
-                      </span>
-
-                      <div className="flex items-center gap-1 text-[11px] font-mono">
-                        {ALL_BATTERIES.map((bty) => (
-                          <span
-                            key={bty}
-                            className={`px-1.5 py-0.2 rounded border ${
-                              isLight
-                                ? 'bg-white text-slate-700 border-slate-300'
-                                : 'bg-slate-800 text-slate-300 border-slate-700'
-                            }`}
-                          >
-                            {bty}: {btyBreakdown[bty]}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {team.description && (
-                      <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>{team.description}</p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap print:hidden">
-                    {activeTab === 'active' ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleGoToDutyDetailing(team.name)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-500 border border-emerald-500/30 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <ShieldAlert className="w-3.5 h-3.5" />
-                          <span>Duty Detailing</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                        {!isGuest && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditForm(team)}
-                              className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-semibold flex items-center gap-1.5 cursor-pointer ${
-                                isLight
-                                  ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800'
-                                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
-                              }`}
-                            >
-                              <Edit2 className="w-3.5 h-3.5 text-amber-500" />
-                              <span>এডিট</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRequestDeleteTeam(team)}
-                              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 cursor-pointer"
-                              title="আর্কাইভ / ডিলিট"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      !isGuest && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              restoreCustomTeam(team);
-                              setActiveTab('active');
-                            }}
-                            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>পুনরুদ্ধার</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setTeamPendingPermDelete(team)}
-                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 cursor-pointer"
-                            title="ডাটাবেজ থেকে স্থায়ীভাবে মুছুন"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )
-                    )}
-                  </div>
-                </div>
-
-                {/* Members Table inside Card */}
-                <div className="p-3 sm:p-4 space-y-3">
-                  {members.length > 0 ? (
-                    <div
-                      className={`rounded-xl border overflow-hidden ${
-                        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900/95 border-slate-800 text-slate-100'
-                      }`}
-                    >
-                      <div
-                        className={`grid grid-cols-12 gap-2 px-3 py-2 border-b text-xs font-mono font-bold ${
-                          isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-slate-950/90 border-slate-800 text-slate-300'
-                        }`}
-                      >
-                        <div className="col-span-1 text-center">SL</div>
-                        <div className="col-span-2">Army No</div>
-                        <div className="col-span-4">Rank & Name</div>
-                        <div className="col-span-2 text-center">Battery</div>
-                        <div className="col-span-2 text-center">Trade</div>
-                        <div className="col-span-1 text-right">
-                          {activeTab === 'active' ? 'Action' : 'Status'}
-                        </div>
-                      </div>
-                      <div className={isLight ? 'divide-y divide-slate-100' : 'divide-y divide-slate-800/60'}>
-                        {members.map((soldier, idx) => (
-                          <div
-                            key={soldier.id || idx}
-                            className={`grid grid-cols-12 gap-2 px-3 py-2 items-center text-xs ${
-                              isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <div className="col-span-1 text-center font-mono text-slate-400">{idx + 1}.</div>
-                            <div className="col-span-2 font-mono font-bold">
-                              <span
-                                className={`px-1.5 py-0.5 rounded border ${
-                                  isLight ? 'bg-slate-100 text-slate-900 border-slate-300' : 'bg-slate-800 text-amber-300 border-slate-700'
-                                }`}
-                              >
-                                {soldier.snkNo}
-                              </span>
-                            </div>
-                            <div className="col-span-4 font-semibold truncate">
-                              {onViewDossier && soldier.livePerson ? (
-                                <button
-                                  type="button"
-                                  onClick={() => onViewDossier(soldier.livePerson!)}
-                                  className="hover:text-rose-500 hover:underline cursor-pointer text-left truncate"
-                                >
-                                  {soldier.rk} {soldier.name}
-                                </button>
-                              ) : (
-                                <span>
-                                  {soldier.rk} {soldier.name}
-                                </span>
-                              )}
-                            </div>
-                            <div className="col-span-2 text-center font-mono font-bold">{soldier.battery}</div>
-                            <div className="col-span-2 text-center font-mono text-slate-400">{soldier.trade}</div>
-                            <div className="col-span-1 text-right">
-                              {activeTab === 'active' && !isGuest ? (
-                                <button
-                                  type="button"
-                                  onClick={() => removeMemberFromTeam(team.id, soldier.id)}
-                                  className="p-1 rounded text-slate-400 hover:text-rose-500 cursor-pointer"
-                                  title="বাদ দিন"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              ) : (
-                                <span className="text-[10px] font-mono text-slate-400">{soldier.status}</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      className={`p-5 rounded-xl border text-center text-xs font-mono ${
-                        isLight ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-slate-900/80 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      এই টিমে কোনো সদস্য যুক্ত নেই।
-                    </div>
-                  )}
-
-                  {activeTab === 'active' && !isGuest && (
-                    <div className="pt-1 print:hidden">
-                      {!isInlineAdding ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setInlineAddingTeamId(team.id);
-                            setInlineSearchQuery('');
-                          }}
-                          className="text-xs font-mono font-semibold text-rose-500 hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>+ আরও সৈনিক যোগ করুন</span>
-                        </button>
-                      ) : (
-                        <div
-                          className={`p-2.5 rounded-xl border space-y-2 ${
-                            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between text-xs font-mono">
-                            <span>সৈনিক খুঁজুন এবং সরাসরি যোগ করুন:</span>
-                            <button
-                              type="button"
-                              onClick={() => setInlineAddingTeamId(null)}
-                              className="text-slate-400 hover:text-rose-500 cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <input
-                            type="text"
-                            value={inlineSearchQuery}
-                            onChange={(e) => setInlineSearchQuery(e.target.value)}
-                            placeholder="সৈনিকের নম্বর বা নাম লিখুন..."
-                            className={`w-full px-3 py-1.5 rounded-lg border text-xs font-mono focus:outline-none focus:border-rose-500 ${
-                              isLight
-                                ? 'bg-white border-slate-300 text-slate-900'
-                                : 'bg-slate-900 border-slate-700 text-white'
-                            }`}
-                            autoFocus
-                          />
-                          {inlineSearchResults.length > 0 && (
-                            <div className="divide-y divide-slate-800/40 max-h-40 overflow-y-auto border border-slate-700/40 rounded-lg">
-                              {inlineSearchResults.map((soldier) => (
-                                <div
-                                  key={soldier.id}
-                                  className="p-2 flex items-center justify-between text-xs font-mono"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-rose-500">{soldier.snkNo}</span>
-                                    <span>{soldier.rk} {soldier.name}</span>
-                                    <span className="text-slate-400">({soldier.battery})</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      addMemberToTeam(team.id, soldier.id);
-                                      showNotification(`${soldier.rk} ${soldier.name} টিমে যোগ করা হয়েছে।`);
-                                    }}
-                                    className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer"
-                                  >
-                                    + যোগ
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 5. CONFIRM ARCHIVE / DELETE MODAL */}
+      {/* 4. CONFIRM ARCHIVE / DELETE MODAL */}
       {teamPendingDelete && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 print:hidden">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
           <div
-            className={`border rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 ${
-              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
+            className={`border rounded-xl w-full max-w-md shadow-2xl p-5 space-y-4 ${
+              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
             }`}
           >
             <div className="flex items-center gap-3 text-rose-500">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold">টিম আর্কাইভ / অপসারণ</h3>
+                <h3 className="text-sm font-bold">টিম আর্কাইভ / অপসারণ</h3>
                 <p className="text-xs text-slate-400">Confirm Archive Team</p>
               </div>
             </div>
 
             <div
-              className={`p-3.5 rounded-xl border space-y-2 text-xs ${
+              className={`p-3 rounded-lg border space-y-1.5 text-xs ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800 text-slate-300'
               }`}
             >
               <p>
-                আপনি কি <span className="font-bold font-mono">"{teamPendingDelete.name}" ({resolveYear(teamPendingDelete)} সাল)</span> টিমটি আর্কাইভে সরাতে চান?
+                আপনি কি{' '}
+                <span className="font-bold font-mono">
+                  &ldquo;{teamPendingDelete.name}&rdquo; ({resolveYear(teamPendingDelete)})
+                </span>{' '}
+                আর্কাইভে সরাতে চান?
               </p>
               <p className="text-[11px] text-slate-400 font-mono">
-                সদস্য: {teamPendingDelete.memberIds.length} জন • হিস্ট্রি ট্যাবে সম্পূর্ণ তালিকা সংরক্ষিত থাকবে।
+                সদস্য: {teamPendingDelete.memberIds.length} জন • প্রয়োজনে পুনরুদ্ধার করা যাবে।
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setTeamPendingDelete(null)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                   isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
                 }`}
               >
@@ -1690,36 +1478,36 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold cursor-pointer flex items-center gap-1.5"
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>সরিয়ে নিন</span>
+                <Archive className="w-3.5 h-3.5" />
+                <span>আর্কাইভ করুন</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 6. CONFIRM PERMANENT DELETE FROM HISTORY MODAL */}
+      {/* 5. CONFIRM PERMANENT DELETE MODAL */}
       {teamPendingPermDelete && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 print:hidden">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
           <div
-            className={`border rounded-2xl w-full max-w-md shadow-2xl p-5 space-y-4 ${
-              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
+            className={`border rounded-xl w-full max-w-md shadow-2xl p-5 space-y-4 ${
+              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
             }`}
           >
-            <div className="flex items-center gap-3 text-rose-500">
+            <div className="flex items-center gap-2.5 text-rose-500">
               <AlertTriangle className="w-5 h-5" />
-              <h3 className="text-base font-bold">ডাটাবেজ থেকে স্থায়ীভাবে মুছুন?</h3>
+              <h3 className="text-sm font-bold">ডাটাবেজ থেকে স্থায়ীভাবে মুছুন?</h3>
             </div>
             <p className="text-xs text-slate-400">
-              "{teamPendingPermDelete.name}" ({resolveYear(teamPendingPermDelete)} সাল) স্থায়ীভাবে ডাটাবেজ থেকে মুছে যাবে এবং আর পুনরুদ্ধার করা যাবে না।
+              &ldquo;{teamPendingPermDelete.name}&rdquo; ({resolveYear(teamPendingPermDelete)}) স্থায়ীভাবে ডাটাবেজ থেকে মুছে যাবে।
             </p>
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setTeamPendingPermDelete(null)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                   isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-800 text-slate-300'
                 }`}
               >
@@ -1728,7 +1516,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
               <button
                 type="button"
                 onClick={handleConfirmPermanentDelete}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold cursor-pointer"
               >
                 স্থায়ীভাবে মুছুন
               </button>
@@ -1737,17 +1525,17 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
         </div>
       )}
 
-      {/* 7. FLOATING UNDO BANNER */}
+      {/* 6. FLOATING UNDO TOAST */}
       {activeUndoToast && (
-        <div className="fixed bottom-5 right-4 sm:right-8 z-50 bg-slate-900/95 border-2 border-amber-500/60 shadow-2xl p-3.5 rounded-2xl flex items-center gap-3.5 text-white max-w-md backdrop-blur-md print:hidden">
-          <RotateCcw className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="fixed bottom-5 right-4 sm:right-8 z-50 bg-slate-900/95 border border-emerald-500/60 shadow-xl p-3 rounded-xl flex items-center gap-3 text-white max-w-md backdrop-blur-md print:hidden">
+          <RotateCcw className="w-4 h-4 text-emerald-400 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold truncate">"{activeUndoToast.team.name}" আর্কাইভ হয়েছে</p>
+            <p className="text-xs font-semibold truncate">&ldquo;{activeUndoToast.team.name}&rdquo; আর্কাইভ হয়েছে</p>
           </div>
           <button
             type="button"
             onClick={() => handleUndo(activeUndoToast.team)}
-            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold font-mono flex items-center gap-1 cursor-pointer shrink-0"
+            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0"
           >
             <Undo2 className="w-3.5 h-3.5" />
             <span>Undo</span>
@@ -1755,60 +1543,59 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
           <button
             type="button"
             onClick={() => setActiveUndoToast(null)}
-            className="p-1 text-slate-400 hover:text-white"
+            className="p-1 text-slate-400 hover:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* 8. RECENTLY DELETED TEAMS RECOVERY MODAL */}
+      {/* 7. RECENTLY DELETED TEAMS RECOVERY MODAL */}
       {isTrashModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto print:hidden">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto print:hidden">
           <div
-            className={`border rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] ${
-              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
+            className={`border rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] ${
+              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
             }`}
           >
             <div
-              className={`px-5 py-4 border-b flex items-center justify-between ${
+              className={`px-5 py-3.5 border-b flex items-center justify-between ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <RotateCcw className="w-4 h-4 text-amber-500" />
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-emerald-500" />
                 <h3 className="text-sm font-bold">আর্কাইভ / মোছা টিম পুনরুদ্ধার</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsTrashModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-3 flex-1">
+            <div className="p-5 overflow-y-auto space-y-2.5 flex-1">
               {recentlyDeletedTeams.length === 0 ? (
                 <div className="py-12 text-center text-slate-500 text-xs">কোনো আর্কাইভ টিম নেই।</div>
               ) : (
                 recentlyDeletedTeams.map((team) => (
                   <div
                     key={team.id}
-                    className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+                    className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${
                       isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
                     }`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold font-mono truncate">{team.name}</h4>
-                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-rose-500/15 text-rose-500 font-bold">
-                          {resolveYear(team)} সাল
+                        <h4 className="text-xs font-bold truncate">{team.name}</h4>
+                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-semibold border border-emerald-500/30">
+                          {resolveYear(team)}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate">{team.description || 'বিবরণ নেই'}</p>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] font-mono text-slate-500">
-                        <span>{team.memberIds.length} জন সদস্য</span>
+                      <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                        {team.memberIds.length} জন সদস্য
                       </div>
                     </div>
                     <button
@@ -1817,7 +1604,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                         handleUndo(team);
                         if (recentlyDeletedTeams.length <= 1) setIsTrashModalOpen(false);
                       }}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer shrink-0"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>পুনরুদ্ধার</span>

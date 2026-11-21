@@ -25,6 +25,8 @@ import { TeamsPage } from './pages/TeamsPage';
 import { OutOfUnitPage } from './pages/OutOfUnitPage';
 import { TrgStatePage } from './pages/TrgStatePage';
 import { CourseQualificationPage } from './pages/CourseQualificationPage';
+import { FamilyManStatePage } from './pages/FamilyManStatePage';
+import { LeaveManagementPage } from './pages/LeaveManagementPage';
 
 const AppContent: React.FC = () => {
   const {
@@ -61,6 +63,10 @@ const AppContent: React.FC = () => {
         ? 'main_dashboard'
         : activePage === 'course_qualification'
         ? 'trg_state'
+        : activePage === 'family_man_state'
+        ? 'out_of_unit'
+        : activePage === 'leave_management'
+        ? 'parade_state'
         : activePage;
 
     // RBAC Security Check
@@ -203,6 +209,18 @@ const AppContent: React.FC = () => {
           <OutOfUnitPage
             onViewDossier={handleViewDossier}
             onOpenPrintModal={() => setIsPrintModalOpen(true)}
+          />
+        );
+      case 'family_man_state':
+        return (
+          <FamilyManStatePage
+            onViewDossier={handleViewDossier}
+          />
+        );
+      case 'leave_management':
+        return (
+          <LeaveManagementPage
+            onViewDossier={handleViewDossier}
           />
         );
       case 'rsm_dashboard':

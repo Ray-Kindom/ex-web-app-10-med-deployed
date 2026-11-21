@@ -288,21 +288,30 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
                   <div className={`text-[10px] uppercase font-mono mb-1 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                     Detailed Personnel:
                   </div>
-                  {duty.assignedPersonnel.map((p) => (
-                    <div
-                      key={p.id}
-                      className={`flex items-center justify-between text-xs py-1 px-2 rounded border font-mono ${
-                        isLight
-                          ? 'bg-slate-50 border-slate-200 text-slate-800'
-                          : 'bg-slate-950 border-slate-800 text-slate-200'
-                      }`}
-                    >
-                      <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                        {p.rank} {p.name}
-                      </span>
-                      <span className={`font-bold text-[11px] ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>{p.battery}</span>
-                    </div>
-                  ))}
+                  {duty.assignedPersonnel.map((p) => {
+                    const live = personnelList.find(
+                      (x) =>
+                        x.id === p.id ||
+                        (x.snkNo && p.snkNo && x.snkNo.trim().toLowerCase() === p.snkNo.trim().toLowerCase())
+                    );
+                    return (
+                      <div
+                        key={p.id}
+                        className={`flex items-center justify-between text-xs py-1 px-2 rounded border font-mono ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-200 text-slate-800'
+                            : 'bg-slate-950 border-slate-800 text-slate-200'
+                        }`}
+                      >
+                        <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+                          {live?.rk || p.rank} {live?.name || p.name}
+                        </span>
+                        <span className={`font-bold text-[11px] ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>
+                          {live?.battery || p.battery}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}

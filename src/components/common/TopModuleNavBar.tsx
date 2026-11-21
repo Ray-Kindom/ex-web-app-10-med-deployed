@@ -7,10 +7,11 @@ import {
   ClipboardList,
   Settings,
   ShieldAlert,
-  Edit3,
   ArrowRightLeft,
   Target,
   GraduationCap,
+  Home,
+  PlaneTakeoff,
 } from 'lucide-react';
 
 export const TopModuleNavBar: React.FC = () => {
@@ -18,7 +19,6 @@ export const TopModuleNavBar: React.FC = () => {
     activePage,
     setActivePage,
     currentUser,
-    setDailyParadeModalOpen,
     isRealAdmin,
     hasModulePermission,
     personnelList,
@@ -51,6 +51,21 @@ export const TopModuleNavBar: React.FC = () => {
         p.status === 'Course/Trg' ||
         p.status === 'Attached Out' ||
         p.status === 'Temp Duty' ||
+        p.leaveType === 'P/Lve' ||
+        p.leaveType === 'C/Lve'
+      );
+    }).length;
+  }, [personnelList, isBsm, assignedBty]);
+
+  const activeLeaveCount = React.useMemo(() => {
+    return (personnelList || []).filter((p) => {
+      if (isBsm && assignedBty && p.battery !== assignedBty) return false;
+      return (
+        p.status === 'Leave' ||
+        p.status === 'P/Lve' ||
+        p.status === 'C/Lve' ||
+        p.outOfUnitCategory === 'P/Lve' ||
+        p.outOfUnitCategory === 'C/Lve' ||
         p.leaveType === 'P/Lve' ||
         p.leaveType === 'C/Lve'
       );
@@ -145,24 +160,26 @@ export const TopModuleNavBar: React.FC = () => {
       permissionKey: 'out_of_unit',
     },
     {
+      id: 'family_man_state',
+      label: 'Family Man State',
+      icon: Home,
+      badge: 'Living',
+      permissionKey: 'out_of_unit',
+    },
+    {
+      id: 'leave_management',
+      label: 'Lve Mgt',
+      icon: PlaneTakeoff,
+      badge: activeLeaveCount > 0 ? `${activeLeaveCount}` : 'P/C/Ni',
+      permissionKey: 'parade_state',
+    },
+    {
       id: 'master_personnel',
       label: isBsm ? 'Bty Nominal' : 'Regt Nominal',
       icon: Users,
       badge: isBsm ? assignedBty : undefined,
       permissionKey: 'master_personnel',
     },
-    ...(!isBsm
-      ? [
-          {
-            id: 'data_update',
-            label: 'Data Update',
-            icon: Edit3,
-            badge: 'Muster',
-            action: () => setDailyParadeModalOpen(true),
-            permissionKey: 'parade_state',
-          },
-        ]
-      : []),
     {
       id: 'admin_panel',
       label: 'Admin Panel',
@@ -179,8 +196,8 @@ export const TopModuleNavBar: React.FC = () => {
   });
 
   return (
-    <div className="sticky top-13 z-20 backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 px-4 py-2 mb-3 transition-colors">
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-[1700px] mx-auto">
+    <div className="sticky top-13 z-20 backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 py-2 mb-3 transition-colors">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5 max-w-[1700px] mx-auto">
         {displayTabs.map((tab) => {
           const Icon = tab.icon;
           const isDashboardTab =
@@ -192,17 +209,17 @@ export const TopModuleNavBar: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => (tab.action ? tab.action() : setActivePage(tab.id))}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer select-none ${
+              className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer select-none min-w-0 ${
                 isActive
                   ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/70 dark:border-slate-800/70'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{tab.label}</span>
               {tab.badge && (
                 <span
-                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-normal ${
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-normal shrink-0 ${
                     isActive
                       ? 'bg-white/20 text-white dark:bg-slate-900/15 dark:text-slate-900'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'

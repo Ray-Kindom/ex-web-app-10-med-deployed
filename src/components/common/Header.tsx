@@ -124,14 +124,14 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      <div className="max-w-[1700px] mx-auto px-4">
-        <div className="flex items-center justify-between h-13 gap-3">
+      <div className="max-w-[1700px] mx-auto px-2.5 sm:px-4">
+        <div className="flex items-center justify-between min-h-13 py-1 sm:py-0 gap-2 sm:gap-3">
           {/* Left: Brand / Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
             {onToggleMobileNav && (
               <button
                 onClick={onToggleMobileNav}
-                className="lg:hidden p-1.5 rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="lg:hidden p-1.5 rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
                 aria-label="Open Navigation Menu"
               >
                 <Menu className="w-4 h-4" />
@@ -140,14 +140,14 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div
               onClick={() => setActivePage('main_dashboard')}
-              className="flex items-center gap-2.5 cursor-pointer group select-none"
+              className="flex items-center gap-2 sm:gap-2.5 cursor-pointer group select-none min-w-0 flex-1"
             >
-              <UnitLogo size="sm" />
-              <div className="flex flex-col">
-                <span className="font-bold tracking-tight text-sm text-slate-900 dark:text-white leading-tight">
+              <UnitLogo size="sm" className="shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="font-bold tracking-tight text-xs sm:text-sm text-slate-900 dark:text-white leading-tight truncate">
                   {systemSettings?.unitName || '10 Med Regt Arty'}
                 </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 leading-none">
+                <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 leading-tight truncate">
                   {systemSettings?.tagline || 'Smart Parade State System'}
                 </span>
               </div>
@@ -178,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Right: Military Time, Role Simulator, User Profile */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Military Clock */}
             <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
               <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -190,13 +190,13 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="relative">
                 <button
                   onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+                  className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
-                  <span className="font-medium">
-                    {isGuest ? (isSimulating ? `Role: ${currentUser.role}` : 'Role Demo') : (isSimulating ? `Role: ${currentUser.role}` : 'Simulator')}
+                  <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                  <span className="font-medium whitespace-nowrap">
+                    {isGuest ? (isSimulating ? currentUser.role : 'Demo') : (isSimulating ? currentUser.role : 'Simulator')}
                   </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400" />
                 </button>
 
                 {roleDropdownOpen && (
