@@ -1,8 +1,22 @@
 import { Battery } from '../types';
 
-export type TrgModuleType = 'RET' | 'IPFT' | 'Gren Firing' | 'Firing';
+export type TrgModuleType = string;
 export type TrgBiannualType = '1st Biannual' | '2nd Biannual';
-export type IpftResultType = 'Passed' | 'Failed' | 'Not Appeared';
+export type IpftResultType = 'Passed' | 'Failed';
+
+export interface TrgModuleDef {
+  id: string;
+  defRowId?: string;
+  label: string;
+  full: string;
+  title: string;
+  bengaliTitle: string;
+  description: string;
+  defaultLocation: string;
+  sampleScores: string;
+  isDefault?: boolean;
+  createdAt?: string;
+}
 
 export interface TrgRecord {
   id: string;
@@ -98,9 +112,6 @@ export const inferIpftBoardName = (rec: Pick<TrgRecord, 'boardName' | 'date'>): 
 export const getIpftResultCategory = (rec: Pick<TrgRecord, 'status' | 'grade'>): IpftResultType => {
   const st = (rec.status || '').toLowerCase();
   const gr = (rec.grade || '').toLowerCase();
-  if (st === 'not appeared' || st === 'pending' || gr.includes('not appeared') || gr.includes('absent')) {
-    return 'Not Appeared';
-  }
   if (st === 'failed' || st === 're-test' || gr.includes('fail')) {
     return 'Failed';
   }
@@ -230,11 +241,11 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
     name: 'Capt Iftekhar Mahmud Abir',
     rk: 'Capt',
     battery: 'HQ Bty',
-    grade: '1st Class',
+    grade: 'Passed',
     scoreDetails: '1.6km: 5m 30s | Push-ups: 46 | Chin-ups: 14 | Sit-ups: 50',
     date: '2026-09-01',
     location: 'Regimental Parade Ground Track',
-    status: 'Distinction',
+    status: 'Passed',
     remarks: 'Excellent Physical Endurance Standards',
   },
   {
@@ -244,12 +255,12 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
     name: 'Mohah. Saddam Hossain',
     rk: 'Cpl',
     battery: 'P Bty',
-    grade: '1st Class',
+    grade: 'Passed',
     scoreDetails: '1.6km: 5m 45s | Push-ups: 44 | Chin-ups: 12 | Sit-ups: 48',
     date: '2026-09-01',
     location: 'Parade Ground Track',
-    status: 'Distinction',
-    remarks: '1st Class PPT Standards Achieved',
+    status: 'Passed',
+    remarks: 'IPFT Standards Achieved',
   },
   {
     id: 'ipft-3',
@@ -258,11 +269,11 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
     name: 'Shariful Islam',
     rk: 'Sgt',
     battery: 'Q Bty',
-    grade: '1st Class',
+    grade: 'Passed',
     scoreDetails: '1.6km: 5m 55s | Push-ups: 40 | Chin-ups: 10 | Sit-ups: 46',
     date: '2026-09-01',
     location: 'Parade Ground Track',
-    status: 'Qualified',
+    status: 'Passed',
     remarks: 'Passes Standard Physical Fitness',
   },
   {
@@ -272,11 +283,11 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
     name: 'MD ASIF HOSSEN',
     rk: 'Snk',
     battery: 'P Bty',
-    grade: '1st Class',
+    grade: 'Passed',
     scoreDetails: '1.6km: 5m 25s | Push-ups: 48 | Chin-ups: 15 | Sit-ups: 52',
     date: '2026-09-02',
     location: 'Regimental 1-Mile Circuit',
-    status: 'Distinction',
+    status: 'Passed',
     remarks: 'Top Unit Fitness Performer',
   },
   {
@@ -286,12 +297,12 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
     name: 'MD HAFIJUR RAHMAN',
     rk: 'Snk',
     battery: 'P Bty',
-    grade: '2nd Class',
+    grade: 'Passed',
     scoreDetails: '1.6km: 6m 10s | Push-ups: 38 | Chin-ups: 8 | Sit-ups: 42',
     date: '2026-09-02',
     location: 'Parade Ground Track',
     status: 'Passed',
-    remarks: '2nd Class Qualified',
+    remarks: 'IPFT Passed',
   },
   {
     id: 'ipft-6',
@@ -300,11 +311,11 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
     name: 'MD MEHEDI HASAN',
     rk: 'Snk',
     battery: 'P Bty',
-    grade: '1st Class',
+    grade: 'Passed',
     scoreDetails: '1.6km: 5m 50s | Push-ups: 42 | Chin-ups: 11 | Sit-ups: 45',
     date: '2026-09-02',
     location: 'Parade Ground Track',
-    status: 'Qualified',
+    status: 'Passed',
     remarks: 'Good Stamina & Endurance',
   },
   {
@@ -314,7 +325,7 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
     name: 'MD HUMAYUN KOBIR',
     rk: 'Snk',
     battery: 'P Bty',
-    grade: '2nd Class',
+    grade: 'Passed',
     scoreDetails: '1.6km: 6m 15s | Push-ups: 36 | Chin-ups: 9 | Sit-ups: 40',
     date: '2026-09-02',
     location: 'Parade Ground Track',
@@ -524,7 +535,7 @@ export const INITIAL_TRG_RECORDS: TrgRecord[] = [
 ];
 
 export const TRG_MODULE_CONFIGS: Record<
-  TrgModuleType,
+  string,
   {
     title: string;
     bengaliTitle: string;
@@ -577,3 +588,50 @@ export const TRG_MODULE_CONFIGS: Record<
     sampleScores: 'Rifle BD-08: 92/100 | Group: 2.2 cm | Snap: 28/30',
   },
 };
+
+export const DEFAULT_TRG_MODULES: TrgModuleDef[] = [
+  {
+    id: 'RET',
+    label: 'RET',
+    full: 'Ready Evaluation Test',
+    title: TRG_MODULE_CONFIGS.RET.title,
+    bengaliTitle: TRG_MODULE_CONFIGS.RET.bengaliTitle,
+    description: TRG_MODULE_CONFIGS.RET.description,
+    defaultLocation: TRG_MODULE_CONFIGS.RET.defaultLocation,
+    sampleScores: TRG_MODULE_CONFIGS.RET.sampleScores,
+    isDefault: true,
+  },
+  {
+    id: 'IPFT',
+    label: 'IPFT',
+    full: 'Physical Fitness Test',
+    title: TRG_MODULE_CONFIGS.IPFT.title,
+    bengaliTitle: TRG_MODULE_CONFIGS.IPFT.bengaliTitle,
+    description: TRG_MODULE_CONFIGS.IPFT.description,
+    defaultLocation: TRG_MODULE_CONFIGS.IPFT.defaultLocation,
+    sampleScores: TRG_MODULE_CONFIGS.IPFT.sampleScores,
+    isDefault: true,
+  },
+  {
+    id: 'Gren Firing',
+    label: 'Gren Firing',
+    full: 'Grenade Firing',
+    title: TRG_MODULE_CONFIGS['Gren Firing'].title,
+    bengaliTitle: TRG_MODULE_CONFIGS['Gren Firing'].bengaliTitle,
+    description: TRG_MODULE_CONFIGS['Gren Firing'].description,
+    defaultLocation: TRG_MODULE_CONFIGS['Gren Firing'].defaultLocation,
+    sampleScores: TRG_MODULE_CONFIGS['Gren Firing'].sampleScores,
+    isDefault: true,
+  },
+  {
+    id: 'Firing',
+    label: 'Firing',
+    full: 'Annual Weapon Firing',
+    title: TRG_MODULE_CONFIGS.Firing.title,
+    bengaliTitle: TRG_MODULE_CONFIGS.Firing.bengaliTitle,
+    description: TRG_MODULE_CONFIGS.Firing.description,
+    defaultLocation: TRG_MODULE_CONFIGS.Firing.defaultLocation,
+    sampleScores: TRG_MODULE_CONFIGS.Firing.sampleScores,
+    isDefault: true,
+  },
+];

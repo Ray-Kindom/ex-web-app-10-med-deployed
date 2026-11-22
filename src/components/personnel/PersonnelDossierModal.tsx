@@ -5,6 +5,7 @@ import { StatusBadge } from '../common/StatusBadge';
 import { RankBadge } from '../common/RankBadge';
 import { UnitLogo } from '../common/UnitLogo';
 import { parseMilitaryCourseInfo } from '../../utils/courseUtils';
+import { getIpftResultCategory } from '../../data/trgStateData';
 import {
   fetchPersonnelDossierFromSupabase,
   PersonnelDossierSupabaseResult,
@@ -1014,7 +1015,12 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {trainingsList.dbTrainings.map((t) => (
+                  {trainingsList.dbTrainings.map((t) => {
+                    const isIpft = t.module === 'IPFT';
+                    const ipftResult = isIpft ? getIpftResultCategory(t) : null;
+                    const displayGrade = isIpft ? ipftResult : t.grade;
+                    const displayStatus = isIpft ? ipftResult : t.status;
+                    return (
                     <div
                       key={t.id}
                       className={`p-2.5 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
@@ -1036,17 +1042,17 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                               {t.boardName}
                             </span>
                           )}
-                          <span className="font-bold text-xs">{t.grade}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                            t.status === 'Distinction'
+                          {!isIpft && <span className="font-bold text-xs">{displayGrade}</span>}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${
+                            displayStatus === 'Distinction'
                               ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                              : t.status === 'Failed' || t.status === 'Re-test'
+                              : displayStatus === 'Failed' || displayStatus === 'Re-test'
                               ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                              : t.status === 'Not Appeared' || t.status === 'Pending'
+                              : displayStatus === 'Not Appeared' || displayStatus === 'Pending'
                               ? 'bg-slate-500/15 text-slate-300 border-slate-500/30'
                               : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                           }`}>
-                            {t.status}
+                            {displayStatus}
                           </span>
                         </div>
                         {t.scoreDetails && (
@@ -1071,7 +1077,8 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {trainingsList.activityTrainings.map((a) => (
                     <div
                       key={a.id}

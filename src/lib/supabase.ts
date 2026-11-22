@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as directSupabaseClient } from '../supabaseClient.js';
 import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES, ServiceActivityRecord, ServiceActivityType, FamilyManRecord, LeaveManagementRecord } from '../types/index.ts';
 import { CourseDefinition, CourseQualificationRecord } from '../data/courseQualificationData.ts';
-import { TrgModuleType, TrgRecord, IpftBoardDef, inferIpftBiannual, parseTrgMetaFromRemarks, serializeTrgMetaToRemarks } from '../data/trgStateData.ts';
+import { TrgModuleType, TrgModuleDef, TrgRecord, IpftBoardDef, inferIpftBiannual, parseTrgMetaFromRemarks, serializeTrgMetaToRemarks } from '../data/trgStateData.ts';
 
 // Read Vite client-side environment variables or fallback to direct client credentials
 const DEFAULT_SUPABASE_URL = "https://pulzsiyjvnshychyxuix.supabase.co";
@@ -1562,12 +1562,19 @@ export const fetchTrgStateFromSupabase = async (): Promise<{
   success: boolean;
   records: TrgRecord[];
   boardDefs: IpftBoardDef[];
+  moduleDefs: TrgModuleDef[];
   tableMissing?: boolean;
   error?: string;
 }> => {
   const client = getSupabaseClient();
   if (!client) {
-    return { success: false, records: [], boardDefs: [], error: 'Supabase client is not configured.' };
+    return {
+      success: false,
+      records: [],
+      boardDefs: [],
+      moduleDefs: [],
+      error: 'Supabase client is not configured.',
+    };
   }
 
   try {
@@ -1581,6 +1588,7 @@ export const fetchTrgStateFromSupabase = async (): Promise<{
         success: false,
         records: [],
         boardDefs: [],
+        moduleDefs: [],
         tableMissing: isSupabaseTableMissingError(error),
         error: error.message,
       };
@@ -1588,8 +1596,38 @@ export const fetchTrgStateFromSupabase = async (): Promise<{
 
     const mapped: TrgRecord[] = [];
     const boardDefs: IpftBoardDef[] = [];
+    const moduleDefs: TrgModuleDef[] = [];
 
     (data || []).forEach((row: any) => {
+      if (row.snk_no === '__TRG_MODULE__' || row.grade === '__MODULE_DEF__') {
+        let parsedMod: Record<string, any> = {};
+        if (row.remarks && typeof row.remarks === 'string') {
+          try {
+            parsedMod = JSON.parse(row.remarks);
+          } catch {
+            parsedMod = {};
+          }
+        }
+        const modId = String(row.module || row.name || '').trim();
+        const modLabel = String(row.name || modId).trim();
+        if (modId) {
+          moduleDefs.push({
+            defRowId: String(row.id),
+            id: modId,
+            label: modLabel || modId,
+            full: String(row.score_details || parsedMod.full || modLabel || modId).trim(),
+            title: String(parsedMod.title || modLabel || modId).trim(),
+            bengaliTitle: String(parsedMod.bengaliTitle || modLabel || modId).trim(),
+            description: String(parsedMod.description || 'কাস্টম প্রশিক্ষণ মডিউল').trim(),
+            defaultLocation: String(row.location || '10 Med Regimental Trg Ground').trim(),
+            sampleScores: String(parsedMod.sampleScores || 'Score: Standard | Qualified').trim(),
+            isDefault: false,
+            createdAt: row.created_at ? String(row.created_at) : undefined,
+          });
+        }
+        return;
+      }
+
       const meta = parseTrgMetaFromRemarks(row.remarks);
       if (row.snk_no === '__IPFT_BOARD__' || row.grade === '__BOARD_DEF__') {
         const bDate = String(row.date || '');
@@ -1623,15 +1661,109 @@ export const fetchTrgStateFromSupabase = async (): Promise<{
       });
     });
 
-    return { success: true, records: mapped, boardDefs };
+    return { success: true, records: mapped, boardDefs, moduleDefs };
   } catch (err: any) {
     return {
       success: false,
       records: [],
       boardDefs: [],
+      moduleDefs: [],
       tableMissing: isSupabaseTableMissingError(err),
       error: err?.message || 'Failed to fetch trg_state',
     };
+  }
+};
+
+export const upsertTrgModuleToSupabase = async (
+  mod: TrgModuleDef
+): Promise<{ success: boolean; defRowId: string; tableMissing?: boolean; error?: string }> => {
+  const defRowId =
+    mod.defRowId || `trg-mod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, defRowId, error: 'Supabase client is not configured.' };
+  }
+
+  try {
+    const row = {
+      id: defRowId,
+      module: mod.id.trim(),
+      snk_no: '__TRG_MODULE__',
+      name: mod.label.trim(),
+      rk: '',
+      battery: 'HQ Bty',
+      grade: '__MODULE_DEF__',
+      score_details: mod.full.trim(),
+      date: new Date().toISOString().slice(0, 10),
+      location: mod.defaultLocation.trim() || '10 Med Regimental Trg Ground',
+      status: 'Pending',
+      remarks: JSON.stringify({
+        title: mod.title.trim(),
+        bengaliTitle: mod.bengaliTitle.trim(),
+        description: mod.description.trim(),
+        sampleScores: mod.sampleScores.trim(),
+      }),
+    };
+
+    const { error } = await client.from('trg_state').upsert([row], { onConflict: 'id' });
+    if (error) {
+      return {
+        success: false,
+        defRowId,
+        tableMissing: isSupabaseTableMissingError(error),
+        error: error.message,
+      };
+    }
+    return { success: true, defRowId };
+  } catch (err: any) {
+    return {
+      success: false,
+      defRowId,
+      tableMissing: isSupabaseTableMissingError(err),
+      error: err?.message,
+    };
+  }
+};
+
+export const renameTrgModuleRecordsInSupabase = async (
+  oldModuleId: string,
+  newModuleId: string
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    const { error } = await client
+      .from('trg_state')
+      .update({ module: newModuleId.trim() })
+      .eq('module', oldModuleId)
+      .neq('snk_no', '__TRG_MODULE__');
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+export const deleteTrgModuleFromSupabase = async (
+  moduleId: string,
+  defRowId?: string,
+  deleteRecords = false
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+
+  try {
+    if (deleteRecords) {
+      const { error } = await client.from('trg_state').delete().eq('module', moduleId);
+      if (error) throw error;
+    } else if (defRowId) {
+      const { error } = await client.from('trg_state').delete().eq('id', defRowId);
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
   }
 };
 
@@ -2045,7 +2177,13 @@ export const fetchPersonnelDossierFromSupabase = async (
   }));
 
   const trainings: TrgRecord[] = (trgRes.data || [])
-    .filter((row: any) => row.snk_no !== '__IPFT_BOARD__' && row.grade !== '__BOARD_DEF__')
+    .filter(
+      (row: any) =>
+        row.snk_no !== '__IPFT_BOARD__' &&
+        row.grade !== '__BOARD_DEF__' &&
+        row.snk_no !== '__TRG_MODULE__' &&
+        row.grade !== '__MODULE_DEF__'
+    )
     .map((row: any) => {
       const meta = parseTrgMetaFromRemarks(row.remarks);
       return {
