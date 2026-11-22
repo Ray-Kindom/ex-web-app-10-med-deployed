@@ -2832,6 +2832,141 @@
         }
       },
       "status": "Confirmed"
+    },
+    "teams_year_2026": {
+      "year": 2026,
+      "activeTeams": [
+        {
+          "id": "team_1795261123654",
+          "name": "Aslt Course",
+          "year": 2026,
+          "createdAt": "2026-11-21T11:38:43.654Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [
+            "offr-7",
+            "285",
+            "15",
+            "offr-9"
+          ],
+          "updatedAt": "2026-11-21T12:15:48.294Z",
+          "description": ""
+        },
+        {
+          "id": "team_1795261320403",
+          "name": "Drill Cmpt",
+          "year": 2026,
+          "createdAt": "2026-11-21T11:42:00.403Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [
+            "offr-6",
+            "offr-11",
+            "544"
+          ],
+          "updatedAt": "2026-11-21T12:15:55.171Z",
+          "description": ""
+        },
+        {
+          "id": "team_1795263370916",
+          "name": "Kabadi",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:16:10.916Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        },
+        {
+          "id": "team_1795263376924",
+          "name": "Cricket",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:16:16.924Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        },
+        {
+          "id": "team_1795263387493",
+          "name": "Athletics",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:16:27.493Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        },
+        {
+          "id": "team_1795263414042",
+          "name": "Firing",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:16:54.042Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        },
+        {
+          "id": "team_1795263431316",
+          "name": "CAS Trophy",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:17:11.316Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        },
+        {
+          "id": "team_1795263441382",
+          "name": "Basketball",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:17:21.382Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        },
+        {
+          "id": "team_1795263452906",
+          "name": "Volleyball",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:17:32.906Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        },
+        {
+          "id": "team_1795263463514",
+          "name": "Beyonet Ftg",
+          "year": 2026,
+          "createdAt": "2026-11-21T12:17:43.514Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [],
+          "description": ""
+        }
+      ],
+      "teamHistory": [],
+      "deletedTeamIds": [],
+      "id": "teams_year_2026",
+      "date": "2026",
+      "battery": "ALL",
+      "status": "Active"
+    },
+    "teams_year_2027": {
+      "year": 2027,
+      "activeTeams": [
+        {
+          "id": "team_1795263477109",
+          "name": "Aslt Course",
+          "year": 2027,
+          "createdAt": "2026-11-21T12:17:57.109Z",
+          "createdBy": "Admin Regimental IT Administrator",
+          "memberIds": [
+            "559"
+          ],
+          "updatedAt": "2026-11-21T12:18:08.455Z",
+          "description": ""
+        }
+      ],
+      "teamHistory": [],
+      "deletedTeamIds": [],
+      "id": "teams_year_2027",
+      "date": "2027",
+      "battery": "ALL",
+      "status": "Active"
     }
   },
   "paradeDutyAssignments": {
@@ -5079,6 +5214,22 @@
         "personnelId": "480",
         "sessionType": "Morning"
       }
+    ],
+    "2026-11-21_Morning": [
+      {
+        "id": "559_Team_1795272270586_0",
+        "date": "2026-11-21",
+        "name": "Md. Liakot Ali",
+        "rank": "WO",
+        "snkNo": "BJO-Noya-2",
+        "battery": "R Bty",
+        "category": "Team",
+        "dutyName": "Aslt Course",
+        "assignedAt": "2026-11-21T14:44:30.586Z",
+        "assignedBy": "Admin Regimental IT Administrator",
+        "personnelId": "559",
+        "sessionType": "Morning"
+      }
     ]
   },
   "dutySessionStatuses": {
@@ -5126,7 +5277,12 @@
       "status": "Draft",
       "savedAt": "2026-09-20T06:57:42.628Z",
       "savedBy": "Admin Regimental IT Administrator"
+    },
+    "2026-11-21_Morning": {
+      "status": "Draft",
+      "savedAt": "2026-11-21T14:44:30.586Z",
+      "savedBy": "Admin Regimental IT Administrator"
     }
   },
-  "updatedAt": "2026-11-21T10:54:17.279Z"
+  "updatedAt": "2026-11-22T15:13:12.972Z"
 }

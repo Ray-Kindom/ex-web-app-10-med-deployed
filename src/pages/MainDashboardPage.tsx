@@ -340,31 +340,6 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Operational Readiness Strip */}
-        <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-600 dark:text-slate-400">
-              Combat Readiness ({totals.totalPresent + totals.totalDuty} / {totals.totalPosted} Fit)
-            </span>
-            <span className="font-mono tabular-nums font-semibold text-slate-900 dark:text-white">
-              {totals.presentPercentage}% Fit
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-emerald-600 dark:bg-emerald-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `${totals.presentPercentage}%` }}
-            />
-          </div>
-          <div className="flex items-center gap-4 text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 overflow-x-auto pt-0.5">
-            {summaries.map((s) => (
-              <span key={s.battery}>
-                {s.battery}: <strong className="text-slate-700 dark:text-slate-300">{s.percentage}%</strong>
-              </span>
-            ))}
-          </div>
-        </div>
       </div>
 
 

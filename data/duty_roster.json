@@ -2244,6 +2244,22 @@
         "personnelId": "480",
         "sessionType": "Morning"
       }
+    ],
+    "2026-11-21_Morning": [
+      {
+        "id": "559_Team_1795272270586_0",
+        "date": "2026-11-21",
+        "name": "Md. Liakot Ali",
+        "rank": "WO",
+        "snkNo": "BJO-Noya-2",
+        "battery": "R Bty",
+        "category": "Team",
+        "dutyName": "Aslt Course",
+        "assignedAt": "2026-11-21T14:44:30.586Z",
+        "assignedBy": "Admin Regimental IT Administrator",
+        "personnelId": "559",
+        "sessionType": "Morning"
+      }
     ]
   },
   "statuses": {
@@ -2291,8 +2307,13 @@
       "status": "Draft",
       "savedAt": "2026-09-20T06:57:42.628Z",
       "savedBy": "Admin Regimental IT Administrator"
+    },
+    "2026-11-21_Morning": {
+      "status": "Draft",
+      "savedAt": "2026-11-21T14:44:30.586Z",
+      "savedBy": "Admin Regimental IT Administrator"
     }
   },
   "rosterList": [],
-  "updatedAt": "2026-11-21T10:54:17.281Z"
+  "updatedAt": "2026-11-22T15:13:12.976Z"
 }

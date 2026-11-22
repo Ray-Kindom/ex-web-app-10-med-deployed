@@ -38,6 +38,7 @@ export interface TrgRecord {
 
 export interface IpftBoardDef {
   id: string;
+  module?: string;
   boardName: string;
   date: string;
   biannual: TrgBiannualType;
@@ -587,6 +588,43 @@ export const TRG_MODULE_CONFIGS: Record<
     defaultLocation: 'Halishahar Firing Range',
     sampleScores: 'Rifle BD-08: 92/100 | Group: 2.2 cm | Snap: 28/30',
   },
+  'Spd March': {
+    title: 'Speed March (Spd March)',
+    bengaliTitle: 'স্পিড মার্চ (Spd March)',
+    description: 'বাৎসরিক স্পিড মার্চ অনুশীলন — প্রতি বছর কোন সৈনিক কতবার সম্পন্ন করেছে তা ট্র্যাকিং',
+    color: 'from-sky-950/50 via-slate-900 to-slate-950 border-sky-500/40 text-sky-400',
+    badgeBg: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+    border: 'border-sky-500',
+    defaultLocation: '10 Med Regimental Trg Route',
+    sampleScores: 'Distance: 16 km | Time: 2h 15m | Completed',
+  },
+};
+
+export const isSpdMarchModule = (moduleId?: string | null): boolean => {
+  const clean = (moduleId || '').trim().toLowerCase();
+  if (!clean) return false;
+  return /^(spd|speed)[\s_-]*march$/.test(clean) || clean === 'স্পিড মার্চ';
+};
+
+export const isGrenFiringModule = (moduleId?: string | null): boolean => {
+  const clean = (moduleId || '').trim().toLowerCase();
+  if (!clean) return false;
+  return /^gren(ade)?[\s_-]*firing$/.test(clean) || clean === 'গ্রেনেড ফায়ারিং';
+};
+
+export const isYearlyDateGroupModule = (moduleId?: string | null): boolean =>
+  isSpdMarchModule(moduleId) || isGrenFiringModule(moduleId);
+
+export const SPD_MARCH_DEFAULT_MODULE: TrgModuleDef = {
+  id: 'Spd March',
+  label: 'Spd March',
+  full: 'Speed March (Yearly Tracker)',
+  title: TRG_MODULE_CONFIGS['Spd March'].title,
+  bengaliTitle: TRG_MODULE_CONFIGS['Spd March'].bengaliTitle,
+  description: TRG_MODULE_CONFIGS['Spd March'].description,
+  defaultLocation: TRG_MODULE_CONFIGS['Spd March'].defaultLocation,
+  sampleScores: TRG_MODULE_CONFIGS['Spd March'].sampleScores,
+  isDefault: true,
 };
 
 export const DEFAULT_TRG_MODULES: TrgModuleDef[] = [

@@ -11,6 +11,10 @@ import {
   IpftBoardDef,
   TRG_MODULE_CONFIGS,
   DEFAULT_TRG_MODULES,
+  SPD_MARCH_DEFAULT_MODULE,
+  isSpdMarchModule,
+  isGrenFiringModule,
+  isYearlyDateGroupModule,
   inferIpftBiannual,
   inferIpftBoardName,
   getIpftResultCategory,
@@ -52,7 +56,9 @@ interface TrgStatePageProps {
 }
 
 type IpftResultFilter = 'All' | 'Appeared' | IpftResultType;
+type RetResultFilter = 'All' | 'Appeared' | IpftResultType | 'Not Appeared';
 type IpftAppearanceFilter = 'All' | '0' | '1' | '2' | '3+';
+type SpdMarchCountFilter = 'All' | '0' | '1' | '2' | '3' | '4';
 
 interface BoardSummary {
   key: string;
@@ -69,12 +75,36 @@ interface BoardSummary {
   total: number;
 }
 
+const SPD_CUSTOM_DATES_STORAGE_KEY = 'spd_march_custom_dates_v1';
+const YEARLY_CUSTOM_DATES_STORAGE_KEY = 'yearly_trg_custom_dates_v2';
+
 const inferIpftYear = (rec: { date?: string }): string => {
   if (rec.date) {
     const match = rec.date.trim().match(/^(\d{4})/);
     if (match) return match[1];
   }
   return String(new Date().getFullYear());
+};
+
+const getDefaultDateForSpdMarchYear = (year?: string | null): string => {
+  const today = new Date().toISOString().slice(0, 10);
+  const currentYear = String(new Date().getFullYear());
+  const targetYear = year || currentYear;
+  if (targetYear === currentYear) return today;
+  return `${targetYear}-06-15`;
+};
+
+const formatSpdDateLabel = (dateStr: string): string => {
+  if (!dateStr) return 'তারিখ নির্ধারিত নয়';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 };
 
 export const TrgStatePage: React.FC<TrgStatePageProps> = ({
@@ -124,6 +154,56 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const [selectedIpftYear, setSelectedIpftYear] = useState<string | null>(null);
   const [selectedIpftBiannual, setSelectedIpftBiannual] = useState<TrgBiannualType | null>(null);
 
+  // Yearly Date-Group modules (Spd March & Gren Firing) year-wise selection, date-wise groups & frequency filter
+  const [selectedSpdMarchYear, setSelectedSpdMarchYear] = useState<string | null>(null);
+  const [spdMarchCountFilter, setSpdMarchCountFilter] = useState<SpdMarchCountFilter>('All');
+  const [customDatesByModAndYear, setCustomDatesByModAndYear] = useState<Record<string, Record<string, string[]>>>(() => {
+    const initial: Record<string, Record<string, string[]>> = {};
+    try {
+      const rawV2 = localStorage.getItem(YEARLY_CUSTOM_DATES_STORAGE_KEY);
+      if (rawV2) {
+        const parsedV2 = JSON.parse(rawV2);
+        if (parsedV2 && typeof parsedV2 === 'object') {
+          Object.assign(initial, parsedV2);
+        }
+      }
+      if (!initial.spd_march) {
+        const rawV1 = localStorage.getItem(SPD_CUSTOM_DATES_STORAGE_KEY);
+        if (rawV1) {
+          const parsedV1 = JSON.parse(rawV1);
+          if (parsedV1 && typeof parsedV1 === 'object') {
+            initial.spd_march = parsedV1;
+          }
+        }
+      }
+    } catch {
+      // ignore storage read errors
+    }
+    return initial;
+  });
+  const [newSpdDateInput, setNewSpdDateInput] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [isSpdGroupModalOpen, setIsSpdGroupModalOpen] = useState(false);
+  const [zeroViewTargetDate, setZeroViewTargetDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [activeQuickAddDate, setActiveQuickAddDate] = useState<string | null>(null);
+  const [quickAddSearch, setQuickAddSearch] = useState<string>('');
+  const [collapsedSpdDates, setCollapsedSpdDates] = useState<Record<string, boolean>>({});
+  const [isQuickSavingKey, setIsQuickSavingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(YEARLY_CUSTOM_DATES_STORAGE_KEY, JSON.stringify(customDatesByModAndYear));
+      if (customDatesByModAndYear.spd_march) {
+        localStorage.setItem(SPD_CUSTOM_DATES_STORAGE_KEY, JSON.stringify(customDatesByModAndYear.spd_march));
+      }
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [customDatesByModAndYear]);
+
   const [btyFilter, setBtyFilter] = useState<Battery | 'All'>('All');
   const [gradeFilter, setGradeFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +212,15 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const [ipftBoardFilter, setIpftBoardFilter] = useState<string>('');
   const [ipftResultFilter, setIpftResultFilter] = useState<IpftResultFilter>('All');
   const [ipftAppearanceFilter, setIpftAppearanceFilter] = useState<IpftAppearanceFilter>('All');
+
+  // RET-specific year, board & Pass/Fail/Not-Appeared state
+  const [selectedRetYear, setSelectedRetYear] = useState<string | null>(null);
+  const [retResultFilter, setRetResultFilter] = useState<RetResultFilter>('All');
+  const [activeRetQuickAddBoardKey, setActiveRetQuickAddBoardKey] = useState<string | null>(null);
+  const [retQuickAddSearch, setRetQuickAddSearch] = useState<string>('');
+  const [retQuickAddResult, setRetQuickAddResult] = useState<IpftResultType>('Passed');
+  const [collapsedRetBoards, setCollapsedRetBoards] = useState<Record<string, boolean>>({});
+  const [retNotAppearedTargetBoardKey, setRetNotAppearedTargetBoardKey] = useState<string>('');
 
   // New / Edit Custom Training Module Modal
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
@@ -143,8 +232,9 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const [moduleModalLocation, setModuleModalLocation] = useState('10 Med Regimental Trg Ground');
   const [moduleModalSampleScore, setModuleModalSampleScore] = useState('');
 
-  // New / Edit IPFT Board Modal
+  // New / Edit Board Modal (shared cleanly by IPFT and RET)
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
+  const [boardModalModule, setBoardModalModule] = useState<'IPFT' | 'RET'>('IPFT');
   const [editingBoardDef, setEditingBoardDef] = useState<IpftBoardDef | null>(null);
   const [boardModalName, setBoardModalName] = useState('');
   const [boardModalDate, setBoardModalDate] = useState(new Date().toISOString().slice(0, 10));
@@ -167,10 +257,22 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const [formLocation, setFormLocation] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
 
-  // State is shown ONLY after clicking a module (or Year + Biannual under IPFT)
+  const isSpdMarchSelected = isYearlyDateGroupModule(selectedModule);
+  const activeYearlyModKey = isGrenFiringModule(selectedModule) ? 'gren_firing' : 'spd_march';
+  const customSpdDatesByYear = useMemo(
+    () => customDatesByModAndYear[activeYearlyModKey] || {},
+    [customDatesByModAndYear, activeYearlyModKey]
+  );
+
+  // State is shown ONLY after clicking a module (or Year + Biannual under IPFT, or Year under RET / Spd March / Gren Firing)
   const isStateVisible =
-    (selectedModule !== null && selectedModule !== 'IPFT') ||
-    (selectedModule === 'IPFT' && selectedIpftYear !== null && selectedIpftBiannual !== null);
+    (selectedModule !== null &&
+      selectedModule !== 'IPFT' &&
+      selectedModule !== 'RET' &&
+      !isSpdMarchSelected) ||
+    (selectedModule === 'IPFT' && selectedIpftYear !== null && selectedIpftBiannual !== null) ||
+    (selectedModule === 'RET' && selectedRetYear !== null) ||
+    (isSpdMarchSelected && selectedSpdMarchYear !== null);
 
   // Live lookup map for main personnel database
   const personnelMap = useMemo(() => {
@@ -226,11 +328,17 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
           boardName: inferIpftBoardName(base),
         };
       }
+      if (base.module === 'RET') {
+        return {
+          ...base,
+          boardName: inferIpftBoardName(base),
+        };
+      }
       return base;
     });
   }, [records, findPerson]);
 
-  // Combined modules list: built-in defaults + Supabase custom modules + any module referenced in records
+  // Combined modules list: built-in defaults + Supabase custom modules + any module referenced in records + default Spd March if none exists
   const modules = useMemo<TrgModuleDef[]>(() => {
     const list: TrgModuleDef[] = [...DEFAULT_TRG_MODULES];
     const seen = new Set(list.map((m) => m.id.trim().toLowerCase()));
@@ -239,7 +347,26 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       const key = cm.id.trim().toLowerCase();
       if (key && !seen.has(key)) {
         seen.add(key);
-        list.push(cm);
+        if (isSpdMarchModule(cm.id)) {
+          const spdCfg = TRG_MODULE_CONFIGS['Spd March'];
+          list.push({
+            ...cm,
+            title: cm.title && cm.title !== cm.id ? cm.title : spdCfg.title,
+            bengaliTitle:
+              cm.bengaliTitle && cm.bengaliTitle !== cm.id ? cm.bengaliTitle : spdCfg.bengaliTitle,
+            description:
+              cm.description && cm.description !== 'কাস্টম প্রশিক্ষণ মডিউল'
+                ? cm.description
+                : spdCfg.description,
+            defaultLocation: cm.defaultLocation || spdCfg.defaultLocation,
+            sampleScores:
+              cm.sampleScores && cm.sampleScores !== 'Score: Standard | Qualified'
+                ? cm.sampleScores
+                : spdCfg.sampleScores,
+          });
+        } else {
+          list.push(cm);
+        }
       }
     });
 
@@ -248,19 +375,38 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       const key = modName.toLowerCase();
       if (modName && !seen.has(key)) {
         seen.add(key);
-        list.push({
-          id: modName,
-          label: modName,
-          full: modName,
-          title: modName,
-          bengaliTitle: modName,
-          description: 'কাস্টম প্রশিক্ষণ মডিউল',
-          defaultLocation: r.location || '10 Med Regimental Trg Ground',
-          sampleScores: 'Score: Standard | Qualified',
-          isDefault: false,
-        });
+        if (isSpdMarchModule(modName)) {
+          const spdCfg = TRG_MODULE_CONFIGS['Spd March'];
+          list.push({
+            id: modName,
+            label: modName,
+            full: 'Speed March (Yearly Tracker)',
+            title: spdCfg.title,
+            bengaliTitle: spdCfg.bengaliTitle,
+            description: spdCfg.description,
+            defaultLocation: r.location || spdCfg.defaultLocation,
+            sampleScores: spdCfg.sampleScores,
+            isDefault: false,
+          });
+        } else {
+          list.push({
+            id: modName,
+            label: modName,
+            full: modName,
+            title: modName,
+            bengaliTitle: modName,
+            description: 'কাস্টম প্রশিক্ষণ মডিউল',
+            defaultLocation: r.location || '10 Med Regimental Trg Ground',
+            sampleScores: 'Score: Standard | Qualified',
+            isDefault: false,
+          });
+        }
       }
     });
+
+    if (!list.some((m) => isSpdMarchModule(m.id))) {
+      list.push(SPD_MARCH_DEFAULT_MODULE);
+    }
 
     return list;
   }, [customModuleDefs, syncedRecords]);
@@ -271,7 +417,9 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
         (m) => m.id.trim().toLowerCase() === (moduleId || '').trim().toLowerCase()
       );
       if (found) return found;
-      const fallback = TRG_MODULE_CONFIGS[moduleId];
+      const fallback =
+        TRG_MODULE_CONFIGS[moduleId] ||
+        (isSpdMarchModule(moduleId) ? TRG_MODULE_CONFIGS['Spd March'] : undefined);
       if (fallback) {
         return {
           id: moduleId,
@@ -300,14 +448,18 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     [modules]
   );
 
-  // Module counts (supports both built-in & custom modules)
+  // Module counts (supports both built-in & custom modules, case-insensitive)
   const moduleCounts = useMemo(() => {
     const counts: Record<string, number> = {};
+    const lowerToId = new Map<string, string>();
     modules.forEach((m) => {
       counts[m.id] = 0;
+      lowerToId.set(m.id.trim().toLowerCase(), m.id);
     });
     syncedRecords.forEach((r) => {
-      counts[r.module] = (counts[r.module] || 0) + 1;
+      const key = (r.module || '').trim().toLowerCase();
+      const targetId = lowerToId.get(key) || r.module;
+      counts[targetId] = (counts[targetId] || 0) + 1;
     });
     return counts;
   }, [modules, syncedRecords]);
@@ -328,6 +480,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     const map = new Map<string, BoardSummary>();
 
     boardDefs.forEach((def) => {
+      if (def.module && def.module !== 'IPFT') return;
       const year = inferIpftYear({ date: def.date });
       const biannual = def.biannual || inferIpftBiannual({ date: def.date });
       const boardName = def.boardName.trim();
@@ -555,11 +708,435 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     zeroAppearancePersonnel.length,
   ]);
 
-  // Filtered Records for Selected Module (or selected IPFT Year + Biannual)
+  // ==================== RET YEAR-WISE BOARDS & PASS/FAIL/NOT-APPEARED CALCULATIONS ====================
+  const retRecordsAll = useMemo(
+    () => syncedRecords.filter((r) => r.module === 'RET'),
+    [syncedRecords]
+  );
+
+  const retBoardDefs = useMemo(
+    () => boardDefs.filter((def) => def.module === 'RET'),
+    [boardDefs]
+  );
+
+  const retYears = useMemo(() => {
+    const nowYear = new Date().getFullYear();
+    const set = new Set<string>([String(nowYear), String(nowYear - 1)]);
+    retRecordsAll.forEach((r) => set.add(inferIpftYear(r)));
+    retBoardDefs.forEach((d) => set.add(inferIpftYear({ date: d.date })));
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [retRecordsAll, retBoardDefs]);
+
+  const retYearCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    retRecordsAll.forEach((r) => {
+      const yr = inferIpftYear(r);
+      counts[yr] = (counts[yr] || 0) + 1;
+    });
+    return counts;
+  }, [retRecordsAll]);
+
+  // Unified RET Boards catalog (`${year}::${boardName}`)
+  const allRetBoards = useMemo<BoardSummary[]>(() => {
+    const map = new Map<string, BoardSummary>();
+
+    retBoardDefs.forEach((def) => {
+      const year = inferIpftYear({ date: def.date });
+      const boardName = def.boardName.trim();
+      const key = `${year}::${boardName}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          boardDefId: def.id,
+          boardName,
+          year,
+          biannual: '1st Biannual',
+          boardDate: def.date || '',
+          minDate: def.date || '',
+          maxDate: def.date || '',
+          appeared: 0,
+          passed: 0,
+          failed: 0,
+          total: 0,
+        });
+      } else {
+        const existing = map.get(key)!;
+        if (!existing.boardDefId) existing.boardDefId = def.id;
+        if (def.date && !existing.boardDate) existing.boardDate = def.date;
+      }
+    });
+
+    retRecordsAll.forEach((rec) => {
+      const year = inferIpftYear(rec);
+      const boardName = inferIpftBoardName(rec);
+      const key = `${year}::${boardName}`;
+      const recDate = rec.date || '';
+
+      let entry = map.get(key);
+      if (!entry) {
+        entry = {
+          key,
+          boardName,
+          year,
+          biannual: '1st Biannual',
+          boardDate: recDate,
+          minDate: recDate,
+          maxDate: recDate,
+          appeared: 0,
+          passed: 0,
+          failed: 0,
+          total: 0,
+        };
+        map.set(key, entry);
+      }
+
+      if (recDate) {
+        if (!entry.boardDate) entry.boardDate = recDate;
+        if (!entry.minDate || recDate < entry.minDate) entry.minDate = recDate;
+        if (!entry.maxDate || recDate > entry.maxDate) entry.maxDate = recDate;
+      }
+
+      if (btyFilter !== 'All' && rec.battery !== btyFilter) return;
+
+      const resCat = getIpftResultCategory(rec);
+      entry.total++;
+      entry.appeared++;
+      if (resCat === 'Failed') {
+        entry.failed++;
+      } else {
+        entry.passed++;
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      const dA = a.boardDate || a.maxDate || a.minDate || '';
+      const dB = b.boardDate || b.maxDate || b.minDate || '';
+      const dateCmp = dB.localeCompare(dA);
+      if (dateCmp !== 0) return dateCmp;
+      return a.boardName.localeCompare(b.boardName);
+    });
+  }, [retBoardDefs, retRecordsAll, btyFilter]);
+
+  const retBoardsInSelectedYear = useMemo(() => {
+    if (!selectedRetYear) return [];
+    return allRetBoards.filter((b) => b.year === selectedRetYear);
+  }, [allRetBoards, selectedRetYear]);
+
+  useEffect(() => {
+    if (retBoardsInSelectedYear.length === 0) {
+      setRetNotAppearedTargetBoardKey('');
+      return;
+    }
+    const stillExists = retBoardsInSelectedYear.some((b) => b.key === retNotAppearedTargetBoardKey);
+    if (!stillExists) {
+      setRetNotAppearedTargetBoardKey(retBoardsInSelectedYear[0].key);
+    }
+  }, [retBoardsInSelectedYear, retNotAppearedTargetBoardKey]);
+
+  const retRecordsInYear = useMemo(() => {
+    if (!selectedRetYear) return [];
+    return retRecordsAll.filter((r) => inferIpftYear(r) === selectedRetYear);
+  }, [retRecordsAll, selectedRetYear]);
+
+  // Year-level summary counts (Appeared, Passed, Failed) shown above the boards
+  const retYearStats = useMemo(() => {
+    return retBoardsInSelectedYear.reduce(
+      (acc, b) => ({
+        appeared: acc.appeared + b.appeared,
+        passed: acc.passed + b.passed,
+        failed: acc.failed + b.failed,
+        total: acc.total + b.total,
+      }),
+      { appeared: 0, passed: 0, failed: 0, total: 0 }
+    );
+  }, [retBoardsInSelectedYear]);
+
+  const retAppearedKeysInYear = useMemo(() => {
+    const keys = new Set<string>();
+    retRecordsInYear.forEach((rec) => {
+      keys.add(getSoldierKey(rec));
+    });
+    return keys;
+  }, [retRecordsInYear, getSoldierKey]);
+
+  const retNotAppearedPersonnel = useMemo(() => {
+    const scopedPersonnel =
+      btyFilter === 'All'
+        ? personnelList
+        : personnelList.filter((p) => p.battery === btyFilter);
+
+    const notAppeared = scopedPersonnel.filter((p) => {
+      const key = p.id ? `id:${p.id}` : `snk:${(p.snkNo || '').trim().toLowerCase()}`;
+      return !retAppearedKeysInYear.has(key);
+    });
+
+    if (!searchQuery.trim()) return notAppeared;
+    const q = searchQuery.toLowerCase().trim();
+    return notAppeared.filter(
+      (p) =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.snkNo || '').toLowerCase().includes(q) ||
+        (p.rk || '').toLowerCase().includes(q) ||
+        (p.battery || '').toLowerCase().includes(q)
+    );
+  }, [personnelList, btyFilter, retAppearedKeysInYear, searchQuery]);
+
+  const hasActiveRetFilters =
+    retResultFilter !== 'All' || btyFilter !== 'All' || searchQuery.trim() !== '';
+
+  const resetRetFilters = () => {
+    setRetResultFilter('All');
+    setBtyFilter('All');
+    setSearchQuery('');
+  };
+
+  // Board Cards with filtered RET records inside selectedRetYear
+  const retBoardCards = useMemo(() => {
+    if (selectedModule !== 'RET' || !selectedRetYear) return [];
+
+    const recordsByBoardKey = new Map<string, TrgRecord[]>();
+    const existingKeysByBoardKey = new Map<string, Set<string>>();
+
+    retRecordsInYear.forEach((rec) => {
+      const bKey = `${selectedRetYear}::${inferIpftBoardName(rec)}`;
+      if (!existingKeysByBoardKey.has(bKey)) {
+        existingKeysByBoardKey.set(bKey, new Set<string>());
+      }
+      existingKeysByBoardKey.get(bKey)!.add(getSoldierKey(rec));
+
+      if (btyFilter !== 'All' && rec.battery !== btyFilter) return;
+      if (retResultFilter === 'Passed' && getIpftResultCategory(rec) !== 'Passed') return;
+      if (retResultFilter === 'Failed' && getIpftResultCategory(rec) !== 'Failed') return;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matches =
+          (rec.name || '').toLowerCase().includes(q) ||
+          (rec.snkNo || '').toLowerCase().includes(q) ||
+          (rec.rk || '').toLowerCase().includes(q) ||
+          (rec.battery || '').toLowerCase().includes(q) ||
+          (rec.boardName || '').toLowerCase().includes(q);
+        if (!matches) return;
+      }
+
+      if (!recordsByBoardKey.has(bKey)) recordsByBoardKey.set(bKey, []);
+      recordsByBoardKey.get(bKey)!.push(rec);
+    });
+
+    const qTrim = searchQuery.trim();
+    const filterActive =
+      retResultFilter === 'Passed' || retResultFilter === 'Failed' || qTrim !== '';
+
+    return retBoardsInSelectedYear
+      .map((board) => ({
+        board,
+        records: recordsByBoardKey.get(board.key) || [],
+        existingSoldierKeys: existingKeysByBoardKey.get(board.key) || new Set<string>(),
+      }))
+      .filter((card) => (filterActive ? card.records.length > 0 : true));
+  }, [
+    selectedModule,
+    selectedRetYear,
+    retRecordsInYear,
+    retBoardsInSelectedYear,
+    btyFilter,
+    retResultFilter,
+    searchQuery,
+    getSoldierKey,
+  ]);
+
+  const retQuickAddCandidates = useMemo(() => {
+    if (!activeRetQuickAddBoardKey || selectedModule !== 'RET') return [];
+    const activeCard = retBoardCards.find((c) => c.board.key === activeRetQuickAddBoardKey);
+    const existingKeys = activeCard?.existingSoldierKeys || new Set<string>();
+    const q = retQuickAddSearch.toLowerCase().trim();
+
+    const scoped = q
+      ? personnelList
+      : btyFilter === 'All'
+      ? personnelList
+      : personnelList.filter((p) => p.battery === btyFilter);
+
+    const filtered = q
+      ? scoped.filter(
+          (p) =>
+            (p.name || '').toLowerCase().includes(q) ||
+            (p.snkNo || '').toLowerCase().includes(q) ||
+            (p.rk || '').toLowerCase().includes(q) ||
+            (p.battery || '').toLowerCase().includes(q)
+        )
+      : scoped;
+
+    const sorted = [...filtered].sort((a, b) => {
+      const aKey = a.id ? `id:${a.id}` : `snk:${(a.snkNo || '').trim().toLowerCase()}`;
+      const bKey = b.id ? `id:${b.id}` : `snk:${(b.snkNo || '').trim().toLowerCase()}`;
+      const aExists = existingKeys.has(aKey) ? 1 : 0;
+      const bExists = existingKeys.has(bKey) ? 1 : 0;
+      if (aExists !== bExists) return aExists - bExists;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    return sorted.map((p) => {
+      const pKey = p.id ? `id:${p.id}` : `snk:${(p.snkNo || '').trim().toLowerCase()}`;
+      return {
+        person: p,
+        pKey,
+        alreadyInBoard: existingKeys.has(pKey),
+      };
+    });
+  }, [
+    activeRetQuickAddBoardKey,
+    selectedModule,
+    retBoardCards,
+    retQuickAddSearch,
+    personnelList,
+    btyFilter,
+  ]);
+
+  // ==================== YEARLY DATE-GROUP (SPD MARCH / GREN FIRING) CALCULATIONS ====================
+  const spdMarchRecordsAll = useMemo(() => {
+    if (!selectedModule || !isSpdMarchSelected) return [];
+    const targetIsGren = isGrenFiringModule(selectedModule);
+    return syncedRecords.filter((r) =>
+      targetIsGren ? isGrenFiringModule(r.module) : isSpdMarchModule(r.module)
+    );
+  }, [syncedRecords, selectedModule, isSpdMarchSelected]);
+
+  // Available Years under Spd March (current year + previous year + all years with records/custom dates)
+  const spdMarchYears = useMemo(() => {
+    const nowYear = new Date().getFullYear();
+    const set = new Set<string>([String(nowYear), String(nowYear - 1)]);
+    spdMarchRecordsAll.forEach((r) => set.add(inferIpftYear(r)));
+    Object.entries(customSpdDatesByYear).forEach(([yr, dates]) => {
+      if (Array.isArray(dates) && dates.length > 0) set.add(yr);
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [spdMarchRecordsAll, customSpdDatesByYear]);
+
+  // Tree counts per year for Spd March (records & unique soldiers)
+  const spdMarchTreeCounts = useMemo(() => {
+    const byYearEntries: Record<string, number> = {};
+    const soldiersPerYear: Record<string, Set<string>> = {};
+
+    spdMarchRecordsAll.forEach((r) => {
+      const yr = inferIpftYear(r);
+      byYearEntries[yr] = (byYearEntries[yr] || 0) + 1;
+      if (!soldiersPerYear[yr]) soldiersPerYear[yr] = new Set<string>();
+      soldiersPerYear[yr].add(getSoldierKey(r));
+    });
+
+    const byYearSoldiers: Record<string, number> = {};
+    Object.entries(soldiersPerYear).forEach(([yr, set]) => {
+      byYearSoldiers[yr] = set.size;
+    });
+
+    return { byYearEntries, byYearSoldiers };
+  }, [spdMarchRecordsAll, getSoldierKey]);
+
+  // Spd March records strictly inside the selected year
+  const spdMarchRecordsInYear = useMemo(() => {
+    if (!selectedSpdMarchYear) return [];
+    return spdMarchRecordsAll.filter((r) => inferIpftYear(r) === selectedSpdMarchYear);
+  }, [spdMarchRecordsAll, selectedSpdMarchYear]);
+
+  // Per-soldier completion count within the selected Spd March year
+  const spdMarchCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    spdMarchRecordsInYear.forEach((rec) => {
+      const key = getSoldierKey(rec);
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, [spdMarchRecordsInYear, getSoldierKey]);
+
+  const spdMarchScopedPersonnel = useMemo(
+    () =>
+      btyFilter === 'All'
+        ? personnelList
+        : personnelList.filter((p) => p.battery === btyFilter),
+    [personnelList, btyFilter]
+  );
+
+  // Personnel who have NOT done Spd March in selectedSpdMarchYear (0 times)
+  const zeroSpdMarchPersonnel = useMemo(() => {
+    const zeroList = spdMarchScopedPersonnel.filter((p) => {
+      const key = p.id ? `id:${p.id}` : `snk:${(p.snkNo || '').trim().toLowerCase()}`;
+      return (spdMarchCountMap.get(key) || 0) === 0;
+    });
+
+    if (!searchQuery.trim()) return zeroList;
+    const q = searchQuery.toLowerCase().trim();
+    return zeroList.filter(
+      (p) =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.snkNo || '').toLowerCase().includes(q) ||
+        (p.rk || '').toLowerCase().includes(q) ||
+        (p.battery || '').toLowerCase().includes(q)
+    );
+  }, [spdMarchScopedPersonnel, spdMarchCountMap, searchQuery]);
+
+  // Soldier frequency distribution for selectedSpdMarchYear (0, 1, 2, 3, 4+)
+  const spdMarchFilterCounts = useMemo(() => {
+    const seenKeys = new Set<string>();
+    let zero = 0;
+    let one = 0;
+    let two = 0;
+    let three = 0;
+    let four = 0;
+
+    spdMarchScopedPersonnel.forEach((p) => {
+      const key = p.id ? `id:${p.id}` : `snk:${(p.snkNo || '').trim().toLowerCase()}`;
+      seenKeys.add(key);
+      const cnt = spdMarchCountMap.get(key) || 0;
+      if (cnt === 0) zero++;
+      else if (cnt === 1) one++;
+      else if (cnt === 2) two++;
+      else if (cnt === 3) three++;
+      else if (cnt >= 4) four++;
+    });
+
+    let totalMarchesInYear = 0;
+    spdMarchRecordsInYear.forEach((r) => {
+      if (btyFilter !== 'All' && r.battery !== btyFilter) return;
+      totalMarchesInYear++;
+      const key = getSoldierKey(r);
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      const cnt = spdMarchCountMap.get(key) || 0;
+      if (cnt === 1) one++;
+      else if (cnt === 2) two++;
+      else if (cnt === 3) three++;
+      else if (cnt >= 4) four++;
+    });
+
+    return {
+      zero,
+      one,
+      two,
+      three,
+      four,
+      totalDoneSoldiers: one + two + three + four,
+      totalMarchesInYear,
+    };
+  }, [spdMarchScopedPersonnel, spdMarchCountMap, spdMarchRecordsInYear, btyFilter, getSoldierKey]);
+
+  const hasActiveSpdMarchFilters =
+    spdMarchCountFilter !== 'All' || btyFilter !== 'All' || searchQuery.trim() !== '';
+
+  const resetSpdMarchFilters = () => {
+    setSpdMarchCountFilter('All');
+    setBtyFilter('All');
+    setSearchQuery('');
+  };
+
+  // Filtered Records for Selected Module (or selected IPFT Year + Biannual / Spd March Year)
   const filteredRecords = useMemo(() => {
     if (!selectedModule || !isStateVisible) return [];
 
-    let result = syncedRecords.filter((r) => r.module === selectedModule);
+    const selectedLower = selectedModule.trim().toLowerCase();
+    let result = syncedRecords.filter(
+      (r) => (r.module || '').trim().toLowerCase() === selectedLower
+    );
 
     if (btyFilter !== 'All') {
       result = result.filter((r) => r.battery === btyFilter);
@@ -591,6 +1168,22 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
           if (ipftAppearanceFilter === '1') return cnt === 1;
           if (ipftAppearanceFilter === '2') return cnt === 2;
           if (ipftAppearanceFilter === '3+') return cnt >= 3;
+          return true;
+        });
+      }
+    } else if (isSpdMarchSelected) {
+      if (selectedSpdMarchYear) {
+        result = result.filter((r) => inferIpftYear(r) === selectedSpdMarchYear);
+      }
+
+      if (spdMarchCountFilter !== 'All') {
+        result = result.filter((r) => {
+          const cnt = spdMarchCountMap.get(getSoldierKey(r)) || 0;
+          if (spdMarchCountFilter === '0') return cnt === 0;
+          if (spdMarchCountFilter === '1') return cnt === 1;
+          if (spdMarchCountFilter === '2') return cnt === 2;
+          if (spdMarchCountFilter === '3') return cnt === 3;
+          if (spdMarchCountFilter === '4') return cnt >= 4;
           return true;
         });
       }
@@ -628,11 +1221,26 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       );
     }
 
+    if (isSpdMarchSelected) {
+      result = [...result].sort((a, b) => {
+        if (spdMarchCountFilter !== 'All') {
+          const keyCmp = getSoldierKey(a).localeCompare(getSoldierKey(b));
+          if (keyCmp !== 0) {
+            const nameCmp = (a.name || '').localeCompare(b.name || '');
+            if (nameCmp !== 0) return nameCmp;
+            return keyCmp;
+          }
+        }
+        return (b.date || '').localeCompare(a.date || '');
+      });
+    }
+
     return result;
   }, [
     syncedRecords,
     selectedModule,
     isStateVisible,
+    isSpdMarchSelected,
     btyFilter,
     gradeFilter,
     searchQuery,
@@ -642,7 +1250,132 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     ipftResultFilter,
     ipftAppearanceFilter,
     ipftAppearanceCountMap,
+    selectedSpdMarchYear,
+    spdMarchCountFilter,
+    spdMarchCountMap,
     getSoldierKey,
+  ]);
+
+  // Sync default date inputs when switching Spd March year or dates update
+  useEffect(() => {
+    if (!selectedSpdMarchYear) return;
+    setNewSpdDateInput(getDefaultDateForSpdMarchYear(selectedSpdMarchYear));
+    setActiveQuickAddDate(null);
+    setQuickAddSearch('');
+  }, [selectedSpdMarchYear]);
+
+  useEffect(() => {
+    if (!isSpdMarchSelected || !selectedSpdMarchYear) return;
+    const allDates = new Set<string>(customSpdDatesByYear[selectedSpdMarchYear] || []);
+    spdMarchRecordsInYear.forEach((r) => {
+      if (r.date) allDates.add(r.date.trim());
+    });
+    const sorted = Array.from(allDates).sort((a, b) => b.localeCompare(a));
+    setZeroViewTargetDate(sorted[0] || getDefaultDateForSpdMarchYear(selectedSpdMarchYear));
+  }, [isSpdMarchSelected, selectedSpdMarchYear, spdMarchRecordsInYear, customSpdDatesByYear]);
+
+  // Date-wise grouping inside selected Spd March year (newest date first)
+  const spdMarchDateGroups = useMemo(() => {
+    if (!isSpdMarchSelected || !selectedSpdMarchYear) return [];
+
+    const existingKeysByDate = new Map<string, Set<string>>();
+    spdMarchRecordsInYear.forEach((rec) => {
+      const d = (rec.date || '').trim() || `${selectedSpdMarchYear}-01-01`;
+      if (!existingKeysByDate.has(d)) existingKeysByDate.set(d, new Set<string>());
+      existingKeysByDate.get(d)!.add(getSoldierKey(rec));
+    });
+
+    const map = new Map<string, TrgRecord[]>();
+    filteredRecords.forEach((rec) => {
+      const d = (rec.date || '').trim() || `${selectedSpdMarchYear}-01-01`;
+      if (!map.has(d)) map.set(d, []);
+      map.get(d)!.push(rec);
+    });
+
+    const customDates = customSpdDatesByYear[selectedSpdMarchYear] || [];
+    if (!hasActiveSpdMarchFilters) {
+      customDates.forEach((d) => {
+        if (d && !map.has(d)) {
+          map.set(d, []);
+        }
+      });
+    }
+
+    if (
+      activeQuickAddDate &&
+      inferIpftYear({ date: activeQuickAddDate }) === selectedSpdMarchYear &&
+      !map.has(activeQuickAddDate)
+    ) {
+      map.set(activeQuickAddDate, []);
+    }
+
+    return Array.from(map.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, recs]) => ({
+        date,
+        records: recs,
+        existingSoldierKeys: existingKeysByDate.get(date) || new Set<string>(),
+      }));
+  }, [
+    isSpdMarchSelected,
+    selectedSpdMarchYear,
+    spdMarchRecordsInYear,
+    filteredRecords,
+    customSpdDatesByYear,
+    hasActiveSpdMarchFilters,
+    activeQuickAddDate,
+    getSoldierKey,
+  ]);
+
+  // Candidates for inline quick-add inside an expanded Spd March date group
+  const quickAddCandidates = useMemo(() => {
+    if (!activeQuickAddDate || !isSpdMarchSelected) return [];
+    const activeGroup = spdMarchDateGroups.find((g) => g.date === activeQuickAddDate);
+    const existingKeys = activeGroup?.existingSoldierKeys || new Set<string>();
+    const q = quickAddSearch.toLowerCase().trim();
+
+    const scoped = q
+      ? personnelList
+      : btyFilter === 'All'
+      ? personnelList
+      : personnelList.filter((p) => p.battery === btyFilter);
+
+    const filtered = q
+      ? scoped.filter(
+          (p) =>
+            (p.name || '').toLowerCase().includes(q) ||
+            (p.snkNo || '').toLowerCase().includes(q) ||
+            (p.rk || '').toLowerCase().includes(q) ||
+            (p.battery || '').toLowerCase().includes(q)
+        )
+      : scoped;
+
+    const sorted = [...filtered].sort((a, b) => {
+      const aKey = a.id ? `id:${a.id}` : `snk:${(a.snkNo || '').trim().toLowerCase()}`;
+      const bKey = b.id ? `id:${b.id}` : `snk:${(b.snkNo || '').trim().toLowerCase()}`;
+      const aExists = existingKeys.has(aKey) ? 1 : 0;
+      const bExists = existingKeys.has(bKey) ? 1 : 0;
+      if (aExists !== bExists) return aExists - bExists;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    return sorted.map((p) => {
+      const pKey = p.id ? `id:${p.id}` : `snk:${(p.snkNo || '').trim().toLowerCase()}`;
+      return {
+        person: p,
+        pKey,
+        alreadyInDate: existingKeys.has(pKey),
+        yearCount: spdMarchCountMap.get(pKey) || 0,
+      };
+    });
+  }, [
+    activeQuickAddDate,
+    isSpdMarchSelected,
+    spdMarchDateGroups,
+    quickAddSearch,
+    personnelList,
+    btyFilter,
+    spdMarchCountMap,
   ]);
 
   // Filtered soldiers for the Soldier Add Modal search
@@ -679,8 +1412,65 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     setIpftBoardFilter('');
     setIpftResultFilter('All');
     setIpftAppearanceFilter('All');
+    setSelectedRetYear(null);
+    setRetResultFilter('All');
+    setActiveRetQuickAddBoardKey(null);
+    setRetQuickAddSearch('');
+    setSelectedSpdMarchYear(null);
+    setSpdMarchCountFilter('All');
     setSearchQuery('');
     setGradeFilter('All');
+  };
+
+  const handleSelectRetModule = () => {
+    setSelectedModule('RET');
+    setSelectedIpftYear(null);
+    setSelectedIpftBiannual(null);
+    setIpftBoardFilter('');
+    setSelectedSpdMarchYear(null);
+    setSpdMarchCountFilter('All');
+    setSelectedRetYear((prevYr) => prevYr || retYears[0] || String(new Date().getFullYear()));
+    setRetResultFilter('All');
+    setBtyFilter('All');
+    setActiveRetQuickAddBoardKey(null);
+    setRetQuickAddSearch('');
+    setSearchQuery('');
+  };
+
+  const handleSelectRetYear = (year: string) => {
+    setSelectedModule('RET');
+    setSelectedRetYear(year);
+    setRetResultFilter('All');
+    setActiveRetQuickAddBoardKey(null);
+    setRetQuickAddSearch('');
+    setSearchQuery('');
+  };
+
+  const handleSelectSpdMarchModule = (modId: TrgModuleType) => {
+    setSelectedModule(modId);
+    setSelectedIpftYear(null);
+    setSelectedIpftBiannual(null);
+    setIpftBoardFilter('');
+    setSelectedRetYear(null);
+    setRetResultFilter('All');
+    setActiveRetQuickAddBoardKey(null);
+    setSelectedSpdMarchYear((prevYr) => prevYr || spdMarchYears[0] || String(new Date().getFullYear()));
+    setSpdMarchCountFilter('All');
+    setBtyFilter('All');
+    setActiveQuickAddDate(null);
+    setQuickAddSearch('');
+    setSearchQuery('');
+  };
+
+  const handleSelectSpdMarchYear = (modId: TrgModuleType, year: string) => {
+    setSelectedModule(modId);
+    setSelectedIpftYear(null);
+    setSelectedIpftBiannual(null);
+    setIpftBoardFilter('');
+    setSelectedRetYear(null);
+    setSelectedSpdMarchYear(year);
+    setSpdMarchCountFilter('All');
+    setSearchQuery('');
   };
 
   const handleToggleIpftModule = () => {
@@ -688,6 +1478,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       const next = !prev;
       if (next) {
         setSelectedModule('IPFT');
+        setSelectedRetYear(null);
+        setRetResultFilter('All');
+        setActiveRetQuickAddBoardKey(null);
+        setSelectedSpdMarchYear(null);
+        setSpdMarchCountFilter('All');
         setSearchQuery('');
       } else if (selectedModule === 'IPFT') {
         setSelectedModule(null);
@@ -726,7 +1521,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     setSearchQuery('');
   };
 
-  // ==================== NEW / EDIT BOARD HANDLERS ====================
+  // ==================== NEW / EDIT BOARD HANDLERS (IPFT & RET) ====================
   const getDefaultDateForIpftContext = (year?: string | null, biannual?: TrgBiannualType | null) => {
     const today = new Date().toISOString().slice(0, 10);
     const currentYear = String(new Date().getFullYear());
@@ -740,6 +1535,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
   const handleOpenNewBoardModal = () => {
     const defaultDate = getDefaultDateForIpftContext(selectedIpftYear, selectedIpftBiannual);
+    setBoardModalModule('IPFT');
     setEditingBoardDef(null);
     setBoardModalName('');
     setBoardModalDate(defaultDate);
@@ -751,14 +1547,43 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     e.stopPropagation();
     const def: IpftBoardDef = {
       id: board.boardDefId || `ipft-board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      module: 'IPFT',
       boardName: board.boardName,
       date: board.boardDate || board.maxDate || new Date().toISOString().slice(0, 10),
       biannual: board.biannual,
     };
+    setBoardModalModule('IPFT');
     setEditingBoardDef(def);
     setBoardModalName(def.boardName);
     setBoardModalDate(def.date);
     setBoardModalBiannual(def.biannual);
+    setIsBoardModalOpen(true);
+  };
+
+  const handleOpenNewRetBoardModal = () => {
+    const defaultDate = getDefaultDateForSpdMarchYear(selectedRetYear);
+    setBoardModalModule('RET');
+    setEditingBoardDef(null);
+    setBoardModalName('');
+    setBoardModalDate(defaultDate);
+    setBoardModalBiannual('1st Biannual');
+    setIsBoardModalOpen(true);
+  };
+
+  const handleOpenEditRetBoardModal = (board: BoardSummary, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const def: IpftBoardDef = {
+      id: board.boardDefId || `ret-board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      module: 'RET',
+      boardName: board.boardName,
+      date: board.boardDate || board.maxDate || getDefaultDateForSpdMarchYear(selectedRetYear),
+      biannual: '1st Biannual',
+    };
+    setBoardModalModule('RET');
+    setEditingBoardDef(def);
+    setBoardModalName(def.boardName);
+    setBoardModalDate(def.date);
+    setBoardModalBiannual('1st Biannual');
     setIsBoardModalOpen(true);
   };
 
@@ -775,13 +1600,15 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       return;
     }
 
+    const isRet = boardModalModule === 'RET';
     const boardToSave: IpftBoardDef = {
       id:
         editingBoardDef?.id ||
-        `ipft-board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        `${isRet ? 'ret-board' : 'ipft-board'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      module: boardModalModule,
       boardName: cleanName,
       date: boardModalDate,
-      biannual: boardModalBiannual,
+      biannual: isRet ? '1st Biannual' : boardModalBiannual,
     };
 
     setIsSaving(true);
@@ -790,6 +1617,51 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       if (!res.success) {
         if (res.tableMissing) setTableMissing(true);
         showNotification(`বোর্ড সংরক্ষণ ব্যর্থ: ${res.error || 'Supabase error'}`);
+        return;
+      }
+
+      if (isRet) {
+        if (editingBoardDef && editingBoardDef.boardName !== cleanName) {
+          const oldYear = inferIpftYear({ date: editingBoardDef.date });
+          const affected = retRecordsAll.filter(
+            (r) =>
+              inferIpftYear(r) === oldYear &&
+              inferIpftBoardName(r) === editingBoardDef.boardName
+          );
+          for (const rec of affected) {
+            await upsertTrgStateToSupabase({
+              ...rec,
+              boardName: cleanName,
+            });
+          }
+          setRecords((prev) =>
+            prev.map((r) =>
+              r.module === 'RET' &&
+              inferIpftYear(r) === oldYear &&
+              inferIpftBoardName(r) === editingBoardDef.boardName
+                ? { ...r, boardName: cleanName }
+                : r
+            )
+          );
+        }
+
+        setBoardDefs((prev) => {
+          const exists = prev.some((b) => b.id === boardToSave.id);
+          if (exists) {
+            return prev.map((b) => (b.id === boardToSave.id ? boardToSave : b));
+          }
+          return [boardToSave, ...prev];
+        });
+
+        const savedYear = inferIpftYear({ date: boardToSave.date });
+        const newKey = `${savedYear}::${boardToSave.boardName}`;
+        setSelectedModule('RET');
+        setSelectedRetYear(savedYear);
+        setRetResultFilter('All');
+        setCollapsedRetBoards((prev) => ({ ...prev, [newKey]: false }));
+        setIsBoardModalOpen(false);
+        setEditingBoardDef(null);
+        showNotification(`RET বোর্ড "${boardToSave.boardName}" (${formatSpdDateLabel(boardToSave.date)}) সংরক্ষণ হয়েছে।`);
         return;
       }
 
@@ -870,7 +1742,156 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     if (ipftBoardFilter === board.key) {
       setIpftBoardFilter('');
     }
+    if (activeRetQuickAddBoardKey === board.key) {
+      setActiveRetQuickAddBoardKey(null);
+      setRetQuickAddSearch('');
+    }
     showNotification(`বোর্ড "${board.boardName}" মুছে ফেলা হয়েছে।`);
+  };
+
+  // ==================== RET INLINE QUICK-ADD & PASS/FAIL HANDLERS ====================
+  const handleQuickAddSoldierToRetBoard = async (
+    person: Personnel,
+    board: BoardSummary,
+    result: IpftResultType
+  ) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে সংরক্ষণ অনুমোদিত নয়।');
+      return;
+    }
+    const pKey = person.id ? `id:${person.id}` : `snk:${(person.snkNo || '').trim().toLowerCase()}`;
+    const alreadyExists = retRecordsAll.some(
+      (r) =>
+        inferIpftYear(r) === board.year &&
+        inferIpftBoardName(r) === board.boardName &&
+        getSoldierKey(r) === pKey
+    );
+    if (alreadyExists) {
+      showNotification(`${person.name} ইতিমধ্যে "${board.boardName}" বোর্ডে যুক্ত আছেন।`);
+      return;
+    }
+
+    const saveDate = board.boardDate || board.maxDate || getDefaultDateForSpdMarchYear(board.year);
+    const savingKey = `ret::${board.key}::${pKey}`;
+    setIsQuickSavingKey(savingKey);
+
+    const recordToSave: TrgRecord = {
+      id: `trg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      personnelId: person.id,
+      module: 'RET',
+      snkNo: person.snkNo,
+      name: person.name,
+      rk: person.rk,
+      battery: person.battery,
+      grade: result,
+      scoreDetails: '',
+      date: saveDate,
+      location: '',
+      status: result,
+      remarks: '',
+      boardName: board.boardName,
+    };
+
+    try {
+      const res = await upsertTrgStateToSupabase(recordToSave);
+      if (!res.success) {
+        if (res.tableMissing) setTableMissing(true);
+        showNotification(`Supabase সংরক্ষণ ব্যর্থ: ${res.error || 'trg_state টেবিল তৈরি করুন'}`);
+        return;
+      }
+
+      setRecords((prev) => [recordToSave, ...prev]);
+      setRetQuickAddSearch('');
+      showNotification(`${person.name} → ${board.boardName} (${result}) সংরক্ষণ হয়েছে।`);
+    } finally {
+      setIsQuickSavingKey(null);
+    }
+  };
+
+  const handleToggleRetRecordResult = async (rec: TrgRecord) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে পরিবর্তন অনুমোদিত নয়।');
+      return;
+    }
+    const currentCat = getIpftResultCategory(rec);
+    const nextResult: IpftResultType = currentCat === 'Passed' ? 'Failed' : 'Passed';
+    const updated: TrgRecord = {
+      ...rec,
+      grade: nextResult,
+      status: nextResult,
+      boardName: inferIpftBoardName(rec),
+    };
+    const savingKey = `ret-toggle::${rec.id}`;
+    setIsQuickSavingKey(savingKey);
+    try {
+      const res = await upsertTrgStateToSupabase(updated);
+      if (!res.success) {
+        showNotification(`আপডেট ব্যর্থ: ${res.error || 'Supabase error'}`);
+        return;
+      }
+      setRecords((prev) => prev.map((r) => (r.id === rec.id ? updated : r)));
+      showNotification(`${rec.name}-এর RET ফলাফল ${nextResult} করা হয়েছে।`);
+    } finally {
+      setIsQuickSavingKey(null);
+    }
+  };
+
+  const handleQuickAddNotAppearedRet = async (person: Personnel, result: IpftResultType) => {
+    if (isGuest || !selectedRetYear) return;
+    const pKey = person.id ? `id:${person.id}` : `snk:${(person.snkNo || '').trim().toLowerCase()}`;
+    const targetBoard =
+      retBoardsInSelectedYear.find((b) => b.key === retNotAppearedTargetBoardKey) ||
+      retBoardsInSelectedYear[0];
+
+    if (targetBoard) {
+      await handleQuickAddSoldierToRetBoard(person, targetBoard, result);
+      return;
+    }
+
+    const defaultBoardName = `RET Board 1 (${selectedRetYear})`;
+    const defaultDate = getDefaultDateForSpdMarchYear(selectedRetYear);
+    const newBoardDef: IpftBoardDef = {
+      id: `ret-board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      module: 'RET',
+      boardName: defaultBoardName,
+      date: defaultDate,
+      biannual: '1st Biannual',
+    };
+
+    const savingKey = `ret::not-appeared::${pKey}`;
+    setIsQuickSavingKey(savingKey);
+    try {
+      const bRes = await upsertIpftBoardToSupabase(newBoardDef);
+      if (bRes.success) {
+        setBoardDefs((prev) => [newBoardDef, ...prev]);
+      }
+      const recordToSave: TrgRecord = {
+        id: `trg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        personnelId: person.id,
+        module: 'RET',
+        snkNo: person.snkNo,
+        name: person.name,
+        rk: person.rk,
+        battery: person.battery,
+        grade: result,
+        scoreDetails: '',
+        date: defaultDate,
+        location: '',
+        status: result,
+        remarks: '',
+        boardName: defaultBoardName,
+      };
+      const res = await upsertTrgStateToSupabase(recordToSave);
+      if (!res.success) {
+        if (res.tableMissing) setTableMissing(true);
+        showNotification(`Supabase সংরক্ষণ ব্যর্থ: ${res.error || 'trg_state error'}`);
+        return;
+      }
+      setRecords((prev) => [recordToSave, ...prev]);
+      showNotification(`${person.name} → ${defaultBoardName} (${result}) সংরক্ষণ হয়েছে।`);
+    } finally {
+      setIsQuickSavingKey(null);
+    }
   };
 
   // ==================== CUSTOM TRAINING MODULE HANDLERS ====================
@@ -989,6 +2010,12 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       setSelectedIpftYear(null);
       setSelectedIpftBiannual(null);
       setIpftBoardFilter('');
+      if (isYearlyDateGroupModule(savedMod.id)) {
+        setSelectedSpdMarchYear((prev) => prev || spdMarchYears[0] || String(new Date().getFullYear()));
+      } else {
+        setSelectedSpdMarchYear(null);
+      }
+      setSpdMarchCountFilter('All');
       setGradeFilter('All');
       setSearchQuery('');
       setIsModuleModalOpen(false);
@@ -1019,6 +2046,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       setRecords((prev) => prev.filter((r) => r.module !== modId));
       if (selectedModule === modId) {
         setSelectedModule(null);
+        setSelectedSpdMarchYear(null);
+        setSpdMarchCountFilter('All');
       }
       setIsModuleModalOpen(false);
       setEditingModuleDef(null);
@@ -1030,6 +2059,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   };
 
   // ==================== SOLDIER RECORD ADD / EDIT HANDLERS ====================
+
   const handleOpenAddModal = (
     defaultMod?: TrgModuleType | null,
     prefill?: {
@@ -1042,12 +2072,15 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   ) => {
     const mod: TrgModuleType = defaultMod || selectedModule || 'RET';
     const modCfg = getModuleConfig(mod);
+    const isSpdMod = isYearlyDateGroupModule(mod);
     const defaultDate =
       prefill?.boardDate ||
       activeBoardObj?.boardDate ||
       activeBoardObj?.maxDate ||
       (mod === 'IPFT'
         ? getDefaultDateForIpftContext(selectedIpftYear, selectedIpftBiannual)
+        : isSpdMod
+        ? getDefaultDateForSpdMarchYear(selectedSpdMarchYear)
         : new Date().toISOString().slice(0, 10));
     const activeBiannual: TrgBiannualType =
       prefill?.biannual ||
@@ -1065,8 +2098,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     setFormBiannual(activeBiannual);
     setFormBoardName(activeBoard);
     setFormIpftResult(prefill?.result || 'Passed');
-    setFormLocation(modCfg.defaultLocation || '10 Med Trg Ground');
-    setFormScore(modCfg.sampleScores || '');
+    setFormLocation(isSpdMod ? '' : modCfg.defaultLocation || '10 Med Trg Ground');
+    setFormScore(isSpdMod ? '' : modCfg.sampleScores || '');
     setFormGrade(
       mod === 'IPFT'
         ? prefill?.result || 'Passed'
@@ -1074,6 +2107,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
         ? 'Marksman Shot'
         : mod === 'Gren Firing'
         ? 'Qualified (Live Fired)'
+        : isSpdMod
+        ? 'Completed'
         : 'Qualified (Grade A)'
     );
     setSelectedSoldierSnkNo(prefill?.snkNo || personnelList[0]?.snkNo || '');
@@ -1083,16 +2118,18 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   };
 
   const handleOpenEditModal = (rec: TrgRecord) => {
-    const normalizedIpftResult: IpftResultType =
-      rec.module === 'IPFT' ? getIpftResultCategory(rec) : 'Passed';
+    const isBoardResMod = rec.module === 'IPFT' || rec.module === 'RET';
+    const normalizedIpftResult: IpftResultType = isBoardResMod
+      ? getIpftResultCategory(rec)
+      : 'Passed';
     setEditingRecordId(rec.id);
     setSoldierModalSearch('');
     setFormModule(rec.module);
     setSelectedSoldierSnkNo(rec.snkNo);
     setFormBiannual(rec.module === 'IPFT' ? inferIpftBiannual(rec) : '1st Biannual');
-    setFormBoardName(rec.module === 'IPFT' ? inferIpftBoardName(rec) : '');
+    setFormBoardName(isBoardResMod ? inferIpftBoardName(rec) : '');
     setFormIpftResult(normalizedIpftResult);
-    setFormGrade(rec.module === 'IPFT' ? normalizedIpftResult : rec.grade || '');
+    setFormGrade(isBoardResMod ? normalizedIpftResult : rec.grade || '');
     setFormScore(rec.scoreDetails || '');
     setFormDate(rec.date || new Date().toISOString().slice(0, 10));
     setFormLocation(rec.location || '');
@@ -1103,7 +2140,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const handleIpftResultSelect = (resType: IpftResultType) => {
     setFormIpftResult(resType);
     setFormGrade(resType);
-    if (resType === 'Passed' && !formScore) {
+    if (formModule === 'IPFT' && resType === 'Passed' && !formScore) {
       setFormScore(TRG_MODULE_CONFIGS.IPFT.sampleScores);
     }
   };
@@ -1124,7 +2161,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     }
 
     let computedStatus: TrgRecord['status'];
-    if (formModule === 'IPFT') {
+    if (formModule === 'IPFT' || formModule === 'RET') {
       computedStatus = formIpftResult === 'Failed' ? 'Failed' : 'Passed';
     } else {
       const isDistinction =
@@ -1135,10 +2172,12 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     }
 
     const cleanBoardName =
-      formModule === 'IPFT'
+      formModule === 'IPFT' || formModule === 'RET'
         ? formBoardName.trim() || inferIpftBoardName({ date: formDate })
         : undefined;
 
+    const isSpdForm = isYearlyDateGroupModule(formModule);
+    const isGrenForm = isGrenFiringModule(formModule);
     const recordToSave: TrgRecord = {
       id: editingRecordId || `trg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       personnelId: soldier.id,
@@ -1148,14 +2187,24 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       rk: soldier.rk,
       battery: soldier.battery,
       grade:
-        formModule === 'IPFT'
+        formModule === 'IPFT' || formModule === 'RET'
           ? formIpftResult
+          : isGrenForm
+          ? 'Qualified (Live Fired)'
+          : isSpdForm
+          ? 'Completed'
           : formGrade.trim() || 'Qualified',
-      scoreDetails: formScore.trim() || 'Standard Completed',
+      scoreDetails: isGrenForm
+        ? 'Live Fired'
+        : isSpdForm
+        ? 'Completed'
+        : formModule === 'RET'
+        ? ''
+        : formScore.trim() || 'Standard Completed',
       date: formDate,
-      location: formLocation || '10 Med Trg Ground',
+      location: isSpdForm || formModule === 'RET' ? '' : formLocation || '10 Med Trg Ground',
       status: computedStatus,
-      remarks: formRemarks.trim(),
+      remarks: isSpdForm ? '' : formRemarks.trim(),
       biannual: formModule === 'IPFT' ? formBiannual : undefined,
       boardName: cleanBoardName,
     };
@@ -1183,6 +2232,20 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
         setSelectedIpftYear(savedYear);
         setSelectedIpftBiannual(formBiannual);
         setIpftBoardFilter(`${savedYear}::${formBiannual}::${cleanBoardName}`);
+      } else if (formModule === 'RET') {
+        const savedYear = inferIpftYear({ date: formDate });
+        setSelectedModule('RET');
+        setSelectedRetYear(savedYear);
+        if (retResultFilter === 'Not Appeared') {
+          setRetResultFilter('All');
+        }
+      } else if (isYearlyDateGroupModule(formModule)) {
+        const savedYear = inferIpftYear({ date: formDate });
+        setSelectedModule(formModule);
+        setSelectedSpdMarchYear(savedYear);
+        if (spdMarchCountFilter === '0') {
+          setSpdMarchCountFilter('All');
+        }
       } else {
         setSelectedModule(formModule);
       }
@@ -1223,6 +2286,130 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     }
     setRecords((prev) => prev.filter((r) => r.id !== id));
     showNotification(`${name}-এর রেকর্ড Supabase থেকে মুছে ফেলা হয়েছে।`);
+  };
+
+  // ==================== YEARLY DATE GROUP & INLINE QUICK-ADD HANDLERS ====================
+  const handleCreateSpdDateGroup = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (isGuest) {
+      showNotification('গেস্ট মোডে নতুন তারিখ গ্রুপ তৈরি করা অনুমোদিত নয়।');
+      return;
+    }
+    const cleanDate = newSpdDateInput.trim();
+    if (!cleanDate) {
+      showNotification('অনুগ্রহ করে একটি সঠিক তারিখ নির্বাচন করুন।');
+      return;
+    }
+    const targetYear = inferIpftYear({ date: cleanDate });
+    const modKey = activeYearlyModKey;
+    setCustomDatesByModAndYear((prev) => {
+      const modMap = prev[modKey] || {};
+      const existing = modMap[targetYear] || [];
+      if (existing.includes(cleanDate)) return prev;
+      return {
+        ...prev,
+        [modKey]: {
+          ...modMap,
+          [targetYear]: [cleanDate, ...existing].sort((a, b) => b.localeCompare(a)),
+        },
+      };
+    });
+    setSelectedSpdMarchYear(targetYear);
+    setSpdMarchCountFilter('All');
+    setCollapsedSpdDates((prev) => ({ ...prev, [cleanDate]: false }));
+    setActiveQuickAddDate(null);
+    setQuickAddSearch('');
+    setIsSpdGroupModalOpen(false);
+    showNotification(`${formatSpdDateLabel(cleanDate)} তারিখ গ্রুপ তৈরি হয়েছে — নিচে থেকে সৈনিক যুক্ত করুন।`);
+  };
+
+  const handleRemoveEmptySpdDateGroup = (dateStr: string) => {
+    if (isGuest || !selectedSpdMarchYear) return;
+    const modKey = activeYearlyModKey;
+    setCustomDatesByModAndYear((prev) => {
+      const modMap = prev[modKey] || {};
+      const existing = modMap[selectedSpdMarchYear] || [];
+      return {
+        ...prev,
+        [modKey]: {
+          ...modMap,
+          [selectedSpdMarchYear]: existing.filter((d) => d !== dateStr),
+        },
+      };
+    });
+    if (activeQuickAddDate === dateStr) {
+      setActiveQuickAddDate(null);
+      setQuickAddSearch('');
+    }
+    showNotification(`${formatSpdDateLabel(dateStr)} খালি তারিখ গ্রুপ সরানো হয়েছে।`);
+  };
+
+  const handleQuickAddSoldierToDate = async (person: Personnel, dateStr: string) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে সংরক্ষণ অনুমোদিত নয়।');
+      return;
+    }
+    const cleanDate = dateStr.trim() || getDefaultDateForSpdMarchYear(selectedSpdMarchYear);
+    const pKey = person.id ? `id:${person.id}` : `snk:${(person.snkNo || '').trim().toLowerCase()}`;
+
+    const alreadyExists = spdMarchRecordsAll.some(
+      (r) => (r.date || '').trim() === cleanDate && getSoldierKey(r) === pKey
+    );
+    if (alreadyExists) {
+      showNotification(`${person.name} ইতিমধ্যে ${formatSpdDateLabel(cleanDate)} গ্রুপে যুক্ত আছেন।`);
+      return;
+    }
+
+    const modId = selectedModule || SPD_MARCH_DEFAULT_MODULE;
+    const isGrenMod = isGrenFiringModule(modId);
+    const modKey = isGrenMod ? 'gren_firing' : 'spd_march';
+    const savingKey = `${cleanDate}::${pKey}`;
+    setIsQuickSavingKey(savingKey);
+
+    const recordToSave: TrgRecord = {
+      id: `trg-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      personnelId: person.id,
+      module: modId,
+      snkNo: person.snkNo,
+      name: person.name,
+      rk: person.rk,
+      battery: person.battery,
+      grade: isGrenMod ? 'Qualified (Live Fired)' : 'Completed',
+      scoreDetails: isGrenMod ? 'Live Fired' : 'Completed',
+      date: cleanDate,
+      location: '',
+      status: 'Qualified',
+      remarks: '',
+    };
+
+    try {
+      const res = await upsertTrgStateToSupabase(recordToSave);
+      if (!res.success) {
+        if (res.tableMissing) setTableMissing(true);
+        showNotification(`Supabase সংরক্ষণ ব্যর্থ: ${res.error || 'trg_state টেবিল তৈরি করুন'}`);
+        return;
+      }
+
+      const targetYear = inferIpftYear({ date: cleanDate });
+      setCustomDatesByModAndYear((prev) => {
+        const modMap = prev[modKey] || {};
+        const existing = modMap[targetYear] || [];
+        if (existing.includes(cleanDate)) return prev;
+        return {
+          ...prev,
+          [modKey]: {
+            ...modMap,
+            [targetYear]: [cleanDate, ...existing].sort((a, b) => b.localeCompare(a)),
+          },
+        };
+      });
+
+      setRecords((prev) => [recordToSave, ...prev]);
+      setQuickAddSearch('');
+      showNotification(`${person.name} → ${formatSpdDateLabel(cleanDate)} গ্রুপে যুক্ত হয়েছে।`);
+    } finally {
+      setIsQuickSavingKey(null);
+    }
   };
 
   // Shared records table renderer
@@ -1347,6 +2534,142 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       );
     }
 
+    if (isSpdMarchSelected && spdMarchCountFilter === '0') {
+      const activeModLabel = selectedModule ? getModuleConfig(selectedModule).label : 'Spd March';
+      if (zeroSpdMarchPersonnel.length === 0) {
+        return (
+          <div className={`py-12 text-center text-xs space-y-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            <p className="font-medium">
+              {selectedSpdMarchYear} সালে এখনো করেনি এমন কোনো সৈনিক পাওয়া যায়নি (সকলেই কমপক্ষে ১ বার {activeModLabel} সম্পন্ন করেছেন)।
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          {!isGuest && (
+            <div className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b ${
+              isLight ? 'bg-amber-50/70 border-slate-200' : 'bg-amber-500/5 border-slate-800'
+            }`}>
+              <div className={`text-xs font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                নিচের তালিকা থেকে ক্লিক করে সরাসরি তারিখ গ্রুপে যুক্ত করুন:
+              </div>
+              <div className="flex items-center gap-2">
+                <label className={`text-[11px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  তারিখ:
+                </label>
+                <input
+                  type="date"
+                  value={zeroViewTargetDate}
+                  onChange={(e) => setZeroViewTargetDate(e.target.value)}
+                  className={`px-2 py-1 rounded-lg border text-xs font-mono focus:outline-none focus:border-sky-500 ${
+                    isLight
+                      ? 'bg-white border-slate-300 text-slate-900'
+                      : 'bg-slate-950 border-slate-700 text-slate-100'
+                  }`}
+                />
+              </div>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${
+                  isLight
+                    ? 'border-slate-200 bg-slate-100/90 text-slate-700'
+                    : 'border-slate-800 bg-slate-950/70 text-slate-400'
+                }`}>
+                  <th className="py-2.5 px-3 w-10 text-center">#</th>
+                  <th className="py-2.5 px-3">সেনা নং</th>
+                  <th className="py-2.5 px-3">পদবি ও নাম</th>
+                  <th className="py-2.5 px-3">ব্যাটারী</th>
+                  <th className="py-2.5 px-3">অবস্থা ({selectedSpdMarchYear})</th>
+                  <th className="py-2.5 px-3 text-center">এই বছরে সম্পন্ন</th>
+                  <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${
+                isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'
+              }`}>
+                {zeroSpdMarchPersonnel.map((person, idx) => {
+                  const pKey = person.id ? `id:${person.id}` : `snk:${(person.snkNo || '').trim().toLowerCase()}`;
+                  const isBusy = isQuickSavingKey === `${zeroViewTargetDate}::${pKey}`;
+                  return (
+                    <tr
+                      key={person.id || idx}
+                      className={`transition-colors ${
+                        isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <td className={`py-2.5 px-3 text-center font-mono text-[11px] ${
+                        isLight ? 'text-slate-400' : 'text-slate-500'
+                      }`}>
+                        {idx + 1}
+                      </td>
+                      <td className={`py-2.5 px-3 font-mono font-bold ${
+                        isLight ? 'text-sky-700' : 'text-sky-400'
+                      }`}>
+                        {person.snkNo}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-2">
+                          <RankBadge rank={person.rk} size="sm" />
+                          <button
+                            type="button"
+                            onClick={() => onViewDossier(person)}
+                            className={`font-medium hover:text-emerald-500 hover:underline cursor-pointer text-left transition-colors ${
+                              isLight ? 'text-slate-900' : 'text-white'
+                            }`}
+                          >
+                            {person.name}
+                          </button>
+                        </div>
+                      </td>
+                      <td className={`py-2.5 px-3 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        {person.battery}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
+                          isLight
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                        }`}>
+                          {selectedSpdMarchYear}-এ এখনো করেনি
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className={`font-mono text-[11px] font-semibold px-2 py-0.5 rounded border ${
+                          isLight
+                            ? 'bg-slate-100 text-slate-700 border-slate-200'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}>
+                          ০ বার
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {!isGuest && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleQuickAddSoldierToDate(person, zeroViewTargetDate)}
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>{isBusy ? 'যুক্ত হচ্ছে...' : 'যুক্ত করুন'}</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
     if (filteredRecords.length === 0) {
       return (
         <div className={`py-12 px-4 text-center text-xs space-y-2.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -1355,6 +2678,18 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               ? `"${activeBoardObj.boardName}" বোর্ডে এখনো কোনো সৈনিকের ফলাফল এন্ট্রি করা হয়নি।`
               : selectedModule === 'IPFT'
               ? `${selectedIpftYear} (${selectedIpftBiannual})-এ এখনো কোনো IPFT রেকর্ড পাওয়া যায়নি।`
+              : isSpdMarchSelected
+              ? spdMarchCountFilter === 'All'
+                ? `${selectedSpdMarchYear} সালে এখনো কোনো ${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'} রেকর্ড পাওয়া যায়নি।`
+                : `${selectedSpdMarchYear} সালে ${
+                    spdMarchCountFilter === '1'
+                      ? 'একবার'
+                      : spdMarchCountFilter === '2'
+                      ? 'দুইবার'
+                      : spdMarchCountFilter === '3'
+                      ? 'তিনবার'
+                      : 'চারবার'
+                  } ${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'} সম্পন্ন করেছে এমন কোনো সৈনিক পাওয়া যায়নি।`
               : 'কোনো প্রশিক্ষণ রেকর্ড পাওয়া যায়নি।'}
           </p>
           {!isGuest && (
@@ -1367,6 +2702,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               <span>
                 {selectedModule === 'IPFT' && activeBoardObj
                   ? 'এই বোর্ডে প্রথম এন্ট্রি যোগ করুন'
+                  : isSpdMarchSelected
+                  ? `${selectedSpdMarchYear}-এর প্রথম ${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'} এন্ট্রি যোগ করুন`
                   : 'নতুন রেকর্ড যোগ করুন'}
               </span>
             </button>
@@ -1394,6 +2731,9 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               <th className="py-2.5 px-3">ফলাফল / গ্রেড</th>
               {selectedModule === 'IPFT' && (
                 <th className="py-2.5 px-3 text-center">উপস্থিতি</th>
+              )}
+              {isSpdMarchSelected && (
+                <th className="py-2.5 px-3 text-center">{selectedSpdMarchYear}-এ সম্পন্ন</th>
               )}
               {selectedModule !== 'IPFT' && (
                 <>
@@ -1427,6 +2767,9 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 item.module === 'IPFT'
                   ? ipftAppearanceCountMap.get(getSoldierKey(item)) || 0
                   : 0;
+              const spdMarchCount = isSpdMarchSelected
+                ? spdMarchCountMap.get(getSoldierKey(item)) || 0
+                : 0;
 
               const isDistinction =
                 item.module !== 'IPFT' &&
@@ -1556,6 +2899,45 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                     </td>
                   )}
 
+                  {isSpdMarchSelected && (
+                    <td className="py-2.5 px-3 text-center">
+                      <span
+                        className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                          spdMarchCount >= 4
+                            ? isLight
+                              ? 'bg-amber-50 text-amber-800 border-amber-300'
+                              : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                            : spdMarchCount === 3
+                            ? isLight
+                              ? 'bg-violet-50 text-violet-800 border-violet-300'
+                              : 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+                            : spdMarchCount === 2
+                            ? isLight
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                            : spdMarchCount === 1
+                            ? isLight
+                              ? 'bg-sky-50 text-sky-800 border-sky-300'
+                              : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                            : isLight
+                            ? 'bg-slate-100 text-slate-600 border-slate-200'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}
+                        title={`${selectedSpdMarchYear || ''} সালে মোট ${spdMarchCount} বার ${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'} সম্পন্ন করেছেন`}
+                      >
+                        {spdMarchCount === 1
+                          ? 'একবার (১)'
+                          : spdMarchCount === 2
+                          ? 'দুইবার (২)'
+                          : spdMarchCount === 3
+                          ? 'তিনবার (৩)'
+                          : spdMarchCount === 4
+                          ? 'চারবার (৪)'
+                          : `${spdMarchCount} বার`}
+                      </span>
+                    </td>
+                  )}
+
                   {selectedModule !== 'IPFT' && (
                     <>
                       <td className={`py-2.5 px-3 font-mono text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
@@ -1582,6 +2964,25 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                     <div className="flex items-center justify-end gap-1">
                       {!isGuest ? (
                         <>
+                          {isSpdMarchSelected && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenAddModal(selectedModule, {
+                                  snkNo: item.snkNo,
+                                  boardDate: getDefaultDateForSpdMarchYear(selectedSpdMarchYear),
+                                })
+                              }
+                              className={`p-1.5 rounded transition-colors cursor-pointer ${
+                                isLight
+                                  ? 'hover:bg-sky-100 text-slate-400 hover:text-sky-700'
+                                  : 'hover:bg-sky-500/20 text-slate-500 hover:text-sky-400'
+                              }`}
+                              title={`${selectedSpdMarchYear}-এ আরও একটি ${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'} যুক্ত করুন`}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleOpenEditModal(item)}
                             className={`p-1.5 rounded transition-colors cursor-pointer ${
@@ -1634,60 +3035,9 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               Training State (প্রশিক্ষণ স্টেটাস)
             </h1>
             <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              10 Medium Regiment Artillery — RET, IPFT, Grenade &amp; Annual Firing
+              10 Medium Regiment Artillery — RET, IPFT, Spd March, Grenade &amp; Annual Firing
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <button
-            type="button"
-            onClick={loadFromSupabase}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
-              isLight
-                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-            }`}
-            title="Supabase থেকে রিফ্রেশ করুন"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">রিফ্রেশ</span>
-          </button>
-          {selectedModule === 'IPFT' && !isGuest && (
-            <button
-              type="button"
-              onClick={handleOpenNewBoardModal}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
-                isLight
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
-                  : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30'
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>নতুন বোর্ড</span>
-            </button>
-          )}
-          {!isGuest && (
-            <button
-              onClick={() => handleOpenAddModal(selectedModule)}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{selectedModule === 'IPFT' ? 'নতুন এন্ট্রি' : 'নতুন রেকর্ড'}</span>
-            </button>
-          )}
-          <button
-            onClick={() => window.print()}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
-              isLight
-                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-            }`}
-            title="প্রিন্ট করুন"
-          >
-            <Printer className={`w-3.5 h-3.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`} />
-            <span>প্রিন্ট</span>
-          </button>
         </div>
       </div>
 
@@ -1916,7 +3266,137 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 );
               }
 
-              // RET, Gren Firing, Firing
+              // Spd March & Gren Firing: direct yearly date-group module selection (year switcher is inside right panel)
+              if (isYearlyDateGroupModule(m.id)) {
+                const isSpdActive =
+                  selectedModule !== null &&
+                  selectedModule.trim().toLowerCase() === m.id.trim().toLowerCase();
+                const isGren = isGrenFiringModule(m.id);
+
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => handleSelectSpdMarchModule(m.id)}
+                    className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                      isSpdActive
+                        ? isGren
+                          ? isLight
+                            ? 'bg-rose-50 border-rose-500 shadow-xs'
+                            : 'bg-slate-800 border-rose-500/70 shadow-xs'
+                          : isLight
+                          ? 'bg-sky-50 border-sky-500 shadow-xs'
+                          : 'bg-slate-800 border-sky-500/70 shadow-xs'
+                        : isLight
+                        ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                        : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/40 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-xs font-semibold truncate ${
+                        isSpdActive
+                          ? isGren
+                            ? isLight ? 'text-rose-900 font-bold' : 'text-rose-400 font-bold'
+                            : isLight ? 'text-sky-900 font-bold' : 'text-sky-400 font-bold'
+                          : isLight ? 'text-slate-900' : 'text-white'
+                      }`}>
+                        {m.label}
+                      </div>
+                      <div className={`text-[10px] truncate mt-0.5 ${
+                        isLight ? 'text-slate-500' : 'text-slate-400'
+                      }`}>
+                        {m.full}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-xs font-mono font-bold tabular-nums px-2 py-0.5 rounded border ${
+                        isSpdActive
+                          ? isGren
+                            ? isLight
+                              ? 'bg-rose-100 text-rose-900 border-rose-300'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                            : isLight
+                            ? 'bg-sky-100 text-sky-900 border-sky-300'
+                            : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                          : isLight
+                          ? 'bg-white text-slate-700 border-slate-200'
+                          : 'bg-slate-900 text-slate-300 border-slate-800'
+                      }`}>
+                        {moduleCounts[m.id] || 0} বার
+                      </span>
+                      <ChevronRight
+                        className={`w-3.5 h-3.5 transition-transform ${
+                          isSpdActive
+                            ? `${isGren ? 'text-rose-500' : 'text-sky-500'} translate-x-0.5`
+                            : isLight ? 'text-slate-400' : 'text-slate-600'
+                        }`}
+                      />
+                    </div>
+                  </button>
+                );
+              }
+
+              // RET (Year-wise + Board-wise Pass / Fail / Not Appeared)
+              if (m.id === 'RET') {
+                const isRetSelected = selectedModule === 'RET';
+                const count = moduleCounts.RET || 0;
+
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={handleSelectRetModule}
+                    className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                      isRetSelected
+                        ? isLight
+                          ? 'bg-amber-50 border-amber-500 shadow-xs'
+                          : 'bg-slate-800 border-amber-500/70 shadow-xs'
+                        : isLight
+                        ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                        : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/40 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-xs font-semibold truncate ${
+                        isRetSelected
+                          ? isLight ? 'text-amber-900 font-bold' : 'text-amber-400 font-bold'
+                          : isLight ? 'text-slate-900' : 'text-white'
+                      }`}>
+                        {m.label}
+                      </div>
+                      <div className={`text-[10px] truncate mt-0.5 ${
+                        isLight ? 'text-slate-500' : 'text-slate-400'
+                      }`}>
+                        {m.full}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-xs font-mono font-bold tabular-nums px-2 py-0.5 rounded border ${
+                        isRetSelected
+                          ? isLight
+                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : isLight
+                          ? 'bg-white text-slate-700 border-slate-200'
+                          : 'bg-slate-900 text-slate-300 border-slate-800'
+                      }`}>
+                        {count} জন
+                      </span>
+                      <ChevronRight
+                        className={`w-3.5 h-3.5 transition-transform ${
+                          isRetSelected
+                            ? 'text-amber-500 translate-x-0.5'
+                            : isLight ? 'text-slate-400' : 'text-slate-600'
+                        }`}
+                      />
+                    </div>
+                  </button>
+                );
+              }
+
+              // Firing & Custom Modules
               const isSelected = selectedModule === m.id;
               const count = moduleCounts[m.id] || 0;
 
@@ -1995,6 +3475,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                     ? `${selectedIpftYear} সালের বাই-অ্যানুয়াল নির্বাচন করুন`
                     : selectedModule === 'IPFT'
                     ? 'IPFT-এর বছর (Year) নির্বাচন করুন'
+                    : isSpdMarchSelected
+                    ? `${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'}-এর বছর (Year) নির্বাচন করুন`
                     : 'প্রশিক্ষণ স্টেট দেখতে বাম পাশ থেকে নির্বাচন করুন'}
                 </h3>
                 <p className={`text-xs max-w-md mx-auto ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -2002,7 +3484,9 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                     ? `বাম পাশে ${selectedIpftYear} এর নিচে 1st Biannual অথবা 2nd Biannual এ ক্লিক করলে IPFT স্টেট প্রদর্শিত হবে।`
                     : selectedModule === 'IPFT'
                     ? 'বাম পাশে IPFT-এর নিচে যেকোনো বছরে ক্লিক করুন, এরপর 1st Biannual বা 2nd Biannual নির্বাচন করুন।'
-                    : 'বাম পাশ থেকে RET, IPFT (বছর → ১ম/২য় বাই-অ্যানুয়াল), Gren Firing অথবা Firing এ ক্লিক করলে স্টেট প্রদর্শিত হবে।'}
+                    : isSpdMarchSelected
+                    ? `বাম পাশে ${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'}-এর নিচে যেকোনো বছরে ক্লিক করলে ওই বছরের একবার, দুইবার, তিনবার, চারবার ও এখনো করেনি স্টেট দেখতে পারবেন।`
+                    : 'বাম পাশ থেকে RET (বছর ও বোর্ড ভিত্তিক), IPFT (বছর → ১ম/২য় বাই-অ্যানুয়াল), Gren Firing (বছর ভিত্তিক), Spd March (বছর ভিত্তিক) অথবা Firing এ ক্লিক করলে স্টেট প্রদর্শিত হবে।'}
                 </p>
               </div>
             </div>
@@ -2313,8 +3797,1471 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 {renderRecordsTable()}
               </div>
             </div>
+          ) : isSpdMarchSelected ? (
+            /* ==================== SPD MARCH RIGHT PANEL (Year-wise + 0/1/2/3/4 Times Filters) ==================== */
+            (() => {
+              const activeModCfg = getModuleConfig(selectedModule!);
+              return (
+                <div className="space-y-3">
+                  {/* Header, Year Switcher & 5-Count Summary Grid */}
+                  <div className={`border rounded-xl p-4 space-y-3 ${
+                    isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
+                  }`}>
+                    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b ${
+                      isLight ? 'border-slate-200' : 'border-slate-800'
+                    }`}>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            {activeModCfg.label} — {selectedSpdMarchYear}
+                          </h2>
+                          <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded border ${
+                            isLight
+                              ? 'bg-sky-100 text-sky-900 border-sky-300'
+                              : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                          }`}>
+                            {spdMarchFilterCounts.totalDoneSoldiers} জন সম্পন্ন · {spdMarchFilterCounts.totalMarchesInYear} বার
+                          </span>
+                        </div>
+                        <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {selectedSpdMarchYear} সালে প্রতিটি সৈনিক কতবার {activeModCfg.label} সম্পন্ন করেছে তার বাৎসরিক হিসাব
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Year Switcher Row (Bochor wise alada) */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {spdMarchYears.map((yr) => {
+                        const isSel = selectedSpdMarchYear === yr;
+                        const yrEntries = spdMarchTreeCounts.byYearEntries[yr] || 0;
+                        return (
+                          <button
+                            key={yr}
+                            type="button"
+                            onClick={() => handleSelectSpdMarchYear(selectedModule!, yr)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                              isSel
+                                ? 'bg-sky-600 text-white border-sky-500 font-semibold'
+                                : isLight
+                                ? 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                            }`}
+                          >
+                            <span>{yr}</span>
+                            <span className={`text-[10px] ${
+                              isSel ? 'text-sky-100' : isLight ? 'text-slate-500' : 'text-slate-400'
+                            }`}>
+                              ({yrEntries})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* 5 Clickable Frequency Summary Boxes */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {(
+                        [
+                          {
+                            key: '0' as SpdMarchCountFilter,
+                            label: 'এখনো করেনি (০ বার)',
+                            val: spdMarchFilterCounts.zero,
+                            activeCls: 'border-amber-500 bg-amber-500/15 text-amber-400',
+                            baseCls: isLight
+                              ? 'bg-slate-50 border-slate-200 text-amber-700 hover:border-amber-400'
+                              : 'bg-slate-950/70 border-slate-800 text-amber-400 hover:border-amber-500/40',
+                          },
+                          {
+                            key: '1' as SpdMarchCountFilter,
+                            label: 'একবার (১ বার)',
+                            val: spdMarchFilterCounts.one,
+                            activeCls: 'border-sky-500 bg-sky-500/15 text-sky-400',
+                            baseCls: isLight
+                              ? 'bg-slate-50 border-slate-200 text-sky-700 hover:border-sky-400'
+                              : 'bg-slate-950/70 border-slate-800 text-sky-400 hover:border-sky-500/40',
+                          },
+                          {
+                            key: '2' as SpdMarchCountFilter,
+                            label: 'দুইবার (২ বার)',
+                            val: spdMarchFilterCounts.two,
+                            activeCls: 'border-emerald-500 bg-emerald-500/15 text-emerald-400',
+                            baseCls: isLight
+                              ? 'bg-slate-50 border-slate-200 text-emerald-700 hover:border-emerald-400'
+                              : 'bg-slate-950/70 border-slate-800 text-emerald-400 hover:border-emerald-500/40',
+                          },
+                          {
+                            key: '3' as SpdMarchCountFilter,
+                            label: 'তিনবার (৩ বার)',
+                            val: spdMarchFilterCounts.three,
+                            activeCls: 'border-violet-500 bg-violet-500/15 text-violet-400',
+                            baseCls: isLight
+                              ? 'bg-slate-50 border-slate-200 text-violet-700 hover:border-violet-400'
+                              : 'bg-slate-950/70 border-slate-800 text-violet-400 hover:border-violet-500/40',
+                          },
+                          {
+                            key: '4' as SpdMarchCountFilter,
+                            label: 'চারবার (৪+ বার)',
+                            val: spdMarchFilterCounts.four,
+                            activeCls: 'border-rose-500 bg-rose-500/15 text-rose-400',
+                            baseCls: isLight
+                              ? 'bg-slate-50 border-slate-200 text-rose-700 hover:border-rose-400'
+                              : 'bg-slate-950/70 border-slate-800 text-rose-400 hover:border-rose-500/40',
+                          },
+                        ]
+                      ).map((box) => {
+                        const isActive = spdMarchCountFilter === box.key;
+                        return (
+                          <button
+                            key={box.key}
+                            type="button"
+                            onClick={() => setSpdMarchCountFilter(isActive ? 'All' : box.key)}
+                            className={`rounded-lg border p-2.5 text-left transition-all cursor-pointer ${
+                              isActive ? box.activeCls : box.baseCls
+                            }`}
+                          >
+                            <div className="text-lg font-bold font-mono tabular-nums leading-none">
+                              {box.val} <span className="text-xs font-normal">জন</span>
+                            </div>
+                            <div className={`text-[10px] font-medium mt-1 ${
+                              isLight ? 'text-slate-600' : 'text-slate-400'
+                            }`}>
+                              {box.label}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Filter Bar + New Group Button inside Spd March Right Panel */}
+                  <div className={`flex flex-col gap-3 border p-3 rounded-xl ${
+                    isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                  }`}>
+                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className={`flex items-center gap-1 p-1 rounded-lg border text-xs ${
+                          isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+                        }`}>
+                          {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
+                            <button
+                              key={b}
+                              type="button"
+                              onClick={() => setBtyFilter(b)}
+                              className={`px-2 py-1 rounded font-medium transition-colors cursor-pointer ${
+                                btyFilter === b
+                                  ? 'bg-sky-600 text-white font-semibold shadow-xs'
+                                  : isLight
+                                  ? 'text-slate-600 hover:text-slate-900'
+                                  : 'text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {b === 'All' ? 'সব' : b.replace(' Bty', '')}
+                            </button>
+                          ))}
+                        </div>
+
+                        {!isGuest && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewSpdDateInput(getDefaultDateForSpdMarchYear(selectedSpdMarchYear));
+                              setIsSpdGroupModalOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>নতুন গ্রুপ তৈরি</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${
+                          isLight ? 'text-slate-400' : 'text-slate-500'
+                        }`} />
+                        <input
+                          type="text"
+                          placeholder="সেনা নং বা নাম লিখুন..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className={`pl-8 pr-3 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-sky-500 w-full xl:w-52 ${
+                            isLight
+                              ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                              : 'bg-slate-950 border-slate-800 text-slate-200 placeholder-slate-500'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {spdMarchCountFilter === '0' ? (
+                    /* 0-count personnel view with 1-click quick add */
+                    <div className={`border rounded-xl overflow-hidden shadow-sm ${
+                      isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                    }`}>
+                      {renderRecordsTable()}
+                    </div>
+                  ) : (
+                    /* Date-wise Groups inside Selected Spd March Year */
+                    <div className="space-y-3">
+                      {isLoading ? (
+                        <div className={`border rounded-xl py-12 text-center text-xs ${
+                          isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-900 border-slate-800 text-slate-400'
+                        }`}>
+                          Supabase থেকে প্রশিক্ষণ রেকর্ড লোড হচ্ছে...
+                        </div>
+                      ) : spdMarchDateGroups.length === 0 ? (
+                        <div className={`border rounded-xl py-12 px-4 text-center text-xs space-y-2 ${
+                          isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-900 border-slate-800 text-slate-400'
+                        }`}>
+                          <p className="font-medium">
+                            {spdMarchCountFilter === 'All'
+                              ? `${selectedSpdMarchYear} সালে এখনো কোনো তারিখ গ্রুপ বা রেকর্ড পাওয়া যায়নি।`
+                              : `${selectedSpdMarchYear} সালে নির্ধারিত ফিল্টার অনুযায়ী কোনো সৈনিক পাওয়া যায়নি।`}
+                          </p>
+                          {!isGuest && spdMarchCountFilter === 'All' && (
+                            <p className="text-[11px] opacity-80">
+                              উপরের &ldquo;নতুন গ্রুপ তৈরি&rdquo; বাটনে ক্লিক করে তারিখ ভিত্তিক গ্রুপ তৈরি করুন এবং নিচে সৈনিক যুক্ত করুন।
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        spdMarchDateGroups.map((group) => {
+                          const isCollapsed = Boolean(collapsedSpdDates[group.date]);
+                          const isQuickOpen = activeQuickAddDate === group.date;
+
+                          return (
+                            <div
+                              key={group.date}
+                              className={`border rounded-xl overflow-hidden shadow-sm ${
+                                isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                              }`}
+                            >
+                              {/* Date Group Header */}
+                              <div className={`flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 border-b ${
+                                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'
+                              }`}>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCollapsedSpdDates((prev) => ({
+                                      ...prev,
+                                      [group.date]: !prev[group.date],
+                                    }))
+                                  }
+                                  className="flex items-center gap-2 text-left cursor-pointer"
+                                >
+                                  {isCollapsed ? (
+                                    <ChevronRight className={`w-4 h-4 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
+                                  ) : (
+                                    <ChevronDown className={`w-4 h-4 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
+                                  )}
+                                  <Calendar className="w-4 h-4 text-sky-500 shrink-0" />
+                                  <span className={`text-sm font-bold tracking-tight ${
+                                    isLight ? 'text-slate-900' : 'text-white'
+                                  }`}>
+                                    {formatSpdDateLabel(group.date)}
+                                  </span>
+                                  <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded border ${
+                                    isLight
+                                      ? 'bg-sky-50 text-sky-800 border-sky-200'
+                                      : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                  }`}>
+                                    {group.records.length} জন
+                                  </span>
+                                </button>
+
+                                {!isGuest && (
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (isQuickOpen) {
+                                          setActiveQuickAddDate(null);
+                                          setQuickAddSearch('');
+                                        } else {
+                                          setCollapsedSpdDates((prev) => ({ ...prev, [group.date]: false }));
+                                          setActiveQuickAddDate(group.date);
+                                          setQuickAddSearch('');
+                                        }
+                                      }}
+                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                                        isQuickOpen
+                                          ? isLight
+                                            ? 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                                            : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                                          : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                      }`}
+                                    >
+                                      {isQuickOpen ? (
+                                        <>
+                                          <X className="w-3 h-3" />
+                                          <span>বন্ধ করুন</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Plus className="w-3 h-3" />
+                                          <span>সৈনিক যুক্ত করুন</span>
+                                        </>
+                                      )}
+                                    </button>
+
+                                    {group.records.length === 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveEmptySpdDateGroup(group.date)}
+                                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                          isLight
+                                            ? 'hover:bg-rose-100 text-slate-400 hover:text-rose-600'
+                                            : 'hover:bg-rose-500/20 text-slate-500 hover:text-rose-400'
+                                        }`}
+                                        title="খালি তারিখ গ্রুপ সরান"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Inline Quick-Add Soldier Search & Normal Suggestion Dropdown */}
+                              {!isGuest && isQuickOpen && (
+                                <div className={`px-3.5 py-2.5 border-b space-y-1.5 ${
+                                  isLight ? 'bg-emerald-50/50 border-slate-200' : 'bg-emerald-500/5 border-slate-800'
+                                }`}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                      <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${
+                                        isLight ? 'text-slate-400' : 'text-slate-500'
+                                      }`} />
+                                      <input
+                                        type="text"
+                                        autoFocus
+                                        placeholder="সেনা নং, পদবি বা নাম লিখুন..."
+                                        value={quickAddSearch}
+                                        disabled={Boolean(isQuickSavingKey)}
+                                        onChange={(e) => setQuickAddSearch(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (!quickAddSearch.trim()) return;
+                                            const firstAvailable = quickAddCandidates.find((c) => !c.alreadyInDate);
+                                            if (firstAvailable) {
+                                              handleQuickAddSoldierToDate(firstAvailable.person, group.date);
+                                            } else {
+                                              showNotification('এই নামে নতুন যুক্ত করার মতো কোনো সৈনিক পাওয়া যায়নি।');
+                                            }
+                                          } else if (e.key === 'Escape') {
+                                            setActiveQuickAddDate(null);
+                                            setQuickAddSearch('');
+                                          }
+                                        }}
+                                        className={`w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-emerald-500 ${
+                                          isLight
+                                            ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                                            : 'bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500'
+                                        }`}
+                                      />
+                                      {quickAddSearch && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setQuickAddSearch('')}
+                                          className={`absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer ${
+                                            isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'
+                                          }`}
+                                          title="ক্লিয়ার করুন"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveQuickAddDate(null);
+                                        setQuickAddSearch('');
+                                      }}
+                                      className={`p-1.5 rounded-lg border cursor-pointer ${
+                                        isLight
+                                          ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'
+                                          : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                                      }`}
+                                      title="বন্ধ করুন"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                  {quickAddSearch.trim().length > 0 && (
+                                    <div className={`border divide-y rounded-xl max-h-56 overflow-y-auto shadow-lg ${
+                                      isLight
+                                        ? 'bg-white border-slate-200 divide-slate-100'
+                                        : 'bg-slate-900 border-slate-700 divide-slate-800'
+                                    }`}>
+                                      {quickAddCandidates.length > 0 ? (
+                                        quickAddCandidates.map(({ person, pKey, alreadyInDate }) => {
+                                          const isSavingThis = isQuickSavingKey === `${group.date}::${pKey}`;
+                                          return (
+                                            <button
+                                              key={pKey}
+                                              type="button"
+                                              disabled={alreadyInDate || isSavingThis}
+                                              onClick={() => handleQuickAddSoldierToDate(person, group.date)}
+                                              className={`w-full p-2.5 text-left text-xs flex items-center justify-between gap-2 transition-colors ${
+                                                alreadyInDate
+                                                  ? isLight
+                                                    ? 'bg-slate-50 text-slate-400 cursor-default'
+                                                    : 'bg-slate-950/60 text-slate-500 cursor-default'
+                                                  : isLight
+                                                  ? 'hover:bg-emerald-50 text-slate-900 cursor-pointer'
+                                                  : 'hover:bg-slate-800 text-slate-200 cursor-pointer'
+                                              }`}
+                                            >
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <span className={`font-mono font-bold shrink-0 ${
+                                                  isLight ? 'text-amber-700' : 'text-amber-400'
+                                                }`}>
+                                                  {person.snkNo}
+                                                </span>
+                                                <RankBadge rank={person.rk} size="sm" />
+                                                <span className="font-semibold truncate">{person.name}</span>
+                                                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
+                                                  isLight
+                                                    ? 'bg-slate-100 border-slate-200 text-slate-600'
+                                                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                                                }`}>
+                                                  {person.battery}
+                                                </span>
+                                              </div>
+                                              {alreadyInDate ? (
+                                                <span className="text-[10px] font-mono text-emerald-500 inline-flex items-center gap-1 shrink-0">
+                                                  <CheckCircle2 className="w-3 h-3" />
+                                                  <span>যুক্ত আছে</span>
+                                                </span>
+                                              ) : (
+                                                <span className="text-[10px] font-mono text-emerald-400 shrink-0">
+                                                  {isSavingThis ? 'যুক্ত হচ্ছে...' : person.trade || 'GD'}
+                                                </span>
+                                              )}
+                                            </button>
+                                          );
+                                        })
+                                      ) : (
+                                        <div className={`p-3 text-center text-xs ${
+                                          isLight ? 'text-slate-500' : 'text-slate-400'
+                                        }`}>
+                                          &ldquo;{quickAddSearch}&rdquo; দিয়ে কোনো সৈনিক পাওয়া যায়নি
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Date Group Personnel List */}
+                              {!isCollapsed && (
+                                group.records.length === 0 ? (
+                                  <div className={`py-6 px-4 text-center text-xs ${
+                                    isLight ? 'text-slate-500' : 'text-slate-400'
+                                  }`}>
+                                    এই তারিখে এখনো কোনো সৈনিক যুক্ত হয়নি। উপরের <span className="font-semibold text-emerald-500">+ সৈনিক যুক্ত করুন</span> বাটনে ক্লিক করে নাম যুক্ত করুন।
+                                  </div>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${
+                                          isLight
+                                            ? 'border-slate-200 bg-slate-100/70 text-slate-700'
+                                            : 'border-slate-800 bg-slate-950/50 text-slate-400'
+                                        }`}>
+                                          <th className="py-2 px-3 w-10 text-center">#</th>
+                                          <th className="py-2 px-3">সেনা নং</th>
+                                          <th className="py-2 px-3">পদবি ও নাম</th>
+                                          <th className="py-2 px-3">ব্যাটারী</th>
+                                          <th className="py-2 px-3 text-center">{selectedSpdMarchYear}-এ সম্পন্ন</th>
+                                          <th className="py-2 px-3 text-right">অ্যাকশন</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className={`divide-y ${
+                                        isLight
+                                          ? 'divide-slate-200 text-slate-800'
+                                          : 'divide-slate-800/60 text-slate-200'
+                                      }`}>
+                                        {group.records.map((item, idx) => {
+                                          const person = findPerson(item.snkNo, item.personnelId) || {
+                                            id: item.id,
+                                            snkNo: item.snkNo,
+                                            rk: item.rk,
+                                            trade: '-',
+                                            name: item.name,
+                                            battery: item.battery,
+                                            status: 'In Unit',
+                                            phone: '',
+                                          };
+                                          const spdMarchCount = spdMarchCountMap.get(getSoldierKey(item)) || 0;
+                                          return (
+                                            <tr
+                                              key={item.id || idx}
+                                              className={`transition-colors ${
+                                                isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'
+                                              }`}
+                                            >
+                                              <td className={`py-2 px-3 text-center font-mono text-[11px] ${
+                                                isLight ? 'text-slate-400' : 'text-slate-500'
+                                              }`}>
+                                                {idx + 1}
+                                              </td>
+                                              <td className={`py-2 px-3 font-mono font-bold ${
+                                                isLight ? 'text-sky-700' : 'text-sky-400'
+                                              }`}>
+                                                {item.snkNo}
+                                              </td>
+                                              <td className="py-2 px-3">
+                                                <div className="flex items-center gap-2">
+                                                  <RankBadge rank={item.rk} size="sm" />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => onViewDossier(person)}
+                                                    className={`font-medium hover:text-emerald-500 hover:underline cursor-pointer text-left transition-colors ${
+                                                      isLight ? 'text-slate-900' : 'text-white'
+                                                    }`}
+                                                    title="ক্লিক করে ডসিয়ার দেখুন"
+                                                  >
+                                                    {item.name}
+                                                  </button>
+                                                </div>
+                                              </td>
+                                              <td className={`py-2 px-3 font-mono ${
+                                                isLight ? 'text-slate-700' : 'text-slate-300'
+                                              }`}>
+                                                {item.battery}
+                                              </td>
+                                              <td className="py-2 px-3 text-center">
+                                                <span
+                                                  className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                                                    spdMarchCount >= 4
+                                                      ? isLight
+                                                        ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                                        : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                                      : spdMarchCount === 3
+                                                      ? isLight
+                                                        ? 'bg-violet-50 text-violet-800 border-violet-300'
+                                                        : 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+                                                      : spdMarchCount === 2
+                                                      ? isLight
+                                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                                        : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                                      : spdMarchCount === 1
+                                                      ? isLight
+                                                        ? 'bg-sky-50 text-sky-800 border-sky-300'
+                                                        : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                                      : isLight
+                                                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                                                  }`}
+                                                >
+                                                  {spdMarchCount === 1
+                                                    ? 'একবার (১)'
+                                                    : spdMarchCount === 2
+                                                    ? 'দুইবার (২)'
+                                                    : spdMarchCount === 3
+                                                    ? 'তিনবার (৩)'
+                                                    : spdMarchCount === 4
+                                                    ? 'চারবার (৪)'
+                                                    : `${spdMarchCount} বার`}
+                                                </span>
+                                              </td>
+                                              <td className="py-2 px-3 text-right">
+                                                {!isGuest ? (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteRecord(item.id, item.name)}
+                                                    className={`p-1.5 rounded transition-colors cursor-pointer ${
+                                                      isLight
+                                                        ? 'hover:bg-rose-100 text-slate-400 hover:text-rose-600'
+                                                        : 'hover:bg-rose-500/20 text-slate-500 hover:text-rose-400'
+                                                    }`}
+                                                    title="এই তারিখ গ্রুপ থেকে বাদ দিন"
+                                                  >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                ) : (
+                                                  <span className="text-[11px] text-slate-500">-</span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          ) : selectedModule === 'RET' ? (
+            /* ==================== RET RIGHT PANEL (Year-wise + Year Summary Above Boards + Board-wise Personnel & Pass/Fail) ==================== */
+            <div className="space-y-3">
+              {/* Year Header, Year Switcher & Year-Level Summary Boxes ABOVE Boards */}
+              <div className={`border rounded-xl p-4 space-y-3 ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
+              }`}>
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b ${
+                  isLight ? 'border-slate-200' : 'border-slate-800'
+                }`}>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        RET — {selectedRetYear}
+                      </h2>
+                      <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded border ${
+                        isLight
+                          ? 'bg-amber-100 text-amber-900 border-amber-300'
+                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                      }`}>
+                        {retBoardsInSelectedYear.length} বোর্ড · {retYearStats.appeared} জন অংশগ্রহণ
+                      </span>
+                    </div>
+                    <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      {selectedRetYear} সালের প্রস্তুতি মূল্যায়ন পরীক্ষা (RET) — বোর্ড তৈরি, পাস/ফেল ও অনুপস্থিত স্টেট
+                    </p>
+                  </div>
+                </div>
+
+                {/* Year Switcher Row */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {retYears.map((yr) => {
+                    const isSel = selectedRetYear === yr;
+                    const yrEntries = retYearCounts[yr] || 0;
+                    return (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() => handleSelectRetYear(yr)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium border transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                          isSel
+                            ? 'bg-amber-600 text-white border-amber-500 font-semibold'
+                            : isLight
+                            ? 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                            : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span>{yr}</span>
+                        <span className={`text-[10px] ${
+                          isSel ? 'text-amber-100' : isLight ? 'text-slate-500' : 'text-slate-400'
+                        }`}>
+                          ({yrEntries})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 4 Clickable Year Summary Boxes ABOVE Boards (Appeared, Passed, Failed, Not Appeared) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(
+                    [
+                      {
+                        key: 'Appeared' as RetResultFilter,
+                        label: 'Appeared (উপস্থিত)',
+                        val: retYearStats.appeared,
+                        activeCls: 'border-cyan-500 bg-cyan-500/15 text-cyan-400',
+                        baseCls: isLight
+                          ? 'bg-slate-50 border-slate-200 text-cyan-700 hover:border-cyan-400'
+                          : 'bg-slate-950/70 border-slate-800 text-cyan-400 hover:border-cyan-500/40',
+                      },
+                      {
+                        key: 'Passed' as RetResultFilter,
+                        label: 'Passed (পাস)',
+                        val: retYearStats.passed,
+                        activeCls: 'border-emerald-500 bg-emerald-500/15 text-emerald-400',
+                        baseCls: isLight
+                          ? 'bg-slate-50 border-slate-200 text-emerald-700 hover:border-emerald-400'
+                          : 'bg-slate-950/70 border-slate-800 text-emerald-400 hover:border-emerald-500/40',
+                      },
+                      {
+                        key: 'Failed' as RetResultFilter,
+                        label: 'Failed (ফেল)',
+                        val: retYearStats.failed,
+                        activeCls: 'border-rose-500 bg-rose-500/15 text-rose-400',
+                        baseCls: isLight
+                          ? 'bg-slate-50 border-slate-200 text-rose-700 hover:border-rose-400'
+                          : 'bg-slate-950/70 border-slate-800 text-rose-400 hover:border-rose-500/40',
+                      },
+                      {
+                        key: 'Not Appeared' as RetResultFilter,
+                        label: 'Not Appeared (অনুপস্থিত)',
+                        val: retNotAppearedPersonnel.length,
+                        activeCls: 'border-amber-500 bg-amber-500/15 text-amber-400',
+                        baseCls: isLight
+                          ? 'bg-slate-50 border-slate-200 text-amber-700 hover:border-amber-400'
+                          : 'bg-slate-950/70 border-slate-800 text-amber-400 hover:border-amber-500/40',
+                      },
+                    ]
+                  ).map((box) => {
+                    const isActive = retResultFilter === box.key;
+                    return (
+                      <button
+                        key={box.key}
+                        type="button"
+                        onClick={() => setRetResultFilter(isActive ? 'All' : box.key)}
+                        className={`rounded-lg border p-2.5 text-left transition-all cursor-pointer ${
+                          isActive ? box.activeCls : box.baseCls
+                        }`}
+                      >
+                        <div className="text-lg font-bold font-mono tabular-nums leading-none">
+                          {box.val} <span className="text-xs font-normal">জন</span>
+                        </div>
+                        <div className={`text-[10px] font-medium mt-1 ${
+                          isLight ? 'text-slate-600' : 'text-slate-400'
+                        }`}>
+                          {box.label}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Filter Bar + Create New Board Button */}
+              <div className={`flex flex-col gap-3 border p-3 rounded-xl ${
+                isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+              }`}>
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className={`flex items-center gap-1 p-1 rounded-lg border text-xs ${
+                      isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+                    }`}>
+                      {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => setBtyFilter(b)}
+                          className={`px-2 py-1 rounded font-medium transition-colors cursor-pointer ${
+                            btyFilter === b
+                              ? 'bg-amber-600 text-white font-semibold shadow-xs'
+                              : isLight
+                              ? 'text-slate-600 hover:text-slate-900'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {b === 'All' ? 'সব' : b.replace(' Bty', '')}
+                        </button>
+                      ))}
+                    </div>
+
+                    {!isGuest && (
+                      <button
+                        type="button"
+                        onClick={handleOpenNewRetBoardModal}
+                        className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>নতুন বোর্ড তৈরি</span>
+                      </button>
+                    )}
+
+                    {hasActiveRetFilters && (
+                      <button
+                        type="button"
+                        onClick={resetRetFilters}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                          isLight
+                            ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                        }`}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>ফিল্টার রিসেট</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      isLight ? 'text-slate-400' : 'text-slate-500'
+                    }`} />
+                    <input
+                      type="text"
+                      placeholder="সেনা নং বা নাম লিখুন..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`pl-8 pr-3 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-amber-500 w-full xl:w-52 ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                          : 'bg-slate-950 border-slate-800 text-slate-200 placeholder-slate-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {retResultFilter === 'Not Appeared' ? (
+                /* Not Appeared Personnel View for selected RET Year */
+                <div className={`border rounded-xl overflow-hidden shadow-sm ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                }`}>
+                  {isLoading ? (
+                    <div className={`py-12 text-center text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Supabase থেকে প্রশিক্ষণ রেকর্ড লোড হচ্ছে...
+                    </div>
+                  ) : retNotAppearedPersonnel.length === 0 ? (
+                    <div className={`py-12 text-center text-xs space-y-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      <p className="font-medium">
+                        {selectedRetYear} সালে অনুপস্থিত কোনো সৈনিক পাওয়া যায়নি (সকলেই কমপক্ষে ১টি RET বোর্ডে অংশগ্রহণ করেছেন)।
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      {!isGuest && (
+                        <div className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b ${
+                          isLight ? 'bg-amber-50/70 border-slate-200' : 'bg-amber-500/5 border-slate-800'
+                        }`}>
+                          <div className={`text-xs font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                            {selectedRetYear} সালে RET-তে উপস্থিত হয়নি ({retNotAppearedPersonnel.length} জন) — সরাসরি বোর্ডে পাস/ফেল এন্ট্রি দিন:
+                          </div>
+                          {retBoardsInSelectedYear.length > 0 && (
+                            <div className="flex items-center gap-2">
+                              <label className={`text-[11px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                                বোর্ড:
+                              </label>
+                              <select
+                                value={retNotAppearedTargetBoardKey}
+                                onChange={(e) => setRetNotAppearedTargetBoardKey(e.target.value)}
+                                className={`px-2 py-1 rounded-lg border text-xs focus:outline-none focus:border-amber-500 ${
+                                  isLight
+                                    ? 'bg-white border-slate-300 text-slate-900'
+                                    : 'bg-slate-950 border-slate-700 text-slate-100'
+                                }`}
+                              >
+                                {retBoardsInSelectedYear.map((b) => (
+                                  <option key={b.key} value={b.key}>
+                                    {b.boardName} {b.boardDate ? `(${b.boardDate})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${
+                              isLight
+                                ? 'border-slate-200 bg-slate-100/90 text-slate-700'
+                                : 'border-slate-800 bg-slate-950/70 text-slate-400'
+                            }`}>
+                              <th className="py-2.5 px-3 w-10 text-center">#</th>
+                              <th className="py-2.5 px-3">সেনা নং</th>
+                              <th className="py-2.5 px-3">পদবি ও নাম</th>
+                              <th className="py-2.5 px-3">ব্যাটারী</th>
+                              <th className="py-2.5 px-3">অবস্থা ({selectedRetYear})</th>
+                              <th className="py-2.5 px-3 text-right">ফলাফল যুক্ত করুন</th>
+                            </tr>
+                          </thead>
+                          <tbody className={`divide-y ${
+                            isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'
+                          }`}>
+                            {retNotAppearedPersonnel.map((person, idx) => {
+                              const pKey = person.id
+                                ? `id:${person.id}`
+                                : `snk:${(person.snkNo || '').trim().toLowerCase()}`;
+                              const isBusy =
+                                isQuickSavingKey === `ret::not-appeared::${pKey}` ||
+                                (retNotAppearedTargetBoardKey &&
+                                  isQuickSavingKey === `ret::${retNotAppearedTargetBoardKey}::${pKey}`);
+                              return (
+                                <tr
+                                  key={person.id || idx}
+                                  className={`transition-colors ${
+                                    isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'
+                                  }`}
+                                >
+                                  <td className={`py-2.5 px-3 text-center font-mono text-[11px] ${
+                                    isLight ? 'text-slate-400' : 'text-slate-500'
+                                  }`}>
+                                    {idx + 1}
+                                  </td>
+                                  <td className={`py-2.5 px-3 font-mono font-bold ${
+                                    isLight ? 'text-amber-700' : 'text-amber-400'
+                                  }`}>
+                                    {person.snkNo}
+                                  </td>
+                                  <td className="py-2.5 px-3">
+                                    <div className="flex items-center gap-2">
+                                      <RankBadge rank={person.rk} size="sm" />
+                                      <button
+                                        type="button"
+                                        onClick={() => onViewDossier(person)}
+                                        className={`font-medium hover:text-emerald-500 hover:underline cursor-pointer text-left transition-colors ${
+                                          isLight ? 'text-slate-900' : 'text-white'
+                                        }`}
+                                      >
+                                        {person.name}
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className={`py-2.5 px-3 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                                    {person.battery}
+                                  </td>
+                                  <td className="py-2.5 px-3">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
+                                      isLight
+                                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                        : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                                    }`}>
+                                      Not Appeared
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right">
+                                    {!isGuest ? (
+                                      <div className="inline-flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          disabled={Boolean(isBusy)}
+                                          onClick={() => handleQuickAddNotAppearedRet(person, 'Passed')}
+                                          className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <CheckCircle2 className="w-3 h-3" />
+                                          <span>Passed</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={Boolean(isBusy)}
+                                          onClick={() => handleQuickAddNotAppearedRet(person, 'Failed')}
+                                          className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <XCircle className="w-3 h-3" />
+                                          <span>Failed</span>
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[11px] text-slate-500">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Boards List inside Selected RET Year */
+                <div className="space-y-3">
+                  {isLoading ? (
+                    <div className={`border rounded-xl py-12 text-center text-xs ${
+                      isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-900 border-slate-800 text-slate-400'
+                    }`}>
+                      Supabase থেকে প্রশিক্ষণ রেকর্ড লোড হচ্ছে...
+                    </div>
+                  ) : retBoardCards.length === 0 ? (
+                    <div className={`border rounded-xl py-12 px-4 text-center text-xs space-y-2 ${
+                      isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-slate-900 border-slate-800 text-slate-400'
+                    }`}>
+                      <p className="font-medium">
+                        {retResultFilter === 'All' && !searchQuery.trim()
+                          ? `${selectedRetYear} সালে এখনো কোনো RET বোর্ড বা রেকর্ড পাওয়া যায়নি।`
+                          : `${selectedRetYear} সালে নির্ধারিত ফিল্টার অনুযায়ী কোনো RET ফলাফল পাওয়া যায়নি।`}
+                      </p>
+                      {!isGuest && retResultFilter === 'All' && !searchQuery.trim() && (
+                        <p className="text-[11px] opacity-80">
+                          উপরের &ldquo;নতুন বোর্ড তৈরি&rdquo; বাটনে ক্লিক করে বোর্ড তৈরি করুন এবং প্রতিটি বোর্ডে সৈনিক যুক্ত করুন।
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    retBoardCards.map(({ board, records: boardRecs }) => {
+                      const isCollapsed = Boolean(collapsedRetBoards[board.key]);
+                      const isQuickOpen = activeRetQuickAddBoardKey === board.key;
+                      const displayDate = board.boardDate || board.maxDate || '';
+
+                      return (
+                        <div
+                          key={board.key}
+                          className={`border rounded-xl overflow-hidden shadow-sm ${
+                            isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
+                          }`}
+                        >
+                          {/* Board Card Header */}
+                          <div className={`flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 border-b ${
+                            isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCollapsedRetBoards((prev) => ({
+                                  ...prev,
+                                  [board.key]: !prev[board.key],
+                                }))
+                              }
+                              className="flex items-center gap-2 text-left cursor-pointer flex-wrap"
+                            >
+                              {isCollapsed ? (
+                                <ChevronRight className={`w-4 h-4 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
+                              ) : (
+                                <ChevronDown className={`w-4 h-4 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
+                              )}
+                              <ClipboardList className="w-4 h-4 text-amber-500 shrink-0" />
+                              <span className={`text-sm font-bold tracking-tight ${
+                                isLight ? 'text-slate-900' : 'text-white'
+                              }`}>
+                                {board.boardName}
+                              </span>
+                              {displayDate && (
+                                <span className={`text-[11px] font-mono ${
+                                  isLight ? 'text-slate-500' : 'text-slate-400'
+                                }`}>
+                                  ({formatSpdDateLabel(displayDate)})
+                                </span>
+                              )}
+                              <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded border ${
+                                isLight
+                                  ? 'bg-slate-100 text-slate-700 border-slate-200'
+                                  : 'bg-slate-800 text-slate-300 border-slate-700'
+                              }`}>
+                                মোট {board.appeared} জন
+                              </span>
+                              <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded border ${
+                                isLight
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              }`}>
+                                Pass: {board.passed}
+                              </span>
+                              <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded border ${
+                                isLight
+                                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                              }`}>
+                                Fail: {board.failed}
+                              </span>
+                            </button>
+
+                            {!isGuest && (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isQuickOpen) {
+                                      setActiveRetQuickAddBoardKey(null);
+                                      setRetQuickAddSearch('');
+                                    } else {
+                                      setCollapsedRetBoards((prev) => ({ ...prev, [board.key]: false }));
+                                      setActiveRetQuickAddBoardKey(board.key);
+                                      setRetQuickAddSearch('');
+                                      setRetQuickAddResult('Passed');
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                                    isQuickOpen
+                                      ? isLight
+                                        ? 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                                        : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                  }`}
+                                >
+                                  {isQuickOpen ? (
+                                    <>
+                                      <X className="w-3 h-3" />
+                                      <span>বন্ধ করুন</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="w-3 h-3" />
+                                      <span>সৈনিক যুক্ত করুন</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleOpenEditRetBoardModal(board, e)}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    isLight
+                                      ? 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'
+                                      : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                  title="বোর্ডের নাম/তারিখ এডিট করুন"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+
+                                {board.boardDefId && board.total === 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteEmptyBoard(board, e)}
+                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                      isLight
+                                        ? 'hover:bg-rose-100 text-slate-400 hover:text-rose-600'
+                                        : 'hover:bg-rose-500/20 text-slate-500 hover:text-rose-400'
+                                    }`}
+                                    title="ফাঁকা বোর্ড মুছুন"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Inline Quick-Add Soldier Search & Pass/Fail Suggestion Dropdown */}
+                          {!isGuest && isQuickOpen && (
+                            <div className={`px-3.5 py-2.5 border-b space-y-1.5 ${
+                              isLight ? 'bg-amber-50/40 border-slate-200' : 'bg-amber-500/5 border-slate-800'
+                            }`}>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="relative flex-1 min-w-[200px]">
+                                  <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${
+                                    isLight ? 'text-slate-400' : 'text-slate-500'
+                                  }`} />
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    placeholder="সেনা নং, পদবি বা নাম লিখুন..."
+                                    value={retQuickAddSearch}
+                                    disabled={Boolean(isQuickSavingKey)}
+                                    onChange={(e) => setRetQuickAddSearch(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        if (!retQuickAddSearch.trim()) return;
+                                        const firstAvailable = retQuickAddCandidates.find((c) => !c.alreadyInBoard);
+                                        if (firstAvailable) {
+                                          handleQuickAddSoldierToRetBoard(
+                                            firstAvailable.person,
+                                            board,
+                                            retQuickAddResult
+                                          );
+                                        } else {
+                                          showNotification('এই নামে নতুন যুক্ত করার মতো কোনো সৈনিক পাওয়া যায়নি।');
+                                        }
+                                      } else if (e.key === 'Escape') {
+                                        setActiveRetQuickAddBoardKey(null);
+                                        setRetQuickAddSearch('');
+                                      }
+                                    }}
+                                    className={`w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border focus:outline-none focus:border-amber-500 ${
+                                      isLight
+                                        ? 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                                        : 'bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500'
+                                    }`}
+                                  />
+                                  {retQuickAddSearch && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setRetQuickAddSearch('')}
+                                      className={`absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer ${
+                                        isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'
+                                      }`}
+                                      title="ক্লিয়ার করুন"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className={`flex items-center gap-1 p-0.5 rounded-lg border text-[11px] ${
+                                  isLight ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-700'
+                                }`}>
+                                  {(['Passed', 'Failed'] as IpftResultType[]).map((resOpt) => (
+                                    <button
+                                      key={resOpt}
+                                      type="button"
+                                      onClick={() => setRetQuickAddResult(resOpt)}
+                                      className={`px-2.5 py-1 rounded font-semibold transition-colors cursor-pointer ${
+                                        retQuickAddResult === resOpt
+                                          ? resOpt === 'Passed'
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-rose-600 text-white'
+                                          : isLight
+                                          ? 'text-slate-600 hover:text-slate-900'
+                                          : 'text-slate-400 hover:text-slate-200'
+                                      }`}
+                                    >
+                                      {resOpt}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveRetQuickAddBoardKey(null);
+                                    setRetQuickAddSearch('');
+                                  }}
+                                  className={`p-1.5 rounded-lg border cursor-pointer ${
+                                    isLight
+                                      ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'
+                                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                                  }`}
+                                  title="বন্ধ করুন"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              {retQuickAddSearch.trim().length > 0 && (
+                                <div className={`border divide-y rounded-xl max-h-56 overflow-y-auto shadow-lg ${
+                                  isLight
+                                    ? 'bg-white border-slate-200 divide-slate-100'
+                                    : 'bg-slate-900 border-slate-700 divide-slate-800'
+                                }`}>
+                                  {retQuickAddCandidates.length > 0 ? (
+                                    retQuickAddCandidates.map(({ person, pKey, alreadyInBoard }) => {
+                                      const isSavingThis = isQuickSavingKey === `ret::${board.key}::${pKey}`;
+                                      return (
+                                        <div
+                                          key={pKey}
+                                          className={`w-full p-2.5 text-left text-xs flex items-center justify-between gap-2 transition-colors ${
+                                            alreadyInBoard
+                                              ? isLight
+                                                ? 'bg-slate-50 text-slate-400'
+                                                : 'bg-slate-950/60 text-slate-500'
+                                              : isLight
+                                              ? 'hover:bg-slate-50 text-slate-900'
+                                              : 'hover:bg-slate-800/70 text-slate-200'
+                                          }`}
+                                        >
+                                          <div
+                                            onClick={() => {
+                                              if (!alreadyInBoard && !isSavingThis) {
+                                                handleQuickAddSoldierToRetBoard(person, board, retQuickAddResult);
+                                              }
+                                            }}
+                                            className={`flex items-center gap-2 min-w-0 flex-1 ${
+                                              !alreadyInBoard ? 'cursor-pointer' : ''
+                                            }`}
+                                          >
+                                            <span className={`font-mono font-bold shrink-0 ${
+                                              isLight ? 'text-amber-700' : 'text-amber-400'
+                                            }`}>
+                                              {person.snkNo}
+                                            </span>
+                                            <RankBadge rank={person.rk} size="sm" />
+                                            <span className="font-semibold truncate">{person.name}</span>
+                                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
+                                              isLight
+                                                ? 'bg-slate-100 border-slate-200 text-slate-600'
+                                                : 'bg-slate-950 border-slate-800 text-slate-400'
+                                            }`}>
+                                              {person.battery}
+                                            </span>
+                                          </div>
+                                          {alreadyInBoard ? (
+                                            <span className="text-[10px] font-mono text-emerald-500 inline-flex items-center gap-1 shrink-0">
+                                              <CheckCircle2 className="w-3 h-3" />
+                                              <span>যুক্ত আছে</span>
+                                            </span>
+                                          ) : (
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              <button
+                                                type="button"
+                                                disabled={isSavingThis}
+                                                onClick={() =>
+                                                  handleQuickAddSoldierToRetBoard(person, board, 'Passed')
+                                                }
+                                                className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold cursor-pointer"
+                                              >
+                                                Passed
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={isSavingThis}
+                                                onClick={() =>
+                                                  handleQuickAddSoldierToRetBoard(person, board, 'Failed')
+                                                }
+                                                className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-semibold cursor-pointer"
+                                              >
+                                                Failed
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className={`p-3 text-center text-xs ${
+                                      isLight ? 'text-slate-500' : 'text-slate-400'
+                                    }`}>
+                                      &ldquo;{retQuickAddSearch}&rdquo; দিয়ে কোনো সৈনিক পাওয়া যায়নি
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Board Personnel List */}
+                          {!isCollapsed && (
+                            boardRecs.length === 0 ? (
+                              <div className={`py-6 px-4 text-center text-xs ${
+                                isLight ? 'text-slate-500' : 'text-slate-400'
+                              }`}>
+                                এই বোর্ডে এখনো কোনো সৈনিক যুক্ত হয়নি। উপরের <span className="font-semibold text-emerald-500">+ সৈনিক যুক্ত করুন</span> বাটনে ক্লিক করে পাস/ফেল ফলাফলসহ সৈনিক যুক্ত করুন।
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${
+                                      isLight
+                                        ? 'border-slate-200 bg-slate-100/70 text-slate-700'
+                                        : 'border-slate-800 bg-slate-950/50 text-slate-400'
+                                    }`}>
+                                      <th className="py-2 px-3 w-10 text-center">#</th>
+                                      <th className="py-2 px-3">সেনা নং</th>
+                                      <th className="py-2 px-3">পদবি ও নাম</th>
+                                      <th className="py-2 px-3">ব্যাটারী</th>
+                                      <th className="py-2 px-3">ফলাফল (Pass / Fail)</th>
+                                      <th className="py-2 px-3 text-right">অ্যাকশন</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className={`divide-y ${
+                                    isLight
+                                      ? 'divide-slate-200 text-slate-800'
+                                      : 'divide-slate-800/60 text-slate-200'
+                                  }`}>
+                                    {boardRecs.map((item, idx) => {
+                                      const person = findPerson(item.snkNo, item.personnelId) || {
+                                        id: item.id,
+                                        snkNo: item.snkNo,
+                                        rk: item.rk,
+                                        trade: '-',
+                                        name: item.name,
+                                        battery: item.battery,
+                                        status: 'In Unit',
+                                        phone: '',
+                                      };
+                                      const resCat = getIpftResultCategory(item);
+                                      const isToggling = isQuickSavingKey === `ret-toggle::${item.id}`;
+                                      return (
+                                        <tr
+                                          key={item.id || idx}
+                                          className={`transition-colors ${
+                                            isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'
+                                          }`}
+                                        >
+                                          <td className={`py-2 px-3 text-center font-mono text-[11px] ${
+                                            isLight ? 'text-slate-400' : 'text-slate-500'
+                                          }`}>
+                                            {idx + 1}
+                                          </td>
+                                          <td className={`py-2 px-3 font-mono font-bold ${
+                                            isLight ? 'text-amber-700' : 'text-amber-400'
+                                          }`}>
+                                            {item.snkNo}
+                                          </td>
+                                          <td className="py-2 px-3">
+                                            <div className="flex items-center gap-2">
+                                              <RankBadge rank={item.rk} size="sm" />
+                                              <button
+                                                type="button"
+                                                onClick={() => onViewDossier(person)}
+                                                className={`font-medium hover:text-emerald-500 hover:underline cursor-pointer text-left transition-colors ${
+                                                  isLight ? 'text-slate-900' : 'text-white'
+                                                }`}
+                                                title="ক্লিক করে ডসিয়ার দেখুন"
+                                              >
+                                                {item.name}
+                                              </button>
+                                            </div>
+                                          </td>
+                                          <td className={`py-2 px-3 font-mono ${
+                                            isLight ? 'text-slate-700' : 'text-slate-300'
+                                          }`}>
+                                            {item.battery}
+                                          </td>
+                                          <td className="py-2 px-3">
+                                            {resCat === 'Failed' ? (
+                                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold border ${
+                                                isLight
+                                                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                                              }`}>
+                                                <XCircle className="w-3 h-3 text-rose-500" />
+                                                <span>Failed</span>
+                                              </span>
+                                            ) : (
+                                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold border ${
+                                                isLight
+                                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                  : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                              }`}>
+                                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                                <span>Passed</span>
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="py-2 px-3 text-right">
+                                            {!isGuest ? (
+                                              <div className="inline-flex items-center gap-1">
+                                                <button
+                                                  type="button"
+                                                  disabled={isToggling}
+                                                  onClick={() => handleToggleRetRecordResult(item)}
+                                                  className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
+                                                    resCat === 'Failed'
+                                                      ? isLight
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                                        : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                                                      : isLight
+                                                      ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                                                      : 'bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20'
+                                                  }`}
+                                                  title={
+                                                    resCat === 'Failed'
+                                                      ? 'Passed-এ পরিবর্তন করুন'
+                                                      : 'Failed-এ পরিবর্তন করুন'
+                                                  }
+                                                >
+                                                  {resCat === 'Failed' ? 'Pass করুন' : 'Fail করুন'}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteRecord(item.id, item.name)}
+                                                  className={`p-1.5 rounded transition-colors cursor-pointer ${
+                                                    isLight
+                                                      ? 'hover:bg-rose-100 text-slate-400 hover:text-rose-600'
+                                                      : 'hover:bg-rose-500/20 text-slate-500 hover:text-rose-400'
+                                                  }`}
+                                                  title="এই বোর্ড থেকে বাদ দিন"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <span className="text-[11px] text-slate-500">—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           ) : (
-            /* ==================== RIGHT PANEL FOR RET, GREN FIRING, FIRING & CUSTOM MODULES ==================== */
+            /* ==================== RIGHT PANEL FOR FIRING & CUSTOM MODULES ==================== */
             (() => {
               const activeModCfg = getModuleConfig(selectedModule!);
               return (
@@ -2454,7 +5401,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
         </div>
       </div>
 
-      {/* ==================== MODAL 1: NEW / EDIT IPFT BOARD (Name + Date + Biannual) ==================== */}
+      {/* ==================== MODAL 1: NEW / EDIT BOARD (IPFT & RET) ==================== */}
       {isBoardModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className={`relative w-full max-w-sm border rounded-xl shadow-xl p-5 space-y-4 ${
@@ -2464,8 +5411,12 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               isLight ? 'border-slate-200' : 'border-slate-800'
             }`}>
               <h3 className={`text-sm font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                <ClipboardList className="w-4 h-4 text-emerald-500" />
-                <span>{editingBoardDef ? 'IPFT বোর্ড এডিট করুন' : 'নতুন IPFT বোর্ড যোগ করুন'}</span>
+                <ClipboardList className={`w-4 h-4 ${boardModalModule === 'RET' ? 'text-amber-500' : 'text-emerald-500'}`} />
+                <span>
+                  {editingBoardDef
+                    ? `${boardModalModule} বোর্ড এডিট করুন`
+                    : `নতুন ${boardModalModule} বোর্ড তৈরি করুন`}
+                </span>
               </h3>
               <button
                 type="button"
@@ -2503,7 +5454,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
               <div>
                 <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                  বোর্ড কবে হয়েছে (Board Date)
+                  বোর্ডের তারিখ (Board Date)
                 </label>
                 <input
                   type="date"
@@ -2511,7 +5462,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                   onChange={(e) => {
                     const nextDate = e.target.value;
                     setBoardModalDate(nextDate);
-                    if (nextDate && !editingBoardDef) {
+                    if (boardModalModule === 'IPFT' && nextDate && !editingBoardDef) {
                       setBoardModalBiannual(inferIpftBiannual({ date: nextDate }));
                     }
                   }}
@@ -2524,29 +5475,31 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 />
               </div>
 
-              <div>
-                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                  বাই-অ্যানুয়াল (Biannual)
-                </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {(['1st Biannual', '2nd Biannual'] as TrgBiannualType[]).map((b) => (
-                    <button
-                      key={b}
-                      type="button"
-                      onClick={() => setBoardModalBiannual(b)}
-                      className={`py-1.5 rounded-lg font-medium border text-center transition-colors cursor-pointer ${
-                        boardModalBiannual === b
-                          ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
-                          : isLight
-                          ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
-                      }`}
-                    >
-                      {b}
-                    </button>
-                  ))}
+              {boardModalModule === 'IPFT' && (
+                <div>
+                  <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    বাই-অ্যানুয়াল (Biannual)
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(['1st Biannual', '2nd Biannual'] as TrgBiannualType[]).map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setBoardModalBiannual(b)}
+                        className={`py-1.5 rounded-lg font-medium border text-center transition-colors cursor-pointer ${
+                          boardModalBiannual === b
+                            ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
+                            : isLight
+                            ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                        }`}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button
@@ -2566,7 +5519,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold cursor-pointer shadow-sm"
+                  className={`px-4 py-1.5 rounded-lg disabled:opacity-50 text-white font-semibold cursor-pointer shadow-sm ${
+                    boardModalModule === 'RET'
+                      ? 'bg-amber-600 hover:bg-amber-500'
+                      : 'bg-emerald-600 hover:bg-emerald-500'
+                  }`}
                 >
                   {isSaving ? 'সংরক্ষণ হচ্ছে...' : editingBoardDef ? 'আপডেট করুন' : 'বোর্ড তৈরি করুন'}
                 </button>
@@ -2607,52 +5564,57 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
             </div>
 
             <form onSubmit={handleSaveRecord} className="space-y-3 text-xs">
-              {/* Module select */}
-              <div>
-                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>মডিউল</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {modules.map((m) => (
-                    <button
-                      type="button"
-                      key={m.id}
-                      onClick={() => {
-                        setFormModule(m.id);
-                        if (!editingRecordId) {
-                          const cfg = getModuleConfig(m.id);
-                          setFormLocation(cfg.defaultLocation || '');
-                          setFormScore(cfg.sampleScores || '');
-                          if (m.id === 'IPFT') {
-                            setFormIpftResult('Passed');
-                            setFormGrade('Passed');
-                          } else {
-                            setFormGrade(
-                              m.id === 'Firing'
-                                ? 'Marksman Shot'
-                                : m.id === 'Gren Firing'
-                                ? 'Qualified (Live Fired)'
-                                : 'Qualified (Grade A)'
-                            );
+              {/* Module select (hidden when entering Spd March / Gren Firing so only soldier name is needed) */}
+              {!isYearlyDateGroupModule(formModule) && (
+                <div>
+                  <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>মডিউল</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {modules.map((m) => (
+                      <button
+                        type="button"
+                        key={m.id}
+                        onClick={() => {
+                          setFormModule(m.id);
+                          if (!editingRecordId) {
+                            const cfg = getModuleConfig(m.id);
+                            const isSpdMod = isSpdMarchModule(m.id);
+                            setFormLocation(isSpdMod ? '' : cfg.defaultLocation || '');
+                            setFormScore(isSpdMod ? '' : cfg.sampleScores || '');
+                            if (m.id === 'IPFT') {
+                              setFormIpftResult('Passed');
+                              setFormGrade('Passed');
+                            } else {
+                              setFormGrade(
+                                m.id === 'Firing'
+                                  ? 'Marksman Shot'
+                                  : m.id === 'Gren Firing'
+                                  ? 'Qualified (Live Fired)'
+                                  : isSpdMod
+                                  ? 'Completed'
+                                  : 'Qualified (Grade A)'
+                              );
+                            }
+                          } else if (m.id === 'IPFT') {
+                            const normalized: IpftResultType =
+                              formIpftResult === 'Failed' ? 'Failed' : 'Passed';
+                            setFormIpftResult(normalized);
+                            setFormGrade(normalized);
                           }
-                        } else if (m.id === 'IPFT') {
-                          const normalized: IpftResultType =
-                            formIpftResult === 'Failed' ? 'Failed' : 'Passed';
-                          setFormIpftResult(normalized);
-                          setFormGrade(normalized);
-                        }
-                      }}
-                      className={`px-2.5 py-1.5 rounded-lg font-medium border text-center transition-colors cursor-pointer ${
-                        formModule === m.id
-                          ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
-                          : isLight
-                          ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg font-medium border text-center transition-colors cursor-pointer ${
+                          formModule === m.id
+                            ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
+                            : isLight
+                            ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Soldier select with quick filter */}
               <div>
@@ -2705,34 +5667,36 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 </div>
               </div>
 
-              {/* IPFT Specific: Biannual, Board Name & Result Status */}
-              {formModule === 'IPFT' && (
+              {/* IPFT / RET Specific: Biannual (IPFT only), Board Name & Result Status */}
+              {(formModule === 'IPFT' || formModule === 'RET') && (
                 <div className={`p-3 rounded-lg border space-y-2.5 ${
                   isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
                 }`}>
-                  <div>
-                    <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                      বাই-অ্যানুয়াল (Biannual)
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {(['1st Biannual', '2nd Biannual'] as TrgBiannualType[]).map((b) => (
-                        <button
-                          key={b}
-                          type="button"
-                          onClick={() => setFormBiannual(b)}
-                          className={`py-1.5 rounded-lg font-medium border text-center transition-colors cursor-pointer ${
-                            formBiannual === b
-                              ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
-                              : isLight
-                              ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                          }`}
-                        >
-                          {b}
-                        </button>
-                      ))}
+                  {formModule === 'IPFT' && (
+                    <div>
+                      <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        বাই-অ্যানুয়াল (Biannual)
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {(['1st Biannual', '2nd Biannual'] as TrgBiannualType[]).map((b) => (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => setFormBiannual(b)}
+                            className={`py-1.5 rounded-lg font-medium border text-center transition-colors cursor-pointer ${
+                              formBiannual === b
+                                ? 'bg-emerald-600 text-white border-emerald-500 font-semibold'
+                                : isLight
+                                ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                            }`}
+                          >
+                            {b}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div>
                     <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
@@ -2750,12 +5714,14 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                       }`}
                     />
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {allIpftBoards
-                        .filter(
-                          (b) =>
-                            b.biannual === formBiannual &&
-                            b.year === inferIpftYear({ date: formDate })
-                        )
+                      {(formModule === 'RET'
+                        ? allRetBoards.filter((b) => b.year === inferIpftYear({ date: formDate }))
+                        : allIpftBoards.filter(
+                            (b) =>
+                              b.biannual === formBiannual &&
+                              b.year === inferIpftYear({ date: formDate })
+                          )
+                      )
                         .slice(0, 6)
                         .map((b) => (
                           <button
@@ -2781,7 +5747,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
                   <div>
                     <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                      IPFT ফলাফল (Passed / Failed)
+                      {formModule} ফলাফল (Passed / Failed)
                     </label>
                     <div className="grid grid-cols-2 gap-1.5">
                       {(['Passed', 'Failed'] as IpftResultType[]).map((res) => (
@@ -2807,94 +5773,99 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 </div>
               )}
 
-              {/* Grade (only for non-IPFT modules; IPFT strictly allows Passed or Failed) */}
-              {formModule !== 'IPFT' && (
-                <div>
-                  <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>ফলাফল / গ্রেড</label>
-                  <input
-                    type="text"
-                    value={formGrade}
-                    onChange={(e) => setFormGrade(e.target.value)}
-                    placeholder="e.g. Marksman, Qualified..."
-                    className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-                        : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
-                    }`}
-                    required
-                  />
-                </div>
+              {/* Grade, Score, Date, Location & Remarks (hidden for Spd March / Gren Firing — only Soldier Name is required) */}
+              {!isYearlyDateGroupModule(formModule) && (
+                <>
+                  {/* Grade (only for non-IPFT/non-RET modules; IPFT & RET strictly use Passed or Failed) */}
+                  {formModule !== 'IPFT' && formModule !== 'RET' && (
+                    <div>
+                      <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>ফলাফল / গ্রেড</label>
+                      <input
+                        type="text"
+                        value={formGrade}
+                        onChange={(e) => setFormGrade(e.target.value)}
+                        placeholder="e.g. Marksman, Qualified..."
+                        className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                            : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                        }`}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {/* Score / Performance */}
+                  <div>
+                    <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>স্কোর ও পারফরম্যান্স বিবরণ</label>
+                    <input
+                      type="text"
+                      value={formScore}
+                      onChange={(e) => setFormScore(e.target.value)}
+                      placeholder="e.g. 1.6km: 5m 30s | Push-ups: 44"
+                      className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                          : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Date & Location */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>তারিখ</label>
+                      <input
+                        type="date"
+                        value={formDate}
+                        onChange={(e) => {
+                          const nextDate = e.target.value;
+                          setFormDate(nextDate);
+                          if (formModule === 'IPFT' && !editingRecordId && nextDate) {
+                            setFormBiannual(inferIpftBiannual({ date: nextDate }));
+                          }
+                        }}
+                        className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-300 text-slate-900'
+                            : 'bg-slate-950 border-slate-800 text-white'
+                        }`}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>স্থান / ভেন্যু</label>
+                      <input
+                        type="text"
+                        value={formLocation}
+                        onChange={(e) => setFormLocation(e.target.value)}
+                        placeholder="e.g. Bhatiary / Halishahar..."
+                        className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                            : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Remarks */}
+                  <div>
+                    <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>মন্তব্য (ঐচ্ছিক)</label>
+                    <input
+                      type="text"
+                      value={formRemarks}
+                      onChange={(e) => setFormRemarks(e.target.value)}
+                      placeholder="মন্তব্য..."
+                      className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                          : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
+                      }`}
+                    />
+                  </div>
+                </>
               )}
-
-              {/* Score / Performance */}
-              <div>
-                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>স্কোর ও পারফরম্যান্স বিবরণ</label>
-                <input
-                  type="text"
-                  value={formScore}
-                  onChange={(e) => setFormScore(e.target.value)}
-                  placeholder="e.g. 1.6km: 5m 30s | Push-ups: 44"
-                  className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
-                    isLight
-                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-                      : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
-                  }`}
-                />
-              </div>
-
-              {/* Date & Location */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>তারিখ</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => {
-                      const nextDate = e.target.value;
-                      setFormDate(nextDate);
-                      if (formModule === 'IPFT' && !editingRecordId && nextDate) {
-                        setFormBiannual(inferIpftBiannual({ date: nextDate }));
-                      }
-                    }}
-                    className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900'
-                        : 'bg-slate-950 border-slate-800 text-white'
-                    }`}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>স্থান / ভেন্যু</label>
-                  <input
-                    type="text"
-                    value={formLocation}
-                    onChange={(e) => setFormLocation(e.target.value)}
-                    placeholder="e.g. Bhatiary / Halishahar..."
-                    className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-                        : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Remarks */}
-              <div>
-                <label className={`block font-medium mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>মন্তব্য (ঐচ্ছিক)</label>
-                <input
-                  type="text"
-                  value={formRemarks}
-                  onChange={(e) => setFormRemarks(e.target.value)}
-                  placeholder="মন্তব্য..."
-                  className={`w-full rounded-lg p-2 focus:outline-none focus:border-emerald-500 border ${
-                    isLight
-                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-                      : 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
-                  }`}
-                />
-              </div>
 
               {/* Actions */}
               <div className="pt-2 flex items-center justify-end gap-2 flex-wrap">
@@ -2912,7 +5883,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 >
                   বাতিল
                 </button>
-                {!editingRecordId && formModule === 'IPFT' && (
+                {!editingRecordId && (formModule === 'IPFT' || isYearlyDateGroupModule(formModule)) && (
                   <button
                     type="button"
                     disabled={isSaving}
@@ -3137,6 +6108,73 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                       : 'মডিউল তৈরি করুন'}
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL 4: CREATE SPD MARCH DATE GROUP ==================== */}
+      {isSpdGroupModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className={`relative w-full max-w-xs border rounded-xl shadow-xl p-5 space-y-4 ${
+            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              isLight ? 'border-slate-200' : 'border-slate-800'
+            }`}>
+              <h3 className={`text-sm font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                <Calendar className="w-4 h-4 text-sky-500" />
+                <span>নতুন গ্রুপ তৈরি</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsSpdGroupModalOpen(false)}
+                className={`p-1 rounded cursor-pointer ${
+                  isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSpdDateGroup} className="space-y-4 text-xs">
+              <div>
+                <label className={`block font-medium mb-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  তারিখ নির্বাচন করুন
+                </label>
+                <input
+                  type="date"
+                  autoFocus
+                  required
+                  value={newSpdDateInput}
+                  onChange={(e) => setNewSpdDateInput(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border font-mono focus:outline-none focus:border-sky-500 ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900'
+                      : 'bg-slate-950 border-slate-700 text-white'
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSpdGroupModalOpen(false)}
+                  className={`px-3 py-1.5 rounded-lg cursor-pointer ${
+                    isLight
+                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold cursor-pointer shadow-sm"
+                >
+                  তৈরি করুন
+                </button>
               </div>
             </form>
           </div>

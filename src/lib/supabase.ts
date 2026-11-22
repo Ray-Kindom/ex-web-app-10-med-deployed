@@ -1632,8 +1632,10 @@ export const fetchTrgStateFromSupabase = async (): Promise<{
       if (row.snk_no === '__IPFT_BOARD__' || row.grade === '__BOARD_DEF__') {
         const bDate = String(row.date || '');
         const bName = meta.boardName || String(row.name || '').trim() || 'Board';
+        const bModule = String(row.module || 'IPFT').trim() || 'IPFT';
         boardDefs.push({
           id: String(row.id),
+          module: bModule,
           boardName: bName,
           date: bDate,
           biannual: meta.biannual || inferIpftBiannual({ date: bDate }),
@@ -1774,9 +1776,10 @@ export const upsertIpftBoardToSupabase = async (
   if (!client) return { success: false, error: 'Supabase client is not configured.' };
 
   try {
+    const targetModule = (board.module || 'IPFT').trim() || 'IPFT';
     const row = {
       id: board.id,
-      module: 'IPFT',
+      module: targetModule,
       snk_no: '__IPFT_BOARD__',
       name: board.boardName.trim(),
       rk: '',
@@ -1786,7 +1789,11 @@ export const upsertIpftBoardToSupabase = async (
       date: board.date,
       location: '',
       status: 'Pending',
-      remarks: serializeTrgMetaToRemarks('', board.biannual, board.boardName.trim()),
+      remarks: serializeTrgMetaToRemarks(
+        '',
+        targetModule === 'IPFT' ? board.biannual : undefined,
+        board.boardName.trim()
+      ),
     };
 
     const { error } = await client.from('trg_state').upsert([row], { onConflict: 'id' });
@@ -1815,8 +1822,12 @@ export const upsertTrgStateToSupabase = async (
 
   try {
     const encodedRemarks =
-      rec.module === 'IPFT'
-        ? serializeTrgMetaToRemarks(rec.remarks, rec.biannual, rec.boardName)
+      rec.module === 'IPFT' || rec.module === 'RET'
+        ? serializeTrgMetaToRemarks(
+            rec.remarks,
+            rec.module === 'IPFT' ? rec.biannual : undefined,
+            rec.boardName
+          )
         : (rec.remarks || '');
 
     const row = {
