@@ -1,4 +1,4 @@
-import { Personnel, Battery, ALL_BATTERIES, ParadeDutyAssignment, DailyParadePoint, AuthEstablishmentItem } from '../types';
+import { Personnel, Battery, ALL_BATTERIES, ParadeDutyAssignment, DailyParadePoint, AuthEstablishmentItem, matchesBatteryFilter } from '../types';
 
 export interface SimpleParadeSummary {
   battery: Battery | 'Consolidated';
@@ -162,7 +162,7 @@ export function calculateSimpleParadeState(
   const scopedPersonnel =
     batteryScope === 'Consolidated'
       ? personnelList
-      : personnelList.filter((p) => p.battery === batteryScope);
+      : personnelList.filter((p) => matchesBatteryFilter(p.battery, batteryScope));
 
   const totalPersonnel = scopedPersonnel.length;
 
@@ -267,7 +267,7 @@ export function calculateSimpleParadeState(
   const scopedDuties =
     batteryScope === 'Consolidated'
       ? dutyAssignments
-      : dutyAssignments.filter((d) => d.battery === batteryScope);
+      : dutyAssignments.filter((d) => matchesBatteryFilter(d.battery, batteryScope));
 
   const detailingCount = scopedDuties.length;
 

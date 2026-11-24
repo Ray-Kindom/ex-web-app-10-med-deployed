@@ -6,8 +6,11 @@ import {
   Battery,
   ALL_BATTERIES,
   Personnel,
+  normalizeBattery,
+  matchesBatteryFilter,
 } from '../../types';
 import { sortBySeniority } from '../../utils/seniorityUtils';
+import { RankBadge } from '../common/RankBadge';
 import {
   X,
   Plus,
@@ -66,7 +69,11 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     defaultCategory || activeOutOfUnitCategory || 'Comd'
   );
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>(
-    defaultBattery || (currentUser.assignedBattery as Battery) || 'All'
+    defaultBattery
+      ? (normalizeBattery(defaultBattery) as Battery)
+      : currentUser.assignedBattery
+      ? (normalizeBattery(currentUser.assignedBattery) as Battery)
+      : 'All'
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingSoldier, setIsAddingSoldier] = useState(false);
@@ -268,7 +275,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
       if (!matchesCategory) return false;
 
       // Check Battery
-      if (selectedBattery !== 'All' && p.battery !== selectedBattery) {
+      if (selectedBattery !== 'All' && !matchesBatteryFilter(p.battery, selectedBattery)) {
         return false;
       }
 
@@ -291,8 +298,10 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
   }, [personnelList, currentCategory, selectedBattery, searchQuery, ranksList]);
 
   // Check if current user is a BSM
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
-  const bsmBattery = currentUser.assignedBattery;
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'EME JCO', 'BSM'].includes(currentUser.role);
+  const bsmBattery = currentUser.assignedBattery
+    ? (normalizeBattery(currentUser.assignedBattery) as Battery)
+    : undefined;
 
   // Available soldiers for selection in Add Modal
   // If BSM: defaults to only suggesting their own battery troops; if search matches another bty, warns user
@@ -300,10 +309,10 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     const raw = (personnelList || []).filter((p) => {
       if (!p) return false;
       // If BSM and no search query, only suggest their own battery
-      if (isBsm && bsmBattery && !soldierSearchQuery.trim() && p.battery !== bsmBattery) {
+      if (isBsm && bsmBattery && !soldierSearchQuery.trim() && !matchesBatteryFilter(p.battery, bsmBattery)) {
         return false;
       }
-      if (selectedBattery !== 'All' && p.battery !== selectedBattery) return false;
+      if (selectedBattery !== 'All' && !matchesBatteryFilter(p.battery, selectedBattery)) return false;
       if (soldierSearchQuery.trim()) {
         const q = soldierSearchQuery.toLowerCase();
         return (
@@ -339,7 +348,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
 
     (personnelList || []).forEach((p) => {
       if (!p) return;
-      if (selectedBattery !== 'All' && p.battery !== selectedBattery) return;
+      if (selectedBattery !== 'All' && !matchesBatteryFilter(p.battery, selectedBattery)) return;
 
       const details = (p.statusDetails || '').toLowerCase();
       const loc = (p.outOfUnitLocation || '').toLowerCase();
@@ -818,9 +827,8 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                 }`}>
                   <th className="py-3 px-3 w-12 text-center">Sl</th>
                   <th className="py-3 px-3">Army No / BA</th>
-                  <th className="py-3 px-3">Rank & Name</th>
+                  <th className="py-3 px-3">Rank, Trade &amp; Name</th>
                   <th className="py-3 px-3">Bty</th>
-                  <th className="py-3 px-3">Trade</th>
                   <th className="py-3 px-3">Destination / Details</th>
                   <th className="py-3 px-3">Dates (From - To)</th>
                   <th className="py-3 px-3">Authority / Remarks</th>
@@ -830,7 +838,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
               <tbody className={`divide-y ${isLight ? 'divide-slate-200' : 'divide-slate-800/60'}`}>
                 {outOfUnitSoldiers.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400">
+                    <td colSpan={8} className="py-8 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <ArrowRightLeft className="w-8 h-8 text-slate-400 stroke-[1.5]" />
                         <p className="text-sm font-medium">
@@ -880,15 +888,14 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                             {person.snkNo}
                           </td>
 
-                          {/* 3. Rank & Name */}
+                          {/* 3. Rank, Trade & Name */}
                           <td className="py-2 px-3">
-                            <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                              <span className="text-rose-500 font-mono mr-1.5">{person.rk}</span>
-                              <span>{person.name}</span>
+                            <div className="flex items-center gap-2">
+                              <RankBadge rank={person.rk} trade={person.trade} size="sm" />
+                              <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+                                {person.name}
+                              </span>
                             </div>
-                            <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
-                              {person.trade}
-                            </span>
                           </td>
 
                           {/* 4. Battery */}
@@ -1044,8 +1051,8 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                           {person.snkNo}
                         </td>
                         <td className="py-3 px-3">
-                          <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                            <span className="text-rose-500 font-mono mr-1.5">{person.rk}</span>
+                          <div className="flex items-center gap-2">
+                            <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                             {onViewDossier ? (
                               <button
                                 type="button"
@@ -1053,13 +1060,17 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                                   onClose();
                                   onViewDossier(person);
                                 }}
-                                className="hover:text-emerald-500 hover:underline cursor-pointer text-left transition-colors"
+                                className={`font-bold hover:text-emerald-500 hover:underline cursor-pointer text-left transition-colors ${
+                                  isLight ? 'text-slate-900' : 'text-slate-200'
+                                }`}
                                 title="ক্লিক করে ডসিয়ার দেখুন"
                               >
                                 {person.name}
                               </button>
                             ) : (
-                              <span>{person.name}</span>
+                              <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+                                {person.name}
+                              </span>
                             )}
                           </div>
                           {person.batch && (
@@ -1074,9 +1085,6 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
                           }`}>
                             {person.battery}
                           </span>
-                        </td>
-                        <td className={`py-3 px-3 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                          {person.trade}
                         </td>
                         <td className={`py-3 px-3 max-w-xs truncate ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                           <div className="flex items-center gap-1.5">

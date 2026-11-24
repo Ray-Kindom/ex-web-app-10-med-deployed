@@ -557,7 +557,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                 }`}>
                     <tr>
                     <th className="py-2.5 px-3">নাম্বার (Number)</th>
-                    <th className="py-2.5 px-3">পদবি ও নাম (Rank & Name)</th>
+                    <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম (Rank, Trade & Name)</th>
                     <th className="py-2.5 px-3">কোর্সের নাম (Course Name)</th>
                     <th className="py-2.5 px-3">স্থান (Place)</th>
                     <th className="py-2.5 px-3 text-center">মেয়াদ (সপ্তাহ)</th>
@@ -584,7 +584,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                         {/* 2. Rank & Name */}
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
-                            <RankBadge rank={p.rk} size="sm" />
+                            <RankBadge rank={p.rk} trade={p.trade} size="sm" />
                             <button
                               type="button"
                               onClick={() => onViewDossier(p)}
@@ -662,8 +662,7 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                 }`}>
                   <tr>
                     <th className="py-2.5 px-3">সৈনিক নং / Army No</th>
-                    <th className="py-2.5 px-2">পদবী</th>
-                    <th className="py-2.5 px-3">নাম</th>
+                    <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                     <th className="py-2.5 px-2">ব্যাটারি</th>
                     <th className="py-2.5 px-3">অবস্থান / বিবরণ</th>
                     <th className="py-2.5 px-3">তারিখ / মেয়াদ</th>
@@ -704,24 +703,20 @@ export const MainDashboardPage: React.FC<MainDashboardPageProps> = ({
                         <td className={`py-2.5 px-3 font-bold whitespace-nowrap ${
                           isLight ? 'text-amber-800' : 'text-amber-400'
                         }`}>{p.snkNo}</td>
-                        <td className="py-2.5 px-2 whitespace-nowrap">
-                          <span className={`px-1.5 py-0.5 rounded border text-[10px] ${
-                            isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-800 text-slate-200 border-slate-700'
-                          }`}>
-                            {p.rk}
-                          </span>
-                        </td>
                         <td className="py-2.5 px-3 whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => onViewDossier(p)}
-                            className={`font-sans font-bold hover:underline cursor-pointer text-left transition-colors ${
-                              isLight ? 'text-slate-900 hover:text-emerald-700' : 'text-white hover:text-emerald-400'
-                            }`}
-                            title="ক্লিক করে ডসিয়ার দেখুন"
-                          >
-                            {p.name}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <RankBadge rank={p.rk} trade={p.trade} size="sm" />
+                            <button
+                              type="button"
+                              onClick={() => onViewDossier(p)}
+                              className={`font-sans font-bold hover:underline cursor-pointer text-left transition-colors ${
+                                isLight ? 'text-slate-900 hover:text-emerald-700' : 'text-white hover:text-emerald-400'
+                              }`}
+                              title="ক্লিক করে ডসিয়ার দেখুন"
+                            >
+                              {p.name}
+                            </button>
+                          </div>
                         </td>
                         <td className="py-2.5 px-2 whitespace-nowrap">
                           <span className={`px-1.5 py-0.5 rounded border text-[10px] ${

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { UnitLogo } from '../common/UnitLogo';
-import { ParadeDutyCategory, Battery } from '../../types';
+import { ParadeDutyCategory, Battery, formatRankTradeName } from '../../types';
 import { normalizeDutyName } from '../../utils/paradeCalculations';
 import { Printer, X, ShieldAlert, CheckCircle2, Columns, List, ZoomIn, ZoomOut, RotateCcw, Download, FileSpreadsheet } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -56,8 +56,17 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
   sessionType,
   filterBattery = 'Consolidated',
 }) => {
-  const { getParadeDutyAssignments, getParadeSummary, currentUser, getDutySessionStatus } = useApp();
+  const { getParadeDutyAssignments, getParadeSummary, currentUser, getDutySessionStatus, personnelList } = useApp();
   const dutyStatus = getDutySessionStatus(date, sessionType);
+
+  const tradeLookupMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (personnelList || []).forEach((p) => {
+      if (p.id && p.trade) map.set(p.id, p.trade);
+      if (p.snkNo && p.trade) map.set(p.snkNo.trim().toLowerCase(), p.trade);
+    });
+    return map;
+  }, [personnelList]);
 
   const allAssignments = useMemo(() => {
     const raw = getParadeDutyAssignments(date, sessionType);
@@ -69,6 +78,11 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
     return filtered
       .map((a) => ({
         ...a,
+        trade:
+          (a as { trade?: string }).trade ||
+          tradeLookupMap.get(a.personnelId) ||
+          tradeLookupMap.get((a.snkNo || a.armyNo || '').trim().toLowerCase()) ||
+          '',
         dutyName: normalizeDutyName(a.dutyName || 'General'),
       }))
       .sort((a, b) => {
@@ -78,7 +92,7 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
         if (a.dutyName !== b.dutyName) return a.dutyName.localeCompare(b.dutyName);
         return a.snkNo.localeCompare(b.snkNo);
       });
-  }, [getParadeDutyAssignments, date, sessionType, filterBattery]);
+  }, [getParadeDutyAssignments, date, sessionType, filterBattery, tradeLookupMap]);
 
   const paradeSummary = useMemo(() => {
     return getParadeSummary(filterBattery, date, sessionType);
@@ -251,8 +265,7 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
       const tableData = allAssignments.map((a, idx) => [
         (idx + 1).toString(),
         a.armyNo,
-        a.rank,
-        a.name,
+        formatRankTradeName(a.rank, a.trade, a.name),
         a.battery.replace(' Bty', ''),
         a.dutyName,
         a.category,
@@ -260,7 +273,7 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
 
       autoTable(doc, {
         startY: 92,
-        head: [['SL', 'ARMY NO', 'RANK', 'NAME', 'BTY', 'DUTY ASSIGNMENT', 'CATEGORY']],
+        head: [['SL', 'ARMY NO', 'RANK, TRADE & NAME', 'BTY', 'DUTY ASSIGNMENT', 'CATEGORY']],
         body: tableData,
         theme: 'grid',
         styles: {
@@ -281,11 +294,10 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
         columnStyles: {
           0: { cellWidth: 26, halign: 'center' },
           1: { cellWidth: 60, halign: 'center', fontStyle: 'bold' },
-          2: { cellWidth: 45, halign: 'center', fontStyle: 'bold' },
-          3: { cellWidth: 140, fontStyle: 'bold' },
-          4: { cellWidth: 40, halign: 'center' },
-          5: { cellWidth: 'auto', fontStyle: 'bold' },
-          6: { cellWidth: 70, halign: 'center' },
+          2: { cellWidth: 185, fontStyle: 'bold' },
+          3: { cellWidth: 40, halign: 'center' },
+          4: { cellWidth: 'auto', fontStyle: 'bold' },
+          5: { cellWidth: 70, halign: 'center' },
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252],
@@ -312,12 +324,11 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
         ['10 MEDIUM REGIMENT ARTILLERY - DAILY DUTY DETAIL NOMINAL ROLL'],
         [`DATE: ${formattedDate}`, `SESSION: ${sessionType}`, `SUB-UNIT: ${filterBattery}`, `TOTAL: ${allAssignments.length}`],
         [],
-        ['SL', 'Army No', 'Rank', 'Name', 'Battery', 'Duty Assignment', 'Category'],
+        ['SL', 'Army No', 'Rank, Trade & Name', 'Battery', 'Duty Assignment', 'Category'],
         ...allAssignments.map((a, idx) => [
           idx + 1,
           a.armyNo,
-          a.rank,
-          a.name,
+          formatRankTradeName(a.rank, a.trade, a.name),
           a.battery,
           a.dutyName,
           a.category,
@@ -621,8 +632,7 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
                           <tr className="bg-slate-100 text-slate-800 font-mono text-[8px] uppercase border-b border-slate-300">
                             <th className="py-0.5 px-1.5 w-7 text-center border-r border-slate-300">Sl</th>
                             <th className="py-0.5 px-1.5 w-20 border-r border-slate-300">Army / Snk No</th>
-                            <th className="py-0.5 px-1.5 w-14 border-r border-slate-300">Rank</th>
-                            <th className="py-0.5 px-1.5 border-r border-slate-300">Soldier Name</th>
+                            <th className="py-0.5 px-1.5 border-r border-slate-300">Rank, Trade &amp; Name</th>
                             <th className="py-0.5 px-1.5 w-14 text-center border-r border-slate-300">Battery</th>
                             <th className="py-0.5 px-1.5 w-44 border-r border-slate-300">Specific Duty Role</th>
                             <th className="py-0.5 px-1.5 w-20 text-center">Sign</th>
@@ -640,11 +650,8 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
                                 <td className="py-0.5 px-1.5 font-bold text-slate-950 border-r border-slate-300 whitespace-nowrap">
                                   {p.snkNo}
                                 </td>
-                                <td className="py-0.5 px-1.5 font-semibold text-slate-800 border-r border-slate-300 whitespace-nowrap">
-                                  {p.rank}
-                                </td>
                                 <td className="py-0.5 px-1.5 font-bold text-slate-950 border-r border-slate-300">
-                                  {p.name}
+                                  {formatRankTradeName(p.rank, p.trade, p.name)}
                                 </td>
                                 <td className="py-0.5 px-1.5 text-center font-medium text-slate-800 border-r border-slate-300 whitespace-nowrap">
                                   {p.battery.replace(' Bty', '')}
@@ -689,21 +696,9 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
                             <th className={`${autoConfig.padding} ${activeCols >= 3 ? 'w-16' : 'w-20'} border-r border-slate-700`}>
                               Army No
                             </th>
-                            {isSingleCol ? (
-                              <>
-                                <th className={`${autoConfig.padding} w-14 border-r border-slate-700`}>Rank</th>
-                                <th className={`${autoConfig.padding} border-r border-slate-700`}>Soldier Name</th>
-                              </>
-                            ) : isDualCol ? (
-                              <>
-                                <th className={`${autoConfig.padding} w-12 border-r border-slate-700`}>Rk</th>
-                                <th className={`${autoConfig.padding} border-r border-slate-700`}>Name</th>
-                              </>
-                            ) : (
-                              <th className={`${autoConfig.padding} border-r border-slate-700`}>
-                                Rk &amp; Name
-                              </th>
-                            )}
+                            <th className={`${autoConfig.padding} border-r border-slate-700`}>
+                              {isSingleCol ? 'Rank, Trade & Name' : 'Rk, Trd & Name'}
+                            </th>
                             <th className={`${autoConfig.padding} ${activeCols >= 4 ? 'w-6' : 'w-8'} text-center border-r border-slate-700`}>
                               Bty
                             </th>
@@ -727,30 +722,9 @@ export const DutyDetailPrintModal: React.FC<DutyDetailPrintModalProps> = ({
                                 <td className={`${autoConfig.padding} font-bold text-slate-950 border-r border-slate-300 whitespace-nowrap`}>
                                   {p.snkNo}
                                 </td>
-                                {isSingleCol ? (
-                                  <>
-                                    <td className={`${autoConfig.padding} font-medium text-slate-800 border-r border-slate-300 whitespace-nowrap`}>
-                                      {p.rank}
-                                    </td>
-                                    <td className={`${autoConfig.padding} font-bold text-slate-950 border-r border-slate-300 truncate max-w-[120px]`}>
-                                      {p.name}
-                                    </td>
-                                  </>
-                                ) : isDualCol ? (
-                                  <>
-                                    <td className={`${autoConfig.padding} font-medium text-slate-800 border-r border-slate-300 whitespace-nowrap`}>
-                                      {p.rank}
-                                    </td>
-                                    <td className={`${autoConfig.padding} font-bold text-slate-950 border-r border-slate-300 truncate max-w-[95px]`}>
-                                      {p.name}
-                                    </td>
-                                  </>
-                                ) : (
-                                  <td className={`${autoConfig.padding} font-bold text-slate-950 border-r border-slate-300 truncate max-w-[100px] whitespace-nowrap`}>
-                                    <span className="font-medium text-slate-700 mr-1">{p.rank}</span>
-                                    {p.name}
-                                  </td>
-                                )}
+                                <td className={`${autoConfig.padding} font-bold text-slate-950 border-r border-slate-300 truncate ${isSingleCol ? 'max-w-[165px]' : isDualCol ? 'max-w-[130px]' : 'max-w-[105px]'} whitespace-nowrap`}>
+                                  {formatRankTradeName(p.rank, p.trade, p.name)}
+                                </td>
                                 <td className={`${autoConfig.padding} text-center font-medium text-slate-800 border-r border-slate-300 whitespace-nowrap`}>
                                   {p.battery.replace(' Bty', '')}
                                 </td>

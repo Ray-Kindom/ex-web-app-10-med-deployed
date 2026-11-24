@@ -3,7 +3,8 @@ import { useApp } from '../context/AppContext';
 import { StatCard } from '../components/common/StatCard';
 import { PersonnelTable } from '../components/personnel/PersonnelTable';
 import { ParadeActionControls } from '../components/parade/ParadeActionControls';
-import { Personnel, DutyAssignment } from '../types';
+import { Personnel, DutyAssignment, matchesBatteryFilter, formatRankTradeName } from '../types';
+import { RankBadge } from '../components/common/RankBadge';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -149,7 +150,7 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
             {(['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'] as const).map((bty) => {
               const bStat = paradeBatteryStatus[bty] || { status: 'Pending', lastUpdated: '0630 HRS' };
               const isConfirmed = bStat.status === 'Confirmed';
-              const btyPersonnel = personnelList.filter((p) => p.battery === bty);
+              const btyPersonnel = personnelList.filter((p) => matchesBatteryFilter(p.battery, bty));
               const presentCount = btyPersonnel.filter((p) => p.status === 'Present').length;
 
               return (
@@ -303,8 +304,9 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
                             : 'bg-slate-950 border-slate-800 text-slate-200'
                         }`}
                       >
-                        <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                          {live?.rk || p.rank} {live?.name || p.name}
+                        <span className={`font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+                          <RankBadge rank={live?.rk || p.rank} trade={live?.trade} size="sm" />
+                          <span>{live?.name || p.name}</span>
                         </span>
                         <span className={`font-bold text-[11px] ${isLight ? 'text-rose-700' : 'text-rose-400'}`}>
                           {live?.battery || p.battery}
@@ -448,7 +450,7 @@ export const RsmDashboardPage: React.FC<RsmDashboardPageProps> = ({
                 >
                   {personnelList.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.rk} {p.name} ({p.snkNo}) - {p.battery}
+                      {formatRankTradeName(p.rk, p.trade, p.name)} ({p.snkNo}) - {p.battery}
                     </option>
                   ))}
                 </select>

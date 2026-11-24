@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { Battery, Personnel } from '../types';
+import { Battery, Personnel, normalizeBattery, matchesBatteryFilter, formatRankTradeName } from '../types';
 import { RankBadge } from '../components/common/RankBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
 import {
@@ -33,7 +33,9 @@ import {
   Edit3,
   RotateCcw,
   Check,
+  Printer,
 } from 'lucide-react';
+import { exportCourseRosterToPdf } from '../utils/nominalExport';
 
 interface CourseQualificationPageProps {
   onViewDossier: (person: Personnel) => void;
@@ -121,18 +123,23 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   const [btyFilter, setBtyFilter] = useState<Battery | 'All'>('All');
   const [isMobileCourseDropdownOpen, setIsMobileCourseDropdownOpen] = useState(false);
   const mobileCourseDropdownRef = useRef<HTMLDivElement>(null);
+  const [isPdfMenuOpen, setIsPdfMenuOpen] = useState(false);
+  const pdfMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (mobileCourseDropdownRef.current && !mobileCourseDropdownRef.current.contains(e.target as Node)) {
         setIsMobileCourseDropdownOpen(false);
       }
+      if (pdfMenuRef.current && !pdfMenuRef.current.contains(e.target as Node)) {
+        setIsPdfMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Add / Edit Soldier Qualification Modal State
+  // Add Soldier Qualification Modal State (Create New only)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [formCourseId, setFormCourseId] = useState(courseDefinitions[0]?.id || 'bgc');
@@ -144,6 +151,16 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   const [formGrade, setFormGrade] = useState('Qualified (Grade A)');
   const [formAuthority, setFormAuthority] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
+
+  // Inline Roster Row Editing State (No separate popup window, matching Nominal Roll)
+  const [inlineEditingRecordId, setInlineEditingRecordId] = useState<string | null>(null);
+  const [inlineEditDate, setInlineEditDate] = useState('');
+  const [inlineEditLocation, setInlineEditLocation] = useState('');
+  const [inlineEditGrade, setInlineEditGrade] = useState('');
+
+  // Inline Course Directory Item Editing State
+  const [inlineEditingCourseId, setInlineEditingCourseId] = useState<string | null>(null);
+  const [inlineCourseName, setInlineCourseName] = useState('');
 
   // Course Definition Edit / Create Modal State
   const [isCourseEditModalOpen, setIsCourseEditModalOpen] = useState(false);
@@ -192,14 +209,21 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   const syncedCourseRecords = useMemo(() => {
     return courseRecords.map((cr) => {
       const live = findPerson(cr.snkNo, cr.personnelId);
-      if (!live) return cr;
+      const rawBty = live?.battery || cr.battery || 'HQ Bty';
+      const normalizedBty = (normalizeBattery(rawBty) || rawBty) as Battery;
+      if (!live) {
+        return {
+          ...cr,
+          battery: normalizedBty,
+        };
+      }
       return {
         ...cr,
         personnelId: live.id,
         snkNo: live.snkNo || cr.snkNo,
         name: live.name || cr.name,
         rk: live.rk || cr.rk,
-        battery: live.battery || cr.battery,
+        battery: normalizedBty,
       };
     });
   }, [courseRecords, findPerson]);
@@ -265,7 +289,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     let list = syncedCourseRecords.filter((cr) => cr.courseId === selectedCourseId);
 
     if (btyFilter !== 'All') {
-      list = list.filter((cr) => cr.battery === btyFilter);
+      list = list.filter((cr) => matchesBatteryFilter(cr.battery, btyFilter));
     }
 
     if (rosterSearch.trim()) {
@@ -300,6 +324,80 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     return list;
   }, [syncedCourseRecords, selectedCourseId, btyFilter, rosterSearch, findPerson]);
 
+  const courseBtyCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      All: 0,
+      'HQ Bty': 0,
+      'P Bty': 0,
+      'Q Bty': 0,
+      'R Bty': 0,
+      EME: 0,
+    };
+    syncedCourseRecords.forEach((cr) => {
+      if (cr.courseId !== selectedCourseId) return;
+      counts.All++;
+      const normBty = normalizeBattery(cr.battery);
+      if (counts[normBty] !== undefined) {
+        counts[normBty]++;
+      }
+    });
+    return counts;
+  }, [syncedCourseRecords, selectedCourseId]);
+
+  const handlePrintCoursePdf = (explicitBty?: Battery | 'All') => {
+    const useCurrentFilter = explicitBty === undefined;
+    const effectiveBty = useCurrentFilter ? btyFilter : explicitBty;
+
+    let listToPrint = useCurrentFilter
+      ? selectedCourseRoster
+      : syncedCourseRecords.filter((cr) => cr.courseId === selectedCourseId);
+
+    if (!useCurrentFilter && effectiveBty !== 'All') {
+      listToPrint = listToPrint.filter((cr) => matchesBatteryFilter(cr.battery, effectiveBty));
+    }
+
+    setIsPdfMenuOpen(false);
+
+    if (listToPrint.length === 0) {
+      showNotification(
+        effectiveBty === 'All'
+          ? 'এই কোর্সে প্রিন্ট করার মতো কোনো সৈনিক তালিকা নেই।'
+          : `${effectiveBty}-তে এই কোর্সের কোনো সৈনিক রেকর্ড নেই।`
+      );
+      return;
+    }
+
+    const items = listToPrint.map((cr) => {
+      const live = findPerson(cr.snkNo, cr.personnelId);
+      const currentStatus = live?.outOfUnitCategory || live?.status || 'In Unit';
+      return {
+        snkNo: cr.snkNo,
+        rk: cr.rk,
+        trade: live?.trade,
+        name: cr.name,
+        battery: cr.battery,
+        currentStatus,
+        completionDate: cr.completionDate,
+        location: cr.location,
+        grade: cr.grade,
+        authority: cr.authority,
+      };
+    });
+
+    exportCourseRosterToPdf(items, {
+      courseName: currentCourseDef.name,
+      courseCode: currentCourseDef.shortCode,
+      category: currentCourseDef.category,
+      duration: currentCourseDef.defaultDuration,
+      batteryFilter: effectiveBty,
+      searchQuery: useCurrentFilter ? rosterSearch : undefined,
+    });
+
+    showNotification(
+      `${currentCourseDef.shortCode} (${effectiveBty === 'All' ? 'সব ব্যাটারী' : effectiveBty}) — ${items.length} জনের PDF ডাউনলোড হয়েছে।`
+    );
+  };
+
   // Filtered Course Directory
   const filteredCourses = useMemo(() => {
     if (!courseSearchQuery.trim()) return courseDefinitions;
@@ -330,42 +428,103 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     setIsAddModalOpen(true);
   };
 
-  // Open Edit Soldier Qualification Modal
-  const handleOpenEditRecord = (record: CourseQualificationRecord) => {
+  // Start Inline Edit for Roster Row (No popup modal)
+  const startInlineEditRecord = (record: CourseQualificationRecord) => {
     if (isGuest) {
       showNotification('গেস্ট মোডে এন্ট্রি এডিট করা সম্ভব নয়।');
       return;
     }
-    setEditingRecordId(record.id);
-    setFormCourseId(record.courseId);
-    setFormSoldierSnk(record.snkNo);
-    setSoldierSearchQuery(`${record.snkNo} — ${record.rk} ${record.name} (${record.battery})`);
-    setIsSoldierSearchFocused(false);
-    setFormDate(record.completionDate || new Date().toISOString().slice(0, 10));
-    setFormLocation(record.location || '');
-    setFormGrade(record.grade || 'Qualified (Grade A)');
-    setFormAuthority(record.authority || '');
-    setFormRemarks(record.remarks || '');
-    setIsAddModalOpen(true);
+    setInlineEditingRecordId(record.id);
+    setInlineEditDate(record.completionDate || new Date().toISOString().slice(0, 10));
+    setInlineEditLocation(record.location || '');
+    setInlineEditGrade(record.grade || 'Qualified (Grade A)');
   };
 
-  // Open Course Edit Modal
-  const handleOpenEditCourse = (course: CourseDefinition) => {
+  const cancelInlineEditRecord = () => {
+    setInlineEditingRecordId(null);
+  };
+
+  const saveInlineEditRecord = async (record: CourseQualificationRecord) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
+      return;
+    }
+    if (!inlineEditDate) {
+      showNotification('অনুগ্রহ করে তারিখ প্রদান করুন!');
+      return;
+    }
+    const cleanGrade = inlineEditGrade.trim();
+    if (!cleanGrade) {
+      showNotification('অনুগ্রহ করে ফলাফল / গ্রেড লিখুন!');
+      return;
+    }
+
+    const updatedRecord: CourseQualificationRecord = {
+      ...record,
+      completionDate: inlineEditDate,
+      location: inlineEditLocation.trim() || currentCourseDef.defaultLocation,
+      grade: cleanGrade,
+    };
+
+    setIsSaving(true);
+    try {
+      const res = await upsertCourseCadreToSupabase(updatedRecord);
+      if (!res.success) {
+        if (res.tableMissing) setTableMissing(true);
+        showNotification(`Supabase সংরক্ষণ ব্যর্থ: ${res.error || 'course_cadre টেবিল তৈরি করুন'}`);
+        return;
+      }
+      setCourseRecords((prev) => prev.map((r) => (r.id === record.id ? updatedRecord : r)));
+      setInlineEditingRecordId(null);
+      showNotification(`${record.name}-এর কোর্স কোয়ালিফিকেশন এন্ট্রি সফলভাবে আপডেট হয়েছে।`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Start Inline Edit for Course Directory Name (No popup modal)
+  const startInlineEditCourse = (course: CourseDefinition) => {
     if (isGuest) {
       showNotification('গেস্ট মোডে কোনো পরিবর্তন করা সম্ভব নয়।');
       return;
     }
-    setIsCreatingNewCourse(false);
-    setCourseEditForm({
-      id: course.id,
-      name: course.name,
-      bengaliName: course.bengaliName,
-      shortCode: course.shortCode,
-      category: course.category,
-      defaultDuration: course.defaultDuration,
-      defaultLocation: course.defaultLocation,
-    });
-    setIsCourseEditModalOpen(true);
+    setInlineEditingCourseId(course.id);
+    setInlineCourseName(course.name);
+  };
+
+  const cancelInlineEditCourse = () => {
+    setInlineEditingCourseId(null);
+  };
+
+  const saveInlineEditCourse = async (course: CourseDefinition) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
+      return;
+    }
+    const trimmedName = inlineCourseName.trim();
+    if (!trimmedName) {
+      showNotification('অনুগ্রহ করে কোর্সের নাম প্রদান করুন!');
+      return;
+    }
+    const updatedCourse: CourseDefinition = {
+      ...course,
+      name: trimmedName,
+      bengaliName: course.bengaliName === course.name ? trimmedName : course.bengaliName,
+    };
+    await upsertCourseDefinitionToSupabase(updatedCourse);
+    setCourseDefinitions((prev) =>
+      prev.map((c) => (c.id === updatedCourse.id ? updatedCourse : c))
+    );
+    if (course.name !== updatedCourse.name) {
+      await updateCourseCadreNameInSupabase(updatedCourse.id, updatedCourse.name);
+      setCourseRecords((prev) =>
+        prev.map((cr) =>
+          cr.courseId === updatedCourse.id ? { ...cr, courseName: updatedCourse.name } : cr
+        )
+      );
+    }
+    setInlineEditingCourseId(null);
+    showNotification(`কোর্সের নাম সফলভাবে আপডেট করা হয়েছে: "${updatedCourse.name}"`);
   };
 
   // Open New Course Modal
@@ -527,7 +686,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       snkNo: soldier?.snkNo || existingRec?.snkNo || formSoldierSnk,
       name: soldier?.name || existingRec?.name || '',
       rk: soldier?.rk || existingRec?.rk || 'Snk',
-      battery: soldier?.battery || existingRec?.battery || 'HQ Bty',
+      battery: (normalizeBattery(soldier?.battery || existingRec?.battery || 'HQ Bty') || 'HQ Bty') as Battery,
       completionDate: formDate,
       location: formLocation || course.defaultLocation,
       grade: formGrade,
@@ -717,6 +876,63 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     const count = courseCounts[c.id] || 0;
                     const isSelected = selectedCourseId === c.id;
 
+                    if (inlineEditingCourseId === c.id) {
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`p-2 rounded-lg border flex items-center gap-1.5 ${
+                            isLight
+                              ? 'bg-amber-50 border-amber-400 shadow-xs'
+                              : 'bg-amber-950/40 border-amber-500/70 shadow-xs'
+                          }`}
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={inlineCourseName}
+                            onChange={(e) => setInlineCourseName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditCourse(c);
+                              if (e.key === 'Escape') cancelInlineEditCourse();
+                            }}
+                            className={`flex-1 min-w-0 border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveInlineEditCourse(c)}
+                            title="সংরক্ষণ করুন (Enter)"
+                            className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shrink-0"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              cancelInlineEditCourse();
+                              handleDeleteCourse(c.id);
+                            }}
+                            title="কোর্স মুছুন"
+                            className="p-1.5 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelInlineEditCourse}
+                            title="বাতিল (Esc)"
+                            className={`p-1.5 rounded cursor-pointer shrink-0 ${
+                              isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            }`}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={c.id}
@@ -772,13 +988,12 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setIsMobileCourseDropdownOpen(false);
-                              handleOpenEditCourse(c);
+                              startInlineEditCourse(c);
                             }}
                             className={`p-1 rounded cursor-pointer ${
                               isLight ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-white'
                             }`}
-                            title="কোর্সের নাম বা বিবরণ পরিবর্তন করুন"
+                            title="সরাসরি কোর্সের নাম পরিবর্তন করুন"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -814,6 +1029,63 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
               {filteredCourses.map((c) => {
                 const count = courseCounts[c.id] || 0;
                 const isSelected = selectedCourseId === c.id;
+
+                if (inlineEditingCourseId === c.id) {
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`p-2 rounded-lg border flex items-center gap-1.5 ${
+                        isLight
+                          ? 'bg-amber-50 border-amber-400 shadow-xs'
+                          : 'bg-amber-950/40 border-amber-500/70 shadow-xs'
+                      }`}
+                    >
+                      <input
+                        type="text"
+                        autoFocus
+                        value={inlineCourseName}
+                        onChange={(e) => setInlineCourseName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveInlineEditCourse(c);
+                          if (e.key === 'Escape') cancelInlineEditCourse();
+                        }}
+                        className={`flex-1 min-w-0 border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                          isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => saveInlineEditCourse(c)}
+                        title="সংরক্ষণ করুন (Enter)"
+                        className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shrink-0"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          cancelInlineEditCourse();
+                          handleDeleteCourse(c.id);
+                        }}
+                        title="কোর্স মুছুন"
+                        className="p-1.5 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelInlineEditCourse}
+                        title="বাতিল (Esc)"
+                        className={`p-1.5 rounded cursor-pointer shrink-0 ${
+                          isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                }
 
                 return (
                   <div
@@ -865,7 +1137,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOpenEditCourse(c);
+                          startInlineEditCourse(c);
                         }}
                         className={`p-1 rounded transition-colors cursor-pointer ${
                           isSelected
@@ -876,7 +1148,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                             ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-200'
                             : 'text-slate-500 hover:text-white hover:bg-slate-800'
                         }`}
-                        title="কোর্সের নাম বা বিবরণ পরিবর্তন করুন"
+                        title="সরাসরি কোর্সের নাম পরিবর্তন করুন"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -928,7 +1200,90 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {/* PDF Print Menu (Current Filter or Battery-wise) */}
+              <div className="relative" ref={pdfMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsPdfMenuOpen((prev) => !prev)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                    isLight
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
+                  }`}
+                  title="কোর্স তালিকা PDF প্রিন্ট করুন"
+                >
+                  <Printer className="w-3.5 h-3.5 text-rose-500" />
+                  <span>
+                    PDF প্রিন্ট{btyFilter !== 'All' ? ` (${btyFilter.replace(' Bty', '')})` : ''}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 transition-transform ${isPdfMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isPdfMenuOpen && (
+                  <div
+                    className={`absolute right-0 mt-1.5 w-60 rounded-xl border shadow-xl z-40 p-1.5 space-y-1 ${
+                      isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-700'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handlePrintCoursePdf()}
+                      className={`w-full px-2.5 py-2 rounded-lg text-left text-xs font-semibold flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                        isLight
+                          ? 'bg-rose-50 hover:bg-rose-100 text-rose-900'
+                          : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-200'
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-1.5 truncate">
+                        <Printer className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span className="truncate">
+                          বর্তমান তালিকা ({btyFilter === 'All' ? 'সব' : btyFilter.replace(' Bty', '')})
+                        </span>
+                      </span>
+                      <span className="text-[11px] font-mono font-bold shrink-0">
+                        {selectedCourseRoster.length} জন
+                      </span>
+                    </button>
+
+                    <div className={`px-2 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider border-t ${
+                      isLight ? 'text-slate-500 border-slate-200' : 'text-slate-400 border-slate-800'
+                    }`}>
+                      ব্যাটারী অনুযায়ী প্রিন্ট করুন
+                    </div>
+
+                    {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => {
+                      const bCount = courseBtyCounts[b] || 0;
+                      return (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => handlePrintCoursePdf(b)}
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                            btyFilter === b
+                              ? isLight
+                                ? 'bg-emerald-50 text-emerald-800 font-semibold'
+                                : 'bg-emerald-500/15 text-emerald-300 font-semibold'
+                              : isLight
+                              ? 'hover:bg-slate-100 text-slate-700'
+                              : 'hover:bg-slate-800 text-slate-300'
+                          }`}
+                        >
+                          <span>{b === 'All' ? 'সব ব্যাটারী (All)' : b}</span>
+                          <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded ${
+                            bCount === 0
+                              ? isLight ? 'text-slate-400' : 'text-slate-600'
+                              : isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-800 text-slate-300'
+                          }`}>
+                            {bCount} জন
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => handleOpenAddModal(selectedCourseId)}
@@ -945,17 +1300,18 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
             isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
           }`}>
             {/* Battery Filter */}
-            <div className="flex items-center gap-1 text-xs">
+            <div className="flex items-center gap-1 text-xs flex-wrap">
               {(['All', 'HQ Bty', 'P Bty', 'Q Bty', 'R Bty', 'EME'] as const).map((b) => (
                 <button
                   key={b}
+                  type="button"
                   onClick={() => setBtyFilter(b)}
                   className={`px-2 py-1 rounded font-medium transition-colors cursor-pointer ${
                     btyFilter === b
                       ? 'bg-emerald-600 text-white font-semibold'
                       : isLight
-                      ? 'text-slate-600 hover:text-slate-900'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
                   }`}
                 >
                   {b === 'All' ? 'সব' : b.replace(' Bty', '')}
@@ -986,18 +1342,34 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
               Supabase `course_cadre` থেকে তথ্য লোড হচ্ছে...
             </div>
           ) : selectedCourseRoster.length === 0 ? (
-            <div className="py-12 text-center space-y-2">
+            <div className="py-12 text-center space-y-2.5">
               <div className={`w-10 h-10 mx-auto rounded-lg flex items-center justify-center ${
                 isLight ? 'bg-slate-100 text-slate-400' : 'bg-slate-800 text-slate-500'
               }`}>
                 <GraduationCap className="w-5 h-5" />
               </div>
               <p className={`text-xs font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                Supabase `course_cadre` টেবিলে এই কোর্সের কোনো উত্তীর্ণ সৈনিক তালিকাভুক্ত নেই
+                {btyFilter !== 'All' || rosterSearch.trim()
+                  ? `${btyFilter !== 'All' ? `${btyFilter}-তে ` : ''}${rosterSearch.trim() ? `"${rosterSearch.trim()}" অনুযায়ী ` : ''}এই কোর্সের কোনো উত্তীর্ণ সৈনিক পাওয়া যায়নি`
+                  : 'Supabase `course_cadre` টেবিলে এই কোর্সের কোনো উত্তীর্ণ সৈনিক তালিকাভুক্ত নেই'}
               </p>
               <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
-                উপরে &ldquo;সৈনিক যুক্ত করুন&rdquo; বাটনে ক্লিক করে Supabase-এ নতুন কোয়ালিফিকেশন যুক্ত করুন।
+                {btyFilter !== 'All' || rosterSearch.trim()
+                  ? `এই কোর্সে মোট ${courseBtyCounts.All || 0} জন তালিকাভুক্ত রয়েছে। ফিল্টার পরিবর্তন করে দেখুন।`
+                  : 'উপরে “সৈনিক যুক্ত করুন” বাটনে ক্লিক করে Supabase-এ নতুন কোয়ালিফিকেশন যুক্ত করুন।'}
               </p>
+              {(btyFilter !== 'All' || rosterSearch.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBtyFilter('All');
+                    setRosterSearch('');
+                  }}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
+                >
+                  সব ব্যাটারী / ফিল্টার রিসেট করুন
+                </button>
+              )}
             </div>
           ) : (
             <div className={`overflow-x-auto rounded-lg border ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
@@ -1008,7 +1380,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                   }`}>
                     <th className="py-2.5 px-3 w-10 text-center">#</th>
                     <th className="py-2.5 px-3">সেনা নং</th>
-                    <th className="py-2.5 px-3">পদবি ও নাম</th>
+                    <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                     <th className="py-2.5 px-3">ব্যাটারী</th>
                     <th className="py-2.5 px-3">বর্তমান স্টেটাস</th>
                     <th className="py-2.5 px-3">কবে করেছে (তারিখ)</th>
@@ -1038,6 +1410,128 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                       person.comdAssignment ||
                       person.statusDetails;
 
+                    if (inlineEditingRecordId === item.id) {
+                      return (
+                        <tr
+                          key={item.id || idx}
+                          className={
+                            isLight
+                              ? 'bg-amber-50 border-y border-amber-300 shadow-inner'
+                              : 'bg-amber-950/40 border-y border-amber-500/60 shadow-inner'
+                          }
+                        >
+                          <td className={`py-2 px-3 text-center font-mono text-[11px] ${isLight ? 'text-slate-600 font-semibold' : 'text-slate-400'}`}>
+                            {idx + 1}
+                          </td>
+                          <td className={`py-2 px-3 font-mono font-bold whitespace-nowrap ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                            {item.snkNo}
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <RankBadge rank={item.rk} trade={person.trade} size="sm" />
+                              <span className={`font-medium ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {item.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-mono border ${
+                              isLight
+                                ? 'bg-slate-100 text-slate-800 border-slate-300'
+                                : 'bg-slate-800 text-slate-300 border-slate-700'
+                            }`}>
+                              {item.battery}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3">
+                            <StatusBadge
+                              status={person.status}
+                              outOfUnitCategory={person.outOfUnitCategory}
+                              details={liveLocationDetails}
+                              size="sm"
+                            />
+                          </td>
+                          <td className="py-1.5 px-2 whitespace-nowrap">
+                            <input
+                              type="date"
+                              autoFocus
+                              value={inlineEditDate}
+                              onChange={(e) => setInlineEditDate(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEditRecord(item);
+                                if (e.key === 'Escape') cancelInlineEditRecord();
+                              }}
+                              className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                                isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                              }`}
+                            />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input
+                              type="text"
+                              value={inlineEditLocation}
+                              onChange={(e) => setInlineEditLocation(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEditRecord(item);
+                                if (e.key === 'Escape') cancelInlineEditRecord();
+                              }}
+                              placeholder="প্রতিষ্ঠান / স্থান"
+                              className={`w-full min-w-[140px] border border-amber-500 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                                isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                              }`}
+                            />
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input
+                              type="text"
+                              list="course-grade-presets-inline"
+                              value={inlineEditGrade}
+                              onChange={(e) => setInlineEditGrade(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEditRecord(item);
+                                if (e.key === 'Escape') cancelInlineEditRecord();
+                              }}
+                              placeholder="গ্রেড / ফলাফল"
+                              className={`w-full min-w-[120px] border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                                isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                              }`}
+                            />
+                            <datalist id="course-grade-presets-inline">
+                              <option value="Qualified (Grade A)" />
+                              <option value="Distinction" />
+                              <option value="1st Class" />
+                              <option value="2nd Class" />
+                              <option value="Qualified" />
+                              <option value="Instructor Grade" />
+                            </datalist>
+                          </td>
+                          <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                disabled={isSaving}
+                                onClick={() => saveInlineEditRecord(item)}
+                                title="সংরক্ষণ করুন (Enter)"
+                                className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white shadow cursor-pointer transition-colors"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelInlineEditRecord}
+                                title="বাতিল (Esc)"
+                                className={`p-1.5 rounded cursor-pointer transition-colors ${
+                                  isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                                }`}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     return (
                       <tr
                         key={item.id || idx}
@@ -1055,7 +1549,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                         {/* Rank & Name */}
                         <td className="py-2.5 px-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <RankBadge rank={item.rk} size="sm" />
+                            <RankBadge rank={item.rk} trade={person.trade} size="sm" />
                             <button
                               type="button"
                               onClick={() => onViewDossier(person)}
@@ -1127,9 +1621,9 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenEditRecord(item)}
+                                  onClick={() => startInlineEditRecord(item)}
                                   className="p-1.5 rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-colors cursor-pointer"
-                                  title="এন্ট্রি এডিট করুন"
+                                  title="সরাসরি এডিট করুন"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </button>
@@ -1255,7 +1749,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                               type="button"
                               onClick={() => {
                                 setFormSoldierSnk(p.snkNo);
-                                setSoldierSearchQuery(`${p.snkNo} — ${p.rk} ${p.name} (${p.battery})`);
+                                setSoldierSearchQuery(`${p.snkNo} — ${formatRankTradeName(p.rk, p.trade, p.name)} (${p.battery})`);
                                 setIsSoldierSearchFocused(false);
                               }}
                               className={`w-full p-2.5 text-left text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
@@ -1264,15 +1758,12 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="font-mono font-bold text-amber-400 shrink-0">{p.snkNo}</span>
-                                <RankBadge rank={p.rk} size="sm" />
+                                <RankBadge rank={p.rk} trade={p.trade} size="sm" />
                                 <span className="font-semibold text-white truncate">{p.name}</span>
                                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-slate-950 border-slate-800 text-slate-400 shrink-0">
                                   {p.battery}
                                 </span>
                               </div>
-                              <span className="text-[10px] font-mono text-emerald-400 shrink-0">
-                                {p.trade || 'GD'}
-                              </span>
                             </button>
                           );
                         })
@@ -1299,7 +1790,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                       >
                         {personnelList.map((p) => (
                           <option key={p.id} value={p.snkNo}>
-                            {p.snkNo} — {p.rk} {p.name} ({p.battery})
+                            {p.snkNo} — {formatRankTradeName(p.rk, p.trade, p.name)} ({p.battery})
                           </option>
                         ))}
                       </select>

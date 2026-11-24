@@ -74,3 +74,10 @@ table td,
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+}

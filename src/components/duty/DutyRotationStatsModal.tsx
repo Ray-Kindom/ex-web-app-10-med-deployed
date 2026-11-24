@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Battery, ALL_BATTERIES } from '../../types';
 import { getRegimentalDutyFrequencyStats } from '../../utils/dutyRotationUtils';
+import { RankBadge } from '../common/RankBadge';
 import {
   RotateCcw,
   X,
@@ -29,6 +30,9 @@ export const DutyRotationStatsModal: React.FC<DutyRotationStatsModalProps> = ({
 }) => {
   const { personnelList, paradeDutyAssignments } = useApp();
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'Consolidated'>(initialBattery);
+  useEffect(() => {
+    setSelectedBattery(initialBattery);
+  }, [initialBattery]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterFatigue, setFilterFatigue] = useState<'all' | 'fresh' | 'fatigued'>('all');
 
@@ -231,7 +235,7 @@ export const DutyRotationStatsModal: React.FC<DutyRotationStatsModalProps> = ({
             <thead>
               <tr className="bg-slate-950/90 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800">
                 <th className="py-2.5 px-3">Army No / Snk No</th>
-                <th className="py-2.5 px-2">Rank & Name</th>
+                <th className="py-2.5 px-2">Rank, Trade &amp; Name</th>
                 <th className="py-2.5 px-2">Battery</th>
                 <th className="py-2.5 px-2 text-center">Duty Status</th>
                 <th className="py-2.5 px-2 text-center">Past 7 Days</th>
@@ -256,11 +260,11 @@ export const DutyRotationStatsModal: React.FC<DutyRotationStatsModalProps> = ({
                       {person.snkNo}
                     </td>
                     <td className="py-2 px-2">
-                      <div className="font-semibold text-white">
-                        {person.rk} {person.name}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {person.trade || 'GD'}
+                      <div className="flex items-center gap-2">
+                        <RankBadge rank={person.rk} trade={person.trade} size="sm" />
+                        <span className="font-semibold text-white">
+                          {person.name}
+                        </span>
                       </div>
                     </td>
                     <td className="py-2 px-2">

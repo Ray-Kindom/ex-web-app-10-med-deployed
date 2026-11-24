@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { UnitLogo } from '../common/UnitLogo';
 import { X, Printer, Download, FileSpreadsheet, Users, ListFilter } from 'lucide-react';
 import { sortBySeniority } from '../../utils/seniorityUtils';
+import { formatRankTradeName } from '../../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -124,9 +125,7 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
         return [
           (idx + 1).toString(),
           p.snkNo,
-          p.rk,
-          p.trade && p.trade !== '-' ? p.trade : '',
-          p.name,
+          formatRankTradeName(p.rk, p.trade, p.name),
           p.battery.replace(' Bty', ''),
           p.status,
           reason !== p.status ? reason : '',
@@ -135,7 +134,7 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
 
       autoTable(doc, {
         startY: 92,
-        head: [['SL', 'ARMY NO', 'RANK', 'TRADE', 'NAME', 'BTY', 'STATUS', 'REMARKS / DETAILS']],
+        head: [['SL', 'ARMY NO', 'RANK, TRADE & NAME', 'BTY', 'STATUS', 'REMARKS / DETAILS']],
         body: tableData,
         theme: 'grid',
         styles: {
@@ -156,12 +155,10 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
         columnStyles: {
           0: { cellWidth: 26, halign: 'center' },
           1: { cellWidth: 55, halign: 'center', fontStyle: 'bold' },
-          2: { cellWidth: 42, halign: 'center', fontStyle: 'bold' },
-          3: { cellWidth: 42, halign: 'center' },
-          4: { cellWidth: 140, fontStyle: 'bold' },
-          5: { cellWidth: 38, halign: 'center' },
-          6: { cellWidth: 65, halign: 'center', fontStyle: 'bold' },
-          7: { cellWidth: 'auto' },
+          2: { cellWidth: 220, fontStyle: 'bold' },
+          3: { cellWidth: 38, halign: 'center' },
+          4: { cellWidth: 65, halign: 'center', fontStyle: 'bold' },
+          5: { cellWidth: 'auto' },
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252],
@@ -225,13 +222,11 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
         ['10 MEDIUM REGIMENT ARTILLERY - OFF PARADE NOMINAL ROLL'],
         [`DATE: ${dateStr}`, 'TIME: 0630 HRS', `TOTAL OFF PARADE: ${absentees.length}`],
         [],
-        ['SL', 'Army No', 'Rank', 'Trade', 'Name', 'Battery', 'Status', 'Remarks / Category', 'Medical Cat', 'Blood Group'],
+        ['SL', 'Army No', 'Rank, Trade & Name', 'Battery', 'Status', 'Remarks / Category', 'Medical Cat', 'Blood Group'],
         ...absentees.map((p, idx) => [
           idx + 1,
           p.snkNo,
-          p.rk,
-          p.trade && p.trade !== '-' ? p.trade : '-',
-          p.name,
+          formatRankTradeName(p.rk, p.trade, p.name),
           p.battery,
           p.status,
           p.outOfUnitCategory || p.remarks || p.status,
@@ -528,7 +523,7 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
                           <tr className="bg-slate-900 text-white font-mono text-[8px] uppercase">
                             <th className="py-1 px-1 w-5 text-center border-r border-slate-700">Ser</th>
                             <th className="py-1 px-1.5 w-16 border-r border-slate-700">Army No</th>
-                            <th className="py-1 px-1.5 border-r border-slate-700">Rk &amp; Name</th>
+                            <th className="py-1 px-1.5 border-r border-slate-700">Rk, Trd &amp; Name</th>
                             <th className="py-1 px-1 w-7 text-center border-r border-slate-700">Bty</th>
                             <th className="py-1 px-1.5 border-r border-slate-700">Status</th>
                           </tr>
@@ -548,9 +543,8 @@ export const ParadeStatePrintSheet: React.FC<ParadeStatePrintSheetProps> = ({
                                 <td className="py-0.5 px-1.5 font-mono font-bold text-slate-900 border-r border-slate-300 whitespace-nowrap">
                                   {p.snkNo}
                                 </td>
-                                <td className="py-0.5 px-1.5 font-bold text-slate-950 border-r border-slate-300 truncate max-w-[110px] whitespace-nowrap">
-                                  <span className="font-medium text-slate-700 mr-1">{p.rk}</span>
-                                  {p.name}
+                                <td className="py-0.5 px-1.5 font-bold text-slate-950 border-r border-slate-300 truncate max-w-[130px] whitespace-nowrap">
+                                  {formatRankTradeName(p.rk, p.trade, p.name)}
                                 </td>
                                 <td className="py-0.5 px-1 text-center font-mono font-semibold text-slate-800 border-r border-slate-300 whitespace-nowrap">
                                   {p.battery.replace(' Bty', '')}

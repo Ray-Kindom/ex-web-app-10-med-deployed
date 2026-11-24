@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { CustomTeam, Personnel, Battery } from '../types';
+import { CustomTeam, Personnel, Battery, normalizeBattery, matchesBatteryFilter } from '../types';
 import { sortBySeniority } from '../utils/seniorityUtils';
 import { RankBadge } from '../components/common/RankBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -99,10 +99,11 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
   const [newYearInput, setNewYearInput] = useState<string>(String(currentYear));
   const newYearInputRef = useRef<HTMLInputElement>(null);
 
-  // Minimal Create / Rename Team Modal (Just Team Name, matching Course & Cadre)
+  // Minimal Create Team Modal & Inline Rename Team State
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
-  const [editingTeamGroup, setEditingTeamGroup] = useState<TeamGroup | null>(null);
   const [teamNameInput, setTeamNameInput] = useState('');
+  const [inlineEditingTeamKey, setInlineEditingTeamKey] = useState<string | null>(null);
+  const [inlineTeamNameInput, setInlineTeamNameInput] = useState('');
 
   // Delete / Undo / Trash Modals
   const [teamPendingDelete, setTeamPendingDelete] = useState<CustomTeam | null>(null);
@@ -256,7 +257,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
           snkNo: live?.snkNo || m.snkNo,
           rk: live?.rk || m.rk,
           name: live?.name || m.name,
-          battery: live?.battery || m.battery,
+          battery: (normalizeBattery(live?.battery || m.battery || 'HQ Bty') || m.battery) as Battery,
           trade: live?.trade || m.trade || '-',
           status: live?.status || m.status || 'Archived',
           livePerson: live,
@@ -273,7 +274,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
       snkNo: p.snkNo,
       rk: p.rk,
       name: p.name,
-      battery: p.battery,
+      battery: (normalizeBattery(p.battery || 'HQ Bty') || p.battery) as Battery,
       trade: p.trade || '-',
       status: p.status || 'In Unit',
       livePerson: p,
@@ -288,7 +289,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
 
   const filteredRosterMembers = useMemo(() => {
     return activeTeamMembersAll.filter((m) => {
-      if (btyFilter !== 'All' && m.battery !== btyFilter) return false;
+      if (btyFilter !== 'All' && !matchesBatteryFilter(m.battery, btyFilter)) return false;
       if (rosterSearch.trim()) {
         const q = rosterSearch.toLowerCase().trim();
         const live = m.livePerson;
@@ -337,17 +338,40 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
     ).slice(0, 8);
   }, [activeTeamRecord, isInlineAddOpen, inlineSearchQuery, personnelList, ranksList]);
 
-  // Minimal Team Name Modal Handlers
+  // Minimal Create Team Modal & Inline Rename Team Handlers
   const handleOpenAddTeam = () => {
-    setEditingTeamGroup(null);
+    setInlineEditingTeamKey(null);
     setTeamNameInput('');
     setIsTeamModalOpen(true);
   };
 
-  const handleOpenRenameTeam = (grp: TeamGroup) => {
-    setEditingTeamGroup(grp);
-    setTeamNameInput(grp.name);
-    setIsTeamModalOpen(true);
+  const startInlineRenameTeam = (grp: TeamGroup) => {
+    if (isGuest) return;
+    setInlineEditingTeamKey(grp.key);
+    setInlineTeamNameInput(grp.name);
+  };
+
+  const cancelInlineRenameTeam = () => {
+    setInlineEditingTeamKey(null);
+    setInlineTeamNameInput('');
+  };
+
+  const saveInlineRenameTeam = (grp: TeamGroup) => {
+    const trimmedName = inlineTeamNameInput.trim();
+    if (!trimmedName) {
+      showNotification('অনুগ্রহ করে টিমের নাম লিখুন।');
+      return;
+    }
+    const activeRecs = grp.records.filter((r) => !r.isDeleted);
+    if (activeRecs.length > 0) {
+      activeRecs.forEach((rec) => {
+        updateCustomTeam(rec.id, { name: trimmedName });
+      });
+    }
+    setSelectedTeamKey(trimmedName.toLowerCase());
+    setInlineEditingTeamKey(null);
+    setInlineTeamNameInput('');
+    showNotification(`টিমের নাম পরিবর্তন করে "${trimmedName}" সংরক্ষণ করা হয়েছে।`);
   };
 
   const handleSaveTeamName = (e: React.FormEvent) => {
@@ -358,35 +382,22 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
       return;
     }
 
-    if (editingTeamGroup) {
-      // Rename all active records belonging to this team
-      const activeRecs = editingTeamGroup.records.filter((r) => !r.isDeleted);
-      if (activeRecs.length > 0) {
-        activeRecs.forEach((rec) => {
-          updateCustomTeam(rec.id, { name: trimmedName });
-        });
-      }
-      setSelectedTeamKey(trimmedName.toLowerCase());
-    } else {
-      const existing = teamGroups.find((g) => g.key === trimmedName.toLowerCase());
-      if (existing) {
-        setSelectedTeamKey(existing.key);
-        showNotification(`"${existing.name}" টিম ইতোমধ্যে তালিকায় আছে।`);
-        setIsTeamModalOpen(false);
-        return;
-      }
-      const created = addCustomTeam({
-        name: trimmedName,
-        year: currentYear,
-        description: '',
-        memberIds: [],
-      });
-      setSelectedTeamKey(trimmedName.toLowerCase());
-      setSelectedTeamRecordId(created.id);
+    const existing = teamGroups.find((g) => g.key === trimmedName.toLowerCase());
+    if (existing) {
+      setSelectedTeamKey(existing.key);
+      showNotification(`"${existing.name}" টিম ইতোমধ্যে তালিকায় আছে।`);
+      setIsTeamModalOpen(false);
+      return;
     }
-
+    const created = addCustomTeam({
+      name: trimmedName,
+      year: currentYear,
+      description: '',
+      memberIds: [],
+    });
+    setSelectedTeamKey(trimmedName.toLowerCase());
+    setSelectedTeamRecordId(created.id);
     setIsTeamModalOpen(false);
-    setEditingTeamGroup(null);
   };
 
   // Minimal Add Year Box Handler
@@ -666,6 +677,52 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                       const latestRec = grp.records[0];
                       const memberCount = latestRec ? resolveTeamMembers(latestRec).length : 0;
 
+                      if (inlineEditingTeamKey === grp.key) {
+                        return (
+                          <div
+                            key={grp.key}
+                            onClick={(e) => e.stopPropagation()}
+                            className={`p-2 rounded-lg border flex items-center gap-1.5 ${
+                              isLight
+                                ? 'bg-amber-50 border-amber-400 shadow-xs'
+                                : 'bg-amber-950/40 border-amber-500/70 shadow-xs'
+                            }`}
+                          >
+                            <input
+                              type="text"
+                              autoFocus
+                              value={inlineTeamNameInput}
+                              onChange={(e) => setInlineTeamNameInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineRenameTeam(grp);
+                                if (e.key === 'Escape') cancelInlineRenameTeam();
+                              }}
+                              className={`flex-1 min-w-0 border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                                isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveInlineRenameTeam(grp)}
+                              title="সংরক্ষণ করুন (Enter)"
+                              className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shrink-0"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelInlineRenameTeam}
+                              title="বাতিল (Esc)"
+                              className={`p-1.5 rounded cursor-pointer shrink-0 ${
+                                isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           key={grp.key}
@@ -712,13 +769,12 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setIsMobileTeamDropdownOpen(false);
-                                  handleOpenRenameTeam(grp);
+                                  startInlineRenameTeam(grp);
                                 }}
                                 className={`p-1 rounded cursor-pointer ${
                                   isLight ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-white'
                                 }`}
-                                title="টিমের নাম পরিবর্তন করুন"
+                                title="সরাসরি টিমের নাম পরিবর্তন করুন"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
@@ -780,6 +836,52 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                   const latestRec = grp.records[0];
                   const memberCount = latestRec ? resolveTeamMembers(latestRec).length : 0;
 
+                  if (inlineEditingTeamKey === grp.key) {
+                    return (
+                      <div
+                        key={grp.key}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`p-2 rounded-lg border flex items-center gap-1.5 ${
+                          isLight
+                            ? 'bg-amber-50 border-amber-400 shadow-xs'
+                            : 'bg-amber-950/40 border-amber-500/70 shadow-xs'
+                        }`}
+                      >
+                        <input
+                          type="text"
+                          autoFocus
+                          value={inlineTeamNameInput}
+                          onChange={(e) => setInlineTeamNameInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineRenameTeam(grp);
+                            if (e.key === 'Escape') cancelInlineRenameTeam();
+                          }}
+                          className={`flex-1 min-w-0 border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveInlineRenameTeam(grp)}
+                          title="সংরক্ষণ করুন (Enter)"
+                          className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shrink-0"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelInlineRenameTeam}
+                          title="বাতিল (Esc)"
+                          className={`p-1.5 rounded cursor-pointer shrink-0 ${
+                            isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                          }`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={grp.key}
@@ -832,7 +934,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleOpenRenameTeam(grp);
+                              startInlineRenameTeam(grp);
                             }}
                             className={`p-1 rounded transition-colors cursor-pointer ${
                               isSelected
@@ -843,7 +945,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                                 ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-200'
                                 : 'text-slate-500 hover:text-white hover:bg-slate-800'
                             }`}
-                            title="টিমের নাম পরিবর্তন করুন"
+                            title="সরাসরি টিমের নাম পরিবর্তন করুন"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -1138,7 +1240,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                         <div key={soldier.id} className="p-2 px-3 flex items-center justify-between gap-2 text-xs">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="font-mono font-bold text-emerald-500 shrink-0">{soldier.snkNo}</span>
-                            <RankBadge rank={soldier.rk} size="sm" />
+                            <RankBadge rank={soldier.rk} trade={soldier.trade} size="sm" />
                             <span className="font-medium truncate">{soldier.name}</span>
                             <span className="text-[11px] font-mono text-slate-400 shrink-0">({soldier.battery})</span>
                           </div>
@@ -1234,9 +1336,8 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                       >
                         <th className="py-2.5 px-3 w-10 text-center">#</th>
                         <th className="py-2.5 px-3">সেনা নং</th>
-                        <th className="py-2.5 px-3">পদবি ও নাম</th>
+                        <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                         <th className="py-2.5 px-3">ব্যাটারী</th>
-                        <th className="py-2.5 px-3">ট্রেড</th>
                         <th className="py-2.5 px-3">বর্তমান স্টেটাস</th>
                         {!activeTeamRecord.isDeleted && !isGuest && (
                           <th className="py-2.5 px-3 text-right print:hidden">অ্যাকশন</th>
@@ -1287,7 +1388,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                             </td>
                             <td className="py-2.5 px-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
-                                <RankBadge rank={m.rk} size="sm" />
+                                <RankBadge rank={m.rk} trade={personObj.trade} size="sm" />
                                 {onViewDossier && livePerson ? (
                                   <button
                                     type="button"
@@ -1318,9 +1419,6 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                               >
                                 {m.battery}
                               </span>
-                            </td>
-                            <td className={`py-2.5 px-3 font-mono text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                              {m.trade || '-'}
                             </td>
                             <td className="py-2.5 px-3">
                               <StatusBadge
@@ -1354,7 +1452,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
         </div>
       </div>
 
-      {/* 3. MINIMAL ADD / RENAME TEAM MODAL (Just Team Name, identical to Course & Cadre) */}
+      {/* 3. MINIMAL ADD TEAM MODAL (Just Team Name, identical to Course & Cadre) */}
       {isTeamModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn print:hidden">
           <div
@@ -1365,16 +1463,12 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
             <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
-                  {editingTeamGroup ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  <Plus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold">
-                    {editingTeamGroup ? 'টিমের নাম পরিবর্তন করুন' : 'নতুন টিম যুক্ত করুন'}
-                  </h3>
+                  <h3 className="text-sm font-bold">নতুন টিম যুক্ত করুন</h3>
                   <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                    {editingTeamGroup
-                      ? 'শুধুমাত্র টিমের নাম পরিবর্তন হবে'
-                      : 'শুধুমাত্র টিমের নাম লিখে যুক্ত করুন'}
+                    শুধুমাত্র টিমের নাম লিখে যুক্ত করুন
                   </p>
                 </div>
               </div>
@@ -1422,7 +1516,7 @@ export const TeamsPage: React.FC<TeamsPageProps> = ({ onViewDossier }) => {
                   className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer shadow-sm transition-colors inline-flex items-center gap-1.5"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{editingTeamGroup ? 'সংরক্ষণ করুন' : 'টিম তৈরি করুন'}</span>
+                  <span>টিম তৈরি করুন</span>
                 </button>
               </div>
             </form>

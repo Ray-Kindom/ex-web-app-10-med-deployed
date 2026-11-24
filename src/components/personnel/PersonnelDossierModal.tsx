@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Personnel, ServiceActivityRecord, ServiceActivityType } from '../../types';
+import { Personnel, ServiceActivityRecord, ServiceActivityType, formatRankTradeName } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { RankBadge } from '../common/RankBadge';
 import { UnitLogo } from '../common/UnitLogo';
@@ -856,9 +856,9 @@ export const PersonnelDossierModal: React.FC<PersonnelDossierModalProps> = ({
                       isLight ? 'bg-white border-slate-200 shadow-2xs' : 'bg-slate-900 border-slate-800/80'
                     }`}
                   >
-                    <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>পদবি ও নাম</div>
+                    <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>পদবি, ট্রেড ও নাম</div>
                     <div className={`font-semibold text-xs mt-0.5 truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                      {activePerson.rk} {activePerson.name}
+                      {formatRankTradeName(activePerson.rk, activePerson.trade, activePerson.name)}
                     </div>
                   </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
-import { Battery, Personnel } from '../types';
+import { Battery, Personnel, normalizeBattery, matchesBatteryFilter, formatRankTradeName } from '../types';
 import { RankBadge } from '../components/common/RankBadge';
 import {
   TrgModuleType,
@@ -48,6 +48,8 @@ import {
   ChevronRight,
   ChevronDown,
   ClipboardList,
+  Check,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface TrgStatePageProps {
@@ -150,7 +152,6 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
   // Selection state: nothing selected initially so state is hidden until user clicks
   const [selectedModule, setSelectedModule] = useState<TrgModuleType | null>(null);
-  const [isIpftExpanded, setIsIpftExpanded] = useState<boolean>(false);
   const [selectedIpftYear, setSelectedIpftYear] = useState<string | null>(null);
   const [selectedIpftBiannual, setSelectedIpftBiannual] = useState<TrgBiannualType | null>(null);
 
@@ -242,7 +243,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     inferIpftBiannual({ date: new Date().toISOString().slice(0, 10) })
   );
 
-  // Add / Edit Soldier Record Modal
+  // Add Soldier Record Modal State (Create New)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [soldierModalSearch, setSoldierModalSearch] = useState('');
@@ -257,6 +258,15 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const [formLocation, setFormLocation] = useState('');
   const [formRemarks, setFormRemarks] = useState('');
 
+  // Inline Table Row Editing State (No separate popup window, matching Nominal Roll)
+  const [inlineEditingRecordId, setInlineEditingRecordId] = useState<string | null>(null);
+  const [inlineEditBoardName, setInlineEditBoardName] = useState('');
+  const [inlineEditIpftResult, setInlineEditIpftResult] = useState<IpftResultType>('Passed');
+  const [inlineEditGrade, setInlineEditGrade] = useState('');
+  const [inlineEditScore, setInlineEditScore] = useState('');
+  const [inlineEditDate, setInlineEditDate] = useState('');
+  const [inlineEditLocation, setInlineEditLocation] = useState('');
+
   const isSpdMarchSelected = isYearlyDateGroupModule(selectedModule);
   const activeYearlyModKey = isGrenFiringModule(selectedModule) ? 'gren_firing' : 'spd_march';
   const customSpdDatesByYear = useMemo(
@@ -264,13 +274,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     [customDatesByModAndYear, activeYearlyModKey]
   );
 
-  // State is shown ONLY after clicking a module (or Year + Biannual under IPFT, or Year under RET / Spd March / Gren Firing)
+  // State is shown ONLY after clicking a module (or Year under RET / Spd March / Gren Firing)
   const isStateVisible =
     (selectedModule !== null &&
-      selectedModule !== 'IPFT' &&
       selectedModule !== 'RET' &&
       !isSpdMarchSelected) ||
-    (selectedModule === 'IPFT' && selectedIpftYear !== null && selectedIpftBiannual !== null) ||
     (selectedModule === 'RET' && selectedRetYear !== null) ||
     (isSpdMarchSelected && selectedSpdMarchYear !== null);
 
@@ -310,6 +318,8 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   const syncedRecords = useMemo(() => {
     return records.map((r) => {
       const live = findPerson(r.snkNo, r.personnelId);
+      const rawBty = live?.battery || r.battery || 'HQ Bty';
+      const normalizedBty = (normalizeBattery(rawBty) || rawBty) as Battery;
       const base = live
         ? {
             ...r,
@@ -317,9 +327,12 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
             snkNo: live.snkNo || r.snkNo,
             name: live.name || r.name,
             rk: live.rk || r.rk,
-            battery: live.battery || r.battery,
+            battery: normalizedBty,
           }
-        : r;
+        : {
+            ...r,
+            battery: normalizedBty,
+          };
 
       if (base.module === 'IPFT') {
         return {
@@ -471,7 +484,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
   );
 
   const ipftRecordsByBty = useMemo(
-    () => (btyFilter === 'All' ? ipftRecordsAll : ipftRecordsAll.filter((r) => r.battery === btyFilter)),
+    () => (btyFilter === 'All' ? ipftRecordsAll : ipftRecordsAll.filter((r) => matchesBatteryFilter(r.battery, btyFilter))),
     [ipftRecordsAll, btyFilter]
   );
 
@@ -538,7 +551,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
         if (!entry.maxDate || recDate > entry.maxDate) entry.maxDate = recDate;
       }
 
-      if (btyFilter !== 'All' && rec.battery !== btyFilter) return;
+      if (btyFilter !== 'All' && !matchesBatteryFilter(rec.battery, btyFilter)) return;
 
       const resCat = getIpftResultCategory(rec);
       entry.total++;
@@ -559,10 +572,10 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     });
   }, [boardDefs, ipftRecordsAll, btyFilter]);
 
-  // Available Years under IPFT (always includes current year + all years with records/boards)
+  // Available Years under IPFT (starts with 2027, then 2026, plus any years with records/boards)
   const ipftYears = useMemo(() => {
-    const set = new Set<string>();
-    set.add(String(new Date().getFullYear()));
+    const nowYear = new Date().getFullYear();
+    const set = new Set<string>([String(nowYear + 1), String(nowYear)]);
     allIpftBoards.forEach((b) => set.add(b.year));
     ipftRecordsAll.forEach((r) => set.add(inferIpftYear(r)));
     return Array.from(set).sort((a, b) => b.localeCompare(a));
@@ -650,7 +663,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     const scopedPersonnel =
       btyFilter === 'All'
         ? personnelList
-        : personnelList.filter((p) => p.battery === btyFilter);
+        : personnelList.filter((p) => matchesBatteryFilter(p.battery, btyFilter));
 
     const zeroList = scopedPersonnel.filter((p) => {
       const key = p.id ? `id:${p.id}` : `snk:${(p.snkNo || '').trim().toLowerCase()}`;
@@ -796,7 +809,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
         if (!entry.maxDate || recDate > entry.maxDate) entry.maxDate = recDate;
       }
 
-      if (btyFilter !== 'All' && rec.battery !== btyFilter) return;
+      if (btyFilter !== 'All' && !matchesBatteryFilter(rec.battery, btyFilter)) return;
 
       const resCat = getIpftResultCategory(rec);
       entry.total++;
@@ -863,7 +876,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     const scopedPersonnel =
       btyFilter === 'All'
         ? personnelList
-        : personnelList.filter((p) => p.battery === btyFilter);
+        : personnelList.filter((p) => matchesBatteryFilter(p.battery, btyFilter));
 
     const notAppeared = scopedPersonnel.filter((p) => {
       const key = p.id ? `id:${p.id}` : `snk:${(p.snkNo || '').trim().toLowerCase()}`;
@@ -904,7 +917,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       }
       existingKeysByBoardKey.get(bKey)!.add(getSoldierKey(rec));
 
-      if (btyFilter !== 'All' && rec.battery !== btyFilter) return;
+      if (btyFilter !== 'All' && !matchesBatteryFilter(rec.battery, btyFilter)) return;
       if (retResultFilter === 'Passed' && getIpftResultCategory(rec) !== 'Passed') return;
       if (retResultFilter === 'Failed' && getIpftResultCategory(rec) !== 'Failed') return;
 
@@ -955,7 +968,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       ? personnelList
       : btyFilter === 'All'
       ? personnelList
-      : personnelList.filter((p) => p.battery === btyFilter);
+      : personnelList.filter((p) => matchesBatteryFilter(p.battery, btyFilter));
 
     const filtered = q
       ? scoped.filter(
@@ -1053,7 +1066,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     () =>
       btyFilter === 'All'
         ? personnelList
-        : personnelList.filter((p) => p.battery === btyFilter),
+        : personnelList.filter((p) => matchesBatteryFilter(p.battery, btyFilter)),
     [personnelList, btyFilter]
   );
 
@@ -1097,7 +1110,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
 
     let totalMarchesInYear = 0;
     spdMarchRecordsInYear.forEach((r) => {
-      if (btyFilter !== 'All' && r.battery !== btyFilter) return;
+      if (btyFilter !== 'All' && !matchesBatteryFilter(r.battery, btyFilter)) return;
       totalMarchesInYear++;
       const key = getSoldierKey(r);
       if (seenKeys.has(key)) return;
@@ -1139,7 +1152,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     );
 
     if (btyFilter !== 'All') {
-      result = result.filter((r) => r.battery === btyFilter);
+      result = result.filter((r) => matchesBatteryFilter(r.battery, btyFilter));
     }
 
     if (selectedModule === 'IPFT') {
@@ -1338,7 +1351,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       ? personnelList
       : btyFilter === 'All'
       ? personnelList
-      : personnelList.filter((p) => p.battery === btyFilter);
+      : personnelList.filter((p) => matchesBatteryFilter(p.battery, btyFilter));
 
     const filtered = q
       ? scoped.filter(
@@ -1473,46 +1486,34 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     setSearchQuery('');
   };
 
-  const handleToggleIpftModule = () => {
-    setIsIpftExpanded((prev) => {
-      const next = !prev;
-      if (next) {
-        setSelectedModule('IPFT');
-        setSelectedRetYear(null);
-        setRetResultFilter('All');
-        setActiveRetQuickAddBoardKey(null);
-        setSelectedSpdMarchYear(null);
-        setSpdMarchCountFilter('All');
-        setSearchQuery('');
-      } else if (selectedModule === 'IPFT') {
-        setSelectedModule(null);
-        setSelectedIpftYear(null);
-        setSelectedIpftBiannual(null);
-        setIpftBoardFilter('');
-      }
-      return next;
-    });
+  const handleSelectIpftModule = () => {
+    setSelectedModule('IPFT');
+    setSelectedIpftYear(null);
+    setSelectedIpftBiannual(null);
+    setIpftBoardFilter('');
+    setIpftResultFilter('All');
+    setIpftAppearanceFilter('All');
+    setSelectedRetYear(null);
+    setRetResultFilter('All');
+    setActiveRetQuickAddBoardKey(null);
+    setSelectedSpdMarchYear(null);
+    setSpdMarchCountFilter('All');
+    setBtyFilter('All');
+    setSearchQuery('');
   };
 
   const handleSelectIpftYear = (year: string) => {
     setSelectedModule('IPFT');
-    setIsIpftExpanded(true);
-    if (selectedIpftYear === year) {
-      setSelectedIpftYear(null);
-      setSelectedIpftBiannual(null);
-      setIpftBoardFilter('');
-    } else {
-      setSelectedIpftYear(year);
-      setSelectedIpftBiannual(null);
-      setIpftBoardFilter('');
-      setIpftResultFilter('All');
-      setIpftAppearanceFilter('All');
-    }
+    setSelectedIpftYear(year);
+    setSelectedIpftBiannual(null);
+    setIpftBoardFilter('');
+    setIpftResultFilter('All');
+    setIpftAppearanceFilter('All');
+    setSearchQuery('');
   };
 
   const handleSelectIpftBiannual = (year: string, biannual: TrgBiannualType) => {
     setSelectedModule('IPFT');
-    setIsIpftExpanded(true);
     setSelectedIpftYear(year);
     setSelectedIpftBiannual(biannual);
     setIpftBoardFilter('');
@@ -1707,7 +1708,6 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       const savedYear = inferIpftYear({ date: boardToSave.date });
       const newKey = `${savedYear}::${boardToSave.biannual}::${boardToSave.boardName}`;
       setSelectedModule('IPFT');
-      setIsIpftExpanded(true);
       setSelectedIpftYear(savedYear);
       setSelectedIpftBiannual(boardToSave.biannual);
       setIpftBoardFilter(newKey);
@@ -2117,24 +2117,88 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
     setIsAddModalOpen(true);
   };
 
-  const handleOpenEditModal = (rec: TrgRecord) => {
+  const startInlineEditRecord = (rec: TrgRecord) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে পরিবর্তন অনুমোদিত নয়।');
+      return;
+    }
     const isBoardResMod = rec.module === 'IPFT' || rec.module === 'RET';
     const normalizedIpftResult: IpftResultType = isBoardResMod
       ? getIpftResultCategory(rec)
       : 'Passed';
-    setEditingRecordId(rec.id);
-    setSoldierModalSearch('');
-    setFormModule(rec.module);
-    setSelectedSoldierSnkNo(rec.snkNo);
-    setFormBiannual(rec.module === 'IPFT' ? inferIpftBiannual(rec) : '1st Biannual');
-    setFormBoardName(isBoardResMod ? inferIpftBoardName(rec) : '');
-    setFormIpftResult(normalizedIpftResult);
-    setFormGrade(isBoardResMod ? normalizedIpftResult : rec.grade || '');
-    setFormScore(rec.scoreDetails || '');
-    setFormDate(rec.date || new Date().toISOString().slice(0, 10));
-    setFormLocation(rec.location || '');
-    setFormRemarks(rec.remarks || '');
-    setIsAddModalOpen(true);
+    setInlineEditingRecordId(rec.id);
+    setInlineEditBoardName(isBoardResMod ? inferIpftBoardName(rec) : '');
+    setInlineEditIpftResult(normalizedIpftResult);
+    setInlineEditGrade(isBoardResMod ? normalizedIpftResult : rec.grade || '');
+    setInlineEditScore(rec.scoreDetails || '');
+    setInlineEditDate(rec.date || new Date().toISOString().slice(0, 10));
+    setInlineEditLocation(rec.location || '');
+  };
+
+  const cancelInlineEditRecord = () => {
+    setInlineEditingRecordId(null);
+  };
+
+  const saveInlineEditRecord = async (rec: TrgRecord) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
+      return;
+    }
+
+    const isBoardMod = rec.module === 'IPFT' || rec.module === 'RET';
+    const isSpdForm = isYearlyDateGroupModule(rec.module);
+    const isGrenForm = isGrenFiringModule(rec.module);
+    const cleanDate = inlineEditDate.trim() || rec.date || new Date().toISOString().slice(0, 10);
+
+    let computedStatus: TrgRecord['status'];
+    if (isBoardMod) {
+      computedStatus = inlineEditIpftResult === 'Failed' ? 'Failed' : 'Passed';
+    } else {
+      const isDistinction =
+        inlineEditGrade.includes('1st Class') ||
+        inlineEditGrade.includes('Marksman') ||
+        inlineEditGrade.includes('Distinction');
+      computedStatus = isDistinction ? 'Distinction' : 'Qualified';
+    }
+
+    const cleanBoardName = isBoardMod
+      ? inlineEditBoardName.trim() || inferIpftBoardName({ date: cleanDate })
+      : rec.boardName;
+
+    const updatedRecord: TrgRecord = {
+      ...rec,
+      grade: isBoardMod
+        ? inlineEditIpftResult
+        : isGrenForm
+        ? inlineEditGrade.trim() || 'Qualified (Live Fired)'
+        : isSpdForm
+        ? inlineEditGrade.trim() || 'Completed'
+        : inlineEditGrade.trim() || 'Qualified',
+      scoreDetails:
+        rec.module === 'RET'
+          ? ''
+          : inlineEditScore.trim() || (isGrenForm ? 'Live Fired' : isSpdForm ? 'Completed' : 'Standard Completed'),
+      date: cleanDate,
+      location: rec.module === 'RET' ? '' : inlineEditLocation.trim(),
+      status: computedStatus,
+      biannual: rec.module === 'IPFT' ? inferIpftBiannual({ ...rec, date: cleanDate }) : rec.biannual,
+      boardName: cleanBoardName,
+    };
+
+    setIsSaving(true);
+    try {
+      const res = await upsertTrgStateToSupabase(updatedRecord);
+      if (!res.success) {
+        if (res.tableMissing) setTableMissing(true);
+        showNotification(`Supabase সংরক্ষণ ব্যর্থ: ${res.error || 'trg_state টেবিল তৈরি করুন'}`);
+        return;
+      }
+      setRecords((prev) => prev.map((r) => (r.id === rec.id ? updatedRecord : r)));
+      setInlineEditingRecordId(null);
+      showNotification(`${rec.name}-এর ${rec.module} রেকর্ড আপডেট করা হয়েছে।`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleIpftResultSelect = (resType: IpftResultType) => {
@@ -2228,7 +2292,6 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       if (formModule === 'IPFT' && cleanBoardName) {
         const savedYear = inferIpftYear({ date: formDate });
         setSelectedModule('IPFT');
-        setIsIpftExpanded(true);
         setSelectedIpftYear(savedYear);
         setSelectedIpftBiannual(formBiannual);
         setIpftBoardFilter(`${savedYear}::${formBiannual}::${cleanBoardName}`);
@@ -2442,7 +2505,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               }`}>
                 <th className="py-2.5 px-3 w-10 text-center">#</th>
                 <th className="py-2.5 px-3">সেনা নং</th>
-                <th className="py-2.5 px-3">পদবি ও নাম</th>
+                <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                 <th className="py-2.5 px-3">ব্যাটারী</th>
                 <th className="py-2.5 px-3">অবস্থা</th>
                 <th className="py-2.5 px-3">উপস্থিতি</th>
@@ -2472,7 +2535,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-2">
-                        <RankBadge rank={person.rk} size="sm" />
+                        <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                         <button
                           type="button"
                           onClick={() => onViewDossier(person)}
@@ -2582,7 +2645,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 }`}>
                   <th className="py-2.5 px-3 w-10 text-center">#</th>
                   <th className="py-2.5 px-3">সেনা নং</th>
-                  <th className="py-2.5 px-3">পদবি ও নাম</th>
+                  <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                   <th className="py-2.5 px-3">ব্যাটারী</th>
                   <th className="py-2.5 px-3">অবস্থা ({selectedSpdMarchYear})</th>
                   <th className="py-2.5 px-3 text-center">এই বছরে সম্পন্ন</th>
@@ -2614,7 +2677,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2">
-                          <RankBadge rank={person.rk} size="sm" />
+                          <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                           <button
                             type="button"
                             onClick={() => onViewDossier(person)}
@@ -2723,7 +2786,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
             }`}>
               <th className="py-2.5 px-3 w-10 text-center">#</th>
               <th className="py-2.5 px-3">সেনা নং</th>
-              <th className="py-2.5 px-3">পদবি ও নাম</th>
+              <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
               <th className="py-2.5 px-3">ব্যাটারী</th>
               {selectedModule === 'IPFT' && !activeBoardObj && (
                 <th className="py-2.5 px-3">বোর্ড ও তারিখ</th>
@@ -2778,6 +2841,209 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                   item.grade.includes('1st Class') ||
                   item.grade.includes('Distinction'));
 
+              if (inlineEditingRecordId === item.id) {
+                return (
+                  <tr
+                    key={item.id || idx}
+                    className={
+                      isLight
+                        ? 'bg-amber-50 border-y border-amber-300 shadow-inner'
+                        : 'bg-amber-950/40 border-y border-amber-500/60 shadow-inner'
+                    }
+                  >
+                    <td className={`py-2 px-3 text-center font-mono text-[11px] ${isLight ? 'text-slate-600 font-semibold' : 'text-slate-400'}`}>
+                      {idx + 1}
+                    </td>
+                    <td className={`py-2 px-3 font-mono font-bold whitespace-nowrap ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                      {item.snkNo}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <RankBadge rank={item.rk} trade={person.trade} size="sm" />
+                        <span className={`font-medium ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          {item.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={`py-2 px-3 font-mono whitespace-nowrap ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                      {item.battery}
+                    </td>
+
+                    {selectedModule === 'IPFT' && !activeBoardObj && (
+                      <td className="py-1.5 px-2">
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={inlineEditBoardName}
+                            onChange={(e) => setInlineEditBoardName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            placeholder="বোর্ডের নাম"
+                            className={`w-full min-w-[120px] border border-amber-500 rounded px-1.5 py-0.5 text-[11px] focus:outline-none ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                          <input
+                            type="date"
+                            value={inlineEditDate}
+                            onChange={(e) => setInlineEditDate(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            className={`border border-amber-500 rounded px-1.5 py-0.5 text-[11px] font-mono focus:outline-none ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                        </div>
+                      </td>
+                    )}
+
+                    <td className="py-1.5 px-2 whitespace-nowrap">
+                      {item.module === 'IPFT' ? (
+                        <select
+                          autoFocus={Boolean(activeBoardObj)}
+                          value={inlineEditIpftResult}
+                          onChange={(e) => setInlineEditIpftResult(e.target.value as IpftResultType)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlineEditRecord(item);
+                            if (e.key === 'Escape') cancelInlineEditRecord();
+                          }}
+                          className={`border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none cursor-pointer ${
+                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                          }`}
+                        >
+                          <option value="Passed">Passed</option>
+                          <option value="Failed">Failed</option>
+                        </select>
+                      ) : (
+                        <>
+                          <input
+                            type="text"
+                            autoFocus
+                            list="trg-grade-presets-inline"
+                            value={inlineEditGrade}
+                            onChange={(e) => setInlineEditGrade(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            placeholder="ফলাফল / গ্রেড"
+                            className={`w-full min-w-[120px] border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                          <datalist id="trg-grade-presets-inline">
+                            <option value="Marksman Shot" />
+                            <option value="1st Class Shot" />
+                            <option value="2nd Class Shot" />
+                            <option value="Distinction" />
+                            <option value="Qualified (Grade A)" />
+                            <option value="Qualified" />
+                          </datalist>
+                        </>
+                      )}
+                    </td>
+
+                    {selectedModule === 'IPFT' && (
+                      <td className="py-2 px-3 text-center">
+                        <span className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                          isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}>
+                          {appearanceCount} বার
+                        </span>
+                      </td>
+                    )}
+
+                    {isSpdMarchSelected && (
+                      <td className="py-2 px-3 text-center">
+                        <span className={`inline-block font-mono text-[11px] font-bold px-2 py-0.5 rounded border ${
+                          isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}>
+                          {spdMarchCount} বার
+                        </span>
+                      </td>
+                    )}
+
+                    {selectedModule !== 'IPFT' && (
+                      <>
+                        <td className="py-1.5 px-2">
+                          <input
+                            type="text"
+                            value={inlineEditScore}
+                            onChange={(e) => setInlineEditScore(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            placeholder="স্কোর ও বিবরণ"
+                            className={`w-full min-w-[120px] border border-amber-500 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <div className="flex flex-col gap-1">
+                            <input
+                              type="date"
+                              value={inlineEditDate}
+                              onChange={(e) => setInlineEditDate(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEditRecord(item);
+                                if (e.key === 'Escape') cancelInlineEditRecord();
+                              }}
+                              className={`border border-amber-500 rounded px-1.5 py-0.5 text-[11px] font-mono focus:outline-none ${
+                                isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                              }`}
+                            />
+                            <input
+                              type="text"
+                              value={inlineEditLocation}
+                              onChange={(e) => setInlineEditLocation(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEditRecord(item);
+                                if (e.key === 'Escape') cancelInlineEditRecord();
+                              }}
+                              placeholder="স্থান (ঐচ্ছিক)"
+                              className={`w-full min-w-[120px] border rounded px-1.5 py-0.5 text-[11px] focus:outline-none ${
+                                isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-300'
+                              }`}
+                            />
+                          </div>
+                        </td>
+                      </>
+                    )}
+
+                    <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => saveInlineEditRecord(item)}
+                          title="সংরক্ষণ করুন (Enter)"
+                          className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white shadow cursor-pointer transition-colors"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelInlineEditRecord}
+                          title="বাতিল (Esc)"
+                          className={`p-1.5 rounded cursor-pointer transition-colors ${
+                            isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                          }`}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+
               return (
                 <tr
                   key={item.id || idx}
@@ -2797,7 +3063,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                   </td>
                   <td className="py-2.5 px-3">
                     <div className="flex items-center gap-2">
-                      <RankBadge rank={item.rk} size="sm" />
+                      <RankBadge rank={item.rk} trade={person.trade} size="sm" />
                       <button
                         type="button"
                         onClick={() => onViewDossier(person)}
@@ -2984,17 +3250,19 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                             </button>
                           )}
                           <button
-                            onClick={() => handleOpenEditModal(item)}
+                            type="button"
+                            onClick={() => startInlineEditRecord(item)}
                             className={`p-1.5 rounded transition-colors cursor-pointer ${
                               isLight
                                 ? 'hover:bg-emerald-100 text-slate-400 hover:text-emerald-700'
                                 : 'hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400'
                             }`}
-                            title="এডিট করুন"
+                            title="সরাসরি এডিট করুন"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDeleteRecord(item.id, item.name)}
                             className={`p-1.5 rounded transition-colors cursor-pointer ${
                               isLight
@@ -3094,175 +3362,56 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 const isIpftActive = selectedModule === 'IPFT';
 
                 return (
-                  <div key={m.id} className="space-y-1.5">
-                    {/* IPFT Parent Button */}
-                    <button
-                      type="button"
-                      onClick={handleToggleIpftModule}
-                      className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                        isIpftActive || isIpftExpanded
-                          ? isLight
-                            ? 'bg-emerald-50 border-emerald-500 shadow-xs'
-                            : 'bg-slate-800 border-emerald-500/70 shadow-xs'
-                          : isLight
-                          ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                          : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/40 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className={`text-xs font-semibold truncate ${
-                          isIpftActive || isIpftExpanded
-                            ? isLight ? 'text-emerald-900 font-bold' : 'text-emerald-400 font-bold'
-                            : isLight ? 'text-slate-900' : 'text-white'
-                        }`}>
-                          {m.label}
-                        </div>
-                        <div className={`text-[10px] truncate mt-0.5 ${
-                          isLight ? 'text-slate-500' : 'text-slate-400'
-                        }`}>
-                          {m.full}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`text-xs font-mono font-bold tabular-nums px-2 py-0.5 rounded border ${
-                          isIpftActive || isIpftExpanded
-                            ? isLight
-                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : isLight
-                            ? 'bg-white text-slate-700 border-slate-200'
-                            : 'bg-slate-900 text-slate-300 border-slate-800'
-                        }`}>
-                          {moduleCounts.IPFT} জন
-                        </span>
-                        {isIpftExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
-                        ) : (
-                          <ChevronRight className={`w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-600'}`} />
-                        )}
-                      </div>
-                    </button>
-
-                    {/* Nested under IPFT: Years -> Clicking a Year shows 1st Biannual & 2nd Biannual */}
-                    {isIpftExpanded && (
-                      <div className={`ml-3 pl-2.5 border-l-2 space-y-1.5 ${
-                        isLight ? 'border-emerald-200' : 'border-emerald-500/30'
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={handleSelectIpftModule}
+                    className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                      isIpftActive
+                        ? isLight
+                          ? 'bg-emerald-50 border-emerald-500 shadow-xs'
+                          : 'bg-slate-800 border-emerald-500/70 shadow-xs'
+                        : isLight
+                        ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                        : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/40 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-xs font-semibold truncate ${
+                        isIpftActive
+                          ? isLight ? 'text-emerald-900 font-bold' : 'text-emerald-400 font-bold'
+                          : isLight ? 'text-slate-900' : 'text-white'
                       }`}>
-                        {ipftYears.map((yr) => {
-                          const isYearSelected = selectedIpftYear === yr;
-                          const yrTotal = ipftTreeCounts.byYear[yr] || 0;
-                          const b1Count = ipftTreeCounts.byYearBiannual[yr]?.['1st Biannual'] || 0;
-                          const b2Count = ipftTreeCounts.byYearBiannual[yr]?.['2nd Biannual'] || 0;
-
-                          return (
-                            <div key={yr} className="space-y-1">
-                              {/* Year Row */}
-                              <button
-                                type="button"
-                                onClick={() => handleSelectIpftYear(yr)}
-                                className={`w-full text-left px-2.5 py-2 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                                  isYearSelected
-                                    ? isLight
-                                      ? 'bg-emerald-50/90 border-emerald-400 text-emerald-900 font-bold'
-                                      : 'bg-emerald-950/35 border-emerald-500/60 text-emerald-300 font-bold'
-                                    : isLight
-                                    ? 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
-                                    : 'bg-slate-950/70 border-slate-800 text-slate-200 hover:bg-slate-800/50'
-                                }`}
-                              >
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                  <span className="text-xs font-mono">{yr}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className={`text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded border ${
-                                    isLight
-                                      ? 'bg-slate-100 text-slate-700 border-slate-200'
-                                      : 'bg-slate-900 text-slate-300 border-slate-700'
-                                  }`}>
-                                    {yrTotal} জন
-                                  </span>
-                                  {isYearSelected ? (
-                                    <ChevronDown className="w-3.5 h-3.5 text-emerald-500" />
-                                  ) : (
-                                    <ChevronRight className={`w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
-                                  )}
-                                </div>
-                              </button>
-
-                              {/* Nested under clicked Year: 1st Biannual & 2nd Biannual */}
-                              {isYearSelected && (
-                                <div className={`ml-3 pl-2.5 border-l-2 space-y-1 ${
-                                  isLight ? 'border-slate-200' : 'border-slate-700'
-                                }`}>
-                                  {(
-                                    [
-                                      {
-                                        id: '1st Biannual' as TrgBiannualType,
-                                        sub: 'Jan – Jun',
-                                        count: b1Count,
-                                      },
-                                      {
-                                        id: '2nd Biannual' as TrgBiannualType,
-                                        sub: 'Jul – Dec',
-                                        count: b2Count,
-                                      },
-                                    ]
-                                  ).map((bi) => {
-                                    const isBiSelected =
-                                      selectedModule === 'IPFT' &&
-                                      selectedIpftYear === yr &&
-                                      selectedIpftBiannual === bi.id;
-
-                                    return (
-                                      <button
-                                        key={bi.id}
-                                        type="button"
-                                        onClick={() => handleSelectIpftBiannual(yr, bi.id)}
-                                        className={`w-full text-left px-2.5 py-2 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                                          isBiSelected
-                                            ? 'bg-emerald-600 border-emerald-500 text-white shadow-xs'
-                                            : isLight
-                                            ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-300'
-                                            : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:border-slate-700'
-                                        }`}
-                                      >
-                                        <div className="min-w-0">
-                                          <div className="text-xs font-semibold truncate">{bi.id}</div>
-                                          <div className={`text-[10px] ${
-                                            isBiSelected
-                                              ? 'text-emerald-100'
-                                              : isLight ? 'text-slate-500' : 'text-slate-400'
-                                          }`}>
-                                            {bi.sub}
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <span className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded border ${
-                                            isBiSelected
-                                              ? 'bg-emerald-700/70 text-white border-emerald-400/50'
-                                              : isLight
-                                              ? 'bg-white text-slate-700 border-slate-200'
-                                              : 'bg-slate-950 text-slate-300 border-slate-700'
-                                          }`}>
-                                            {bi.count} জন
-                                          </span>
-                                          <ChevronRight className={`w-3.5 h-3.5 ${
-                                            isBiSelected ? 'text-white' : isLight ? 'text-slate-400' : 'text-slate-500'
-                                          }`} />
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                        {m.label}
                       </div>
-                    )}
-                  </div>
+                      <div className={`text-[10px] truncate mt-0.5 ${
+                        isLight ? 'text-slate-500' : 'text-slate-400'
+                      }`}>
+                        {m.full}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-xs font-mono font-bold tabular-nums px-2 py-0.5 rounded border ${
+                        isIpftActive
+                          ? isLight
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : isLight
+                          ? 'bg-white text-slate-700 border-slate-200'
+                          : 'bg-slate-900 text-slate-300 border-slate-800'
+                      }`}>
+                        {moduleCounts.IPFT} জন
+                      </span>
+                      <ChevronRight
+                        className={`w-3.5 h-3.5 transition-transform ${
+                          isIpftActive
+                            ? 'text-emerald-500 translate-x-0.5'
+                            : isLight ? 'text-slate-400' : 'text-slate-600'
+                        }`}
+                      />
+                    </div>
+                  </button>
                 );
               }
 
@@ -3471,27 +3620,139 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
               </div>
               <div className="space-y-1">
                 <h3 className={`text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  {selectedModule === 'IPFT' && selectedIpftYear
-                    ? `${selectedIpftYear} সালের বাই-অ্যানুয়াল নির্বাচন করুন`
-                    : selectedModule === 'IPFT'
-                    ? 'IPFT-এর বছর (Year) নির্বাচন করুন'
-                    : isSpdMarchSelected
+                  {isSpdMarchSelected
                     ? `${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'}-এর বছর (Year) নির্বাচন করুন`
                     : 'প্রশিক্ষণ স্টেট দেখতে বাম পাশ থেকে নির্বাচন করুন'}
                 </h3>
                 <p className={`text-xs max-w-md mx-auto ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                  {selectedModule === 'IPFT' && selectedIpftYear
-                    ? `বাম পাশে ${selectedIpftYear} এর নিচে 1st Biannual অথবা 2nd Biannual এ ক্লিক করলে IPFT স্টেট প্রদর্শিত হবে।`
-                    : selectedModule === 'IPFT'
-                    ? 'বাম পাশে IPFT-এর নিচে যেকোনো বছরে ক্লিক করুন, এরপর 1st Biannual বা 2nd Biannual নির্বাচন করুন।'
-                    : isSpdMarchSelected
+                  {isSpdMarchSelected
                     ? `বাম পাশে ${selectedModule ? getModuleConfig(selectedModule).label : 'Spd March'}-এর নিচে যেকোনো বছরে ক্লিক করলে ওই বছরের একবার, দুইবার, তিনবার, চারবার ও এখনো করেনি স্টেট দেখতে পারবেন।`
-                    : 'বাম পাশ থেকে RET (বছর ও বোর্ড ভিত্তিক), IPFT (বছর → ১ম/২য় বাই-অ্যানুয়াল), Gren Firing (বছর ভিত্তিক), Spd March (বছর ভিত্তিক) অথবা Firing এ ক্লিক করলে স্টেট প্রদর্শিত হবে।'}
+                    : 'বাম পাশ থেকে IPFT, RET, Gren Firing, Spd March অথবা Firing-এ ক্লিক করলে স্টেট প্রদর্শিত হবে।'}
                 </p>
               </div>
             </div>
           ) : selectedModule === 'IPFT' ? (
-            /* ==================== IPFT RIGHT PANEL (after clicking Year -> 1st/2nd Biannual) ==================== */
+            /* ==================== IPFT RIGHT PANEL: Step 1 (Years) -> Step 2 (Biannual) -> Step 3 (Details) ==================== */
+            !selectedIpftYear ? (
+              <div className={`border rounded-xl p-5 space-y-4 ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
+              }`}>
+                <div className={`pb-3 border-b ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                  <h2 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    IPFT — বছর নির্বাচন করুন
+                  </h2>
+                  <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Individual Physical Fitness Test — একটি বছরে ক্লিক করুন
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {ipftYears.map((yr) => {
+                    const yrTotal = ipftTreeCounts.byYear[yr] || 0;
+                    return (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() => handleSelectIpftYear(yr)}
+                        className={`group rounded-xl border p-4 text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-200 hover:bg-emerald-50 hover:border-emerald-400 shadow-xs'
+                            : 'bg-slate-950/70 border-slate-800 hover:bg-emerald-950/30 hover:border-emerald-500/50'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className={`text-xl font-bold font-mono tracking-tight ${
+                            isLight ? 'text-slate-900 group-hover:text-emerald-800' : 'text-white group-hover:text-emerald-300'
+                          }`}>
+                            {yr}
+                          </div>
+                          <div className={`text-xs font-medium ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {yrTotal} জন
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 ${
+                          isLight ? 'text-slate-400 group-hover:text-emerald-600' : 'text-slate-500 group-hover:text-emerald-400'
+                        }`} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : !selectedIpftBiannual ? (
+              <div className={`border rounded-xl p-5 space-y-4 ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900 border-slate-800'
+              }`}>
+                <div className={`flex items-center justify-between gap-3 pb-3 border-b ${
+                  isLight ? 'border-slate-200' : 'border-slate-800'
+                }`}>
+                  <div>
+                    <h2 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      IPFT — {selectedIpftYear}
+                    </h2>
+                    <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      বাই-অ্যানুয়াল নির্বাচন করুন (1st Biannual / 2nd Biannual)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedIpftYear(null);
+                      setSelectedIpftBiannual(null);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                      isLight
+                        ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                        : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>বছর</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(
+                    [
+                      {
+                        id: '1st Biannual' as TrgBiannualType,
+                        sub: 'Jan – Jun (১ম বাই-অ্যানুয়াল)',
+                        count: ipftTreeCounts.byYearBiannual[selectedIpftYear]?.['1st Biannual'] || 0,
+                      },
+                      {
+                        id: '2nd Biannual' as TrgBiannualType,
+                        sub: 'Jul – Dec (২য় বাই-অ্যানুয়াল)',
+                        count: ipftTreeCounts.byYearBiannual[selectedIpftYear]?.['2nd Biannual'] || 0,
+                      },
+                    ]
+                  ).map((bi) => (
+                    <button
+                      key={bi.id}
+                      type="button"
+                      onClick={() => handleSelectIpftBiannual(selectedIpftYear, bi.id)}
+                      className={`group rounded-xl border p-4 text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-200 hover:bg-emerald-50 hover:border-emerald-400 shadow-xs'
+                          : 'bg-slate-950/70 border-slate-800 hover:bg-emerald-950/30 hover:border-emerald-500/50'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className={`text-base font-bold ${
+                          isLight ? 'text-slate-900 group-hover:text-emerald-800' : 'text-white group-hover:text-emerald-300'
+                        }`}>
+                          {bi.id}
+                        </div>
+                        <div className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {bi.sub} · <span className="font-mono font-semibold">{bi.count} জন</span>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 ${
+                        isLight ? 'text-slate-400 group-hover:text-emerald-600' : 'text-slate-500 group-hover:text-emerald-400'
+                      }`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
             <div className="space-y-3">
               {/* IPFT Header, Board Selector & 4-Stat Summary */}
               <div className={`border rounded-xl p-4 space-y-3 ${
@@ -3500,6 +3761,22 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-200 dark:border-slate-800">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedIpftBiannual(null);
+                          setIpftBoardFilter('');
+                        }}
+                        className={`px-2 py-1 rounded-lg border text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                          isLight
+                            ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                            : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
+                        }`}
+                        title={`${selectedIpftYear}-এর বাই-অ্যানুয়ালে ফিরে যান`}
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>{selectedIpftYear}</span>
+                      </button>
                       <h2 className={`text-base font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                         IPFT — {selectedIpftYear} ({selectedIpftBiannual})
                       </h2>
@@ -3511,7 +3788,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                         {activeIpftStats.total} জন
                       </span>
                     </div>
-                    <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <p className={`text-xs mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       {selectedIpftBiannual === '1st Biannual'
                         ? 'Jan – Jun (১ম বাই-অ্যানুয়াল)'
                         : 'Jul – Dec (২য় বাই-অ্যানুয়াল)'}
@@ -3797,6 +4074,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                 {renderRecordsTable()}
               </div>
             </div>
+            )
           ) : isSpdMarchSelected ? (
             /* ==================== SPD MARCH RIGHT PANEL (Year-wise + 0/1/2/3/4 Times Filters) ==================== */
             (() => {
@@ -4223,7 +4501,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                                 }`}>
                                                   {person.snkNo}
                                                 </span>
-                                                <RankBadge rank={person.rk} size="sm" />
+                                                <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                                                 <span className="font-semibold truncate">{person.name}</span>
                                                 <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
                                                   isLight
@@ -4240,7 +4518,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                                 </span>
                                               ) : (
                                                 <span className="text-[10px] font-mono text-emerald-400 shrink-0">
-                                                  {isSavingThis ? 'যুক্ত হচ্ছে...' : person.trade || 'GD'}
+                                                  {isSavingThis ? 'যুক্ত হচ্ছে...' : '+ যুক্ত'}
                                                 </span>
                                               )}
                                             </button>
@@ -4277,7 +4555,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                         }`}>
                                           <th className="py-2 px-3 w-10 text-center">#</th>
                                           <th className="py-2 px-3">সেনা নং</th>
-                                          <th className="py-2 px-3">পদবি ও নাম</th>
+                                          <th className="py-2 px-3">পদবি, ট্রেড ও নাম</th>
                                           <th className="py-2 px-3">ব্যাটারী</th>
                                           <th className="py-2 px-3 text-center">{selectedSpdMarchYear}-এ সম্পন্ন</th>
                                           <th className="py-2 px-3 text-right">অ্যাকশন</th>
@@ -4319,7 +4597,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                               </td>
                                               <td className="py-2 px-3">
                                                 <div className="flex items-center gap-2">
-                                                  <RankBadge rank={item.rk} size="sm" />
+                                                  <RankBadge rank={item.rk} trade={person.trade} size="sm" />
                                                   <button
                                                     type="button"
                                                     onClick={() => onViewDossier(person)}
@@ -4662,7 +4940,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                             }`}>
                               <th className="py-2.5 px-3 w-10 text-center">#</th>
                               <th className="py-2.5 px-3">সেনা নং</th>
-                              <th className="py-2.5 px-3">পদবি ও নাম</th>
+                              <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                               <th className="py-2.5 px-3">ব্যাটারী</th>
                               <th className="py-2.5 px-3">অবস্থা ({selectedRetYear})</th>
                               <th className="py-2.5 px-3 text-right">ফলাফল যুক্ত করুন</th>
@@ -4698,7 +4976,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                   </td>
                                   <td className="py-2.5 px-3">
                                     <div className="flex items-center gap-2">
-                                      <RankBadge rank={person.rk} size="sm" />
+                                      <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                                       <button
                                         type="button"
                                         onClick={() => onViewDossier(person)}
@@ -5049,7 +5327,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                             }`}>
                                               {person.snkNo}
                                             </span>
-                                            <RankBadge rank={person.rk} size="sm" />
+                                            <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                                             <span className="font-semibold truncate">{person.name}</span>
                                             <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
                                               isLight
@@ -5122,7 +5400,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                     }`}>
                                       <th className="py-2 px-3 w-10 text-center">#</th>
                                       <th className="py-2 px-3">সেনা নং</th>
-                                      <th className="py-2 px-3">পদবি ও নাম</th>
+                                      <th className="py-2 px-3">পদবি, ট্রেড ও নাম</th>
                                       <th className="py-2 px-3">ব্যাটারী</th>
                                       <th className="py-2 px-3">ফলাফল (Pass / Fail)</th>
                                       <th className="py-2 px-3 text-right">অ্যাকশন</th>
@@ -5165,7 +5443,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                                           </td>
                                           <td className="py-2 px-3">
                                             <div className="flex items-center gap-2">
-                                              <RankBadge rank={item.rk} size="sm" />
+                                              <RankBadge rank={item.rk} trade={person.trade} size="sm" />
                                               <button
                                                 type="button"
                                                 onClick={() => onViewDossier(person)}
@@ -5660,7 +5938,7 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
                   >
                     {modalFilteredPersonnel.map((p) => (
                       <option key={p.id} value={p.snkNo}>
-                        {p.snkNo} — {p.rk} {p.name} ({p.battery})
+                        {p.snkNo} — {formatRankTradeName(p.rk, p.trade, p.name)} ({p.battery})
                       </option>
                     ))}
                   </select>

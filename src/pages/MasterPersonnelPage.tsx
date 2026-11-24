@@ -11,6 +11,8 @@ import {
   isNCERank,
   isNCURank,
   isRCORank,
+  normalizeBattery,
+  matchesBatteryFilter,
 } from '../types';
 import {
   UserPlus,
@@ -42,8 +44,8 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
   const { personnelList, currentUser, isGuest, showNotification, ranksList, theme } = useApp();
   const isLight = theme === 'light';
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
-  const assignedBattery: Battery =
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'EME JCO', 'BSM'].includes(currentUser.role);
+  const rawAssigned =
     currentUser.assignedBattery ||
     (currentUser.role === 'P BSM'
       ? 'P Bty'
@@ -53,7 +55,10 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
       ? 'R Bty'
       : currentUser.role === 'HQ BSM'
       ? 'HQ Bty'
+      : currentUser.role === 'EME JCO'
+      ? 'EME'
       : 'P Bty');
+  const assignedBattery: Battery = (normalizeBattery(rawAssigned) || 'P Bty') as Battery;
 
   // Battery serial: P Bty, Q Bty, R Bty, HQ Bty, EME
   const batteryOrder: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'];
@@ -61,7 +66,7 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
   // Three primary modes: 'REGT' (Regt Nominal), 'BTY' (Bty Nominal), or 'CIVILIAN' (Civilian Staff)
   const [viewMode, setViewMode] = useState<'REGT' | 'BTY' | 'CIVILIAN'>(isBsm ? 'BTY' : 'REGT');
   const [activeBatteryTab, setActiveBatteryTab] = useState<Battery>(
-    isBsm ? assignedBattery : currentUser.assignedBattery || 'P Bty'
+    isBsm ? assignedBattery : ((normalizeBattery(currentUser.assignedBattery || 'P Bty') || 'P Bty') as Battery)
   );
 
   // Category & trade filter state
@@ -95,14 +100,14 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
   // Filter list depending on selected mode and BSM isolation
   const currentScopePersonnel = useMemo(() => {
     if (isBsm) {
-      return personnelList.filter((p) => p.battery === assignedBattery);
+      return personnelList.filter((p) => matchesBatteryFilter(p.battery, assignedBattery));
     }
     if (viewMode === 'CIVILIAN') {
-      return personnelList.filter((p) => isCivilianRank(p.rk, p.trade) || p.battery === 'Civilian');
+      return personnelList.filter((p) => isCivilianRank(p.rk, p.trade) || matchesBatteryFilter(p.battery, 'Civilian'));
     }
     return viewMode === 'REGT'
       ? personnelList
-      : personnelList.filter((p) => p.battery === activeBatteryTab);
+      : personnelList.filter((p) => matchesBatteryFilter(p.battery, activeBatteryTab));
   }, [isBsm, assignedBattery, viewMode, activeBatteryTab, personnelList]);
 
   // Overall counts
@@ -356,7 +361,7 @@ export const MasterPersonnelPage: React.FC<MasterPersonnelPageProps> = ({
         {viewMode === 'BTY' && (
           <div className="flex items-center gap-1.5 overflow-x-auto">
             {(isBsm ? [assignedBattery] : batteryOrder).map((bty) => {
-              const count = personnelList.filter((p) => p.battery === bty).length;
+              const count = personnelList.filter((p) => matchesBatteryFilter(p.battery, bty)).length;
               const isSelected = activeBatteryTab === bty;
               return (
                 <button

@@ -1,9 +1,11 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Personnel,
   Battery,
   ParadeStatus,
   normalizePersonnelStatus,
+  normalizeBattery,
+  matchesBatteryFilter,
   isOfficerRank,
   isJCORank,
   isNCORank,
@@ -15,6 +17,7 @@ import {
 } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { StatusBadge } from '../common/StatusBadge';
+import { RankBadge } from '../common/RankBadge';
 import { exportNominalRollToPdf, exportNominalRollToWord } from '../../utils/nominalExport';
 import { comparePersonnelSeniority, sortBySeniority } from '../../utils/seniorityUtils';
 import { ChangeStatusModal } from './ChangeStatusModal';
@@ -107,7 +110,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     if (canEditAny) return true;
     if (
       (currentUser.role === 'Battery In-charge' || currentUser.assignedBattery) &&
-      person.battery === currentUser.assignedBattery
+      matchesBatteryFilter(person.battery, currentUser.assignedBattery)
     ) {
       return true;
     }
@@ -126,7 +129,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
     setEditSnkNo(person.snkNo || '');
     setEditRank(person.rk || '');
     setEditName(person.name || '');
-    setEditBattery(person.battery || 'HQ');
+    setEditBattery((normalizeBattery(person.battery || 'HQ Bty') || 'HQ Bty') as Battery);
     setEditTrade(person.trade || '');
     setEditBloodGroup(person.bloodGroup || 'O+');
     setEditMedicalCat(person.medicalCategory || 'AYE');
@@ -156,7 +159,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       snkNo: editSnkNo.trim(),
       rk: editRank.trim(),
       name: editName.trim(),
-      battery: editBattery,
+      battery: (normalizeBattery(editBattery) || editBattery) as Battery,
       trade: editTrade.trim(),
       bloodGroup: editBloodGroup,
       medicalCategory: editMedicalCat,
@@ -193,9 +196,13 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
 
   const batteryOptions = useMemo(() => {
     if (subUnitsList && subUnitsList.length > 0) {
-      return subUnitsList.map((s) => s.name as Battery);
+      const normalized = subUnitsList.map(
+        (s) => (normalizeBattery(s.code || s.name) || s.code || s.name) as Battery
+      );
+      if (!normalized.includes('Civilian')) normalized.push('Civilian');
+      return Array.from(new Set(normalized));
     }
-    return ['HQ', 'P', 'Q', 'R', 'Civilian'] as Battery[];
+    return ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME', 'Civilian'] as Battery[];
   }, [subUnitsList]);
 
   // Filter States - synced with header search query
@@ -205,6 +212,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
   const [selectedTrade, setSelectedTrade] = useState<string>('All');
   const [selectedBlood, setSelectedBlood] = useState<string>('All');
   const [selectedBattery, setSelectedBattery] = useState<string>(fixedBattery || 'All');
+  useEffect(() => {
+    setSelectedBattery(fixedBattery || 'All');
+  }, [fixedBattery]);
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
@@ -372,9 +382,9 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
       const activeBatteryFilter = fixedBattery || selectedBattery;
       if (activeBatteryFilter !== 'All') {
         if (activeBatteryFilter === 'Civilian') {
-          if (!isCivilianRank(person.rk, person.trade) && person.battery !== 'Civilian') return false;
+          if (!isCivilianRank(person.rk, person.trade) && !matchesBatteryFilter(person.battery, 'Civilian')) return false;
         } else {
-          if (person.battery !== activeBatteryFilter) return false;
+          if (!matchesBatteryFilter(person.battery, activeBatteryFilter)) return false;
         }
       }
 
@@ -766,27 +776,14 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
               </th>
               <th
                 onClick={() => toggleSort('seniority')}
-                className={`py-3 px-3 w-28 text-center cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
-                title="Default: Military Seniority (Officers -> JCOs -> NCOs -> Soldiers)"
-              >
-                <div className="flex items-center justify-center gap-1">
-                  <span>Rank</span>
-                  {sortField === 'seniority' || sortField === 'rk' ? (
-                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-400" /> : <ArrowDown className="w-3 h-3 text-emerald-400" />
-                  ) : (
-                    <ArrowUpDown className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
-                  )}
-                </div>
-              </th>
-              <th className="py-3 px-3 w-20 text-center">Trade</th>
-              <th
-                onClick={() => toggleSort('name')}
-                className={`py-3 px-4 min-w-[180px] cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
-                title="Click to sort alphabetically by Name"
+                className={`py-3 px-4 min-w-[260px] cursor-pointer select-none transition-colors ${isLight ? 'hover:text-slate-950' : 'hover:text-white'}`}
+                title="Click to sort by Seniority (Rank, Trade & Name together)"
               >
                 <div className="flex items-center gap-1">
-                  <span>Name</span>
-                  {sortField === 'name' ? (
+                  <span>Rank, Trade &amp; Name</span>
+                  {sortField === 'seniority' || sortField === 'rk' ? (
+                    sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-400" /> : <ArrowDown className="w-3 h-3 text-emerald-400" />
+                  ) : sortField === 'name' ? (
                     sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 text-rose-400" /> : <ArrowDown className="w-3 h-3 text-rose-400" />
                   ) : (
                     <ArrowUpDown className="w-2.5 h-2.5 opacity-30 hover:opacity-100" />
@@ -829,7 +826,7 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
           <tbody className={isLight ? "divide-y divide-slate-200" : "divide-y divide-slate-800/80"}>
             {filteredPersonnel.length === 0 ? (
               <tr>
-                <td colSpan={10} className={`py-12 text-center ${isLight ? 'text-slate-500 bg-slate-50' : 'text-slate-400 bg-slate-900/50'}`}>
+                <td colSpan={8} className={`py-12 text-center ${isLight ? 'text-slate-500 bg-slate-50' : 'text-slate-400 bg-slate-900/50'}`}>
                   <div className="max-w-xs mx-auto space-y-2">
                     <Filter className={`w-8 h-8 mx-auto ${isLight ? 'text-slate-400' : 'text-slate-600'}`} />
                     <p className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>No personnel match current criteria</p>
@@ -872,63 +869,59 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                         />
                       </td>
 
-                      {/* 3. Rank */}
-                      <td className="py-1 px-1.5 text-center">
-                        <select
-                          value={editRank}
-                          onChange={(e) => setEditRank(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveInlineEdit(person.id);
-                            if (e.key === 'Escape') cancelInlineEdit();
-                          }}
-                          className={`w-full border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer ${
-                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
-                          }`}
-                        >
-                          {rankOptions.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      {/* 4. Trade */}
-                      <td className="py-1 px-1.5 text-center">
-                        <input
-                          list="trade-options-inline"
-                          type="text"
-                          value={editTrade}
-                          onChange={(e) => setEditTrade(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveInlineEdit(person.id);
-                            if (e.key === 'Escape') cancelInlineEdit();
-                          }}
-                          className={`w-full border border-amber-500 rounded px-1.5 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
-                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
-                          }`}
-                        />
-                        <datalist id="trade-options-inline">
-                          {safeTrades.map((t) => (
-                            <option key={t.id || t.name} value={t.name} />
-                          ))}
-                        </datalist>
-                      </td>
-
-                      {/* 5. Name */}
+                      {/* 3. Rank, Trade & Name (Combined Inline Edit) */}
                       <td className="py-1 px-2">
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveInlineEdit(person.id);
-                            if (e.key === 'Escape') cancelInlineEdit();
-                          }}
-                          className={`w-full border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
-                            isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
-                          }`}
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={editRank}
+                            onChange={(e) => setEditRank(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEdit(person.id);
+                              if (e.key === 'Escape') cancelInlineEdit();
+                            }}
+                            className={`w-20 shrink-0 border border-amber-500 rounded px-1 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          >
+                            {rankOptions.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            list="trade-options-inline"
+                            type="text"
+                            value={editTrade}
+                            placeholder="Trade"
+                            onChange={(e) => setEditTrade(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEdit(person.id);
+                              if (e.key === 'Escape') cancelInlineEdit();
+                            }}
+                            className={`w-20 shrink-0 border border-amber-500 rounded px-1.5 py-1 text-center font-mono text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                          <datalist id="trade-options-inline">
+                            {safeTrades.map((t) => (
+                              <option key={t.id || t.name} value={t.name} />
+                            ))}
+                          </datalist>
+                          <input
+                            type="text"
+                            value={editName}
+                            placeholder="Name"
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEdit(person.id);
+                              if (e.key === 'Escape') cancelInlineEdit();
+                            }}
+                            className={`flex-1 min-w-[120px] border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                        </div>
                       </td>
 
                       {/* 6. Battery */}
@@ -1045,60 +1038,21 @@ export const PersonnelTable: React.FC<PersonnelTableProps> = ({
                       {person.snkNo}
                     </td>
 
-                    {/* 3. Rank (Separate Column) */}
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] border ${
-                          ['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(person.rk)
-                            ? isLight
-                              ? 'bg-amber-100 text-amber-900 border-amber-300'
-                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                            : ['SWO', 'WO', 'MWO'].includes(person.rk)
-                            ? isLight
-                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : ['Sgt', 'Cpl', 'Lcpl'].includes(person.rk)
-                            ? isLight
-                              ? 'bg-blue-100 text-blue-900 border-blue-300'
-                              : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                            : isLight
-                            ? 'bg-slate-100 text-slate-800 border-slate-300'
-                            : 'bg-slate-800 text-slate-300 border-slate-700'
-                        }`}
-                      >
-                        {person.rk}
-                      </span>
-                    </td>
-
-                    {/* 4. Trade (Separate Column - Short form, Dash for Officers and NC(E)) */}
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      {['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt', 'NC(E)', 'NC (E)'].includes(person.rk) || isNCERank(person.rk, person.trade) || person.trade === '-' || !person.trade ? (
-                        <span className={`font-mono text-xs font-medium ${isLight ? 'text-slate-400' : 'text-slate-500'}`} title="No trade">
-                          -
-                        </span>
-                      ) : (
-                        <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] border ${
-                          isLight
-                            ? 'bg-cyan-50 text-cyan-900 border-cyan-200'
-                            : 'bg-slate-800 text-cyan-300 border-slate-700'
-                        }`}>
-                          {person.trade}
-                        </span>
-                      )}
-                    </td>
-
-                    {/* 5. Full Name */}
+                    {/* 3. Rank, Trade & Name (Combined Together) */}
                     <td className={`py-2.5 px-4 font-semibold whitespace-nowrap ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                      <button
-                        type="button"
-                        onClick={() => onViewDossier(person)}
-                        className={`text-left hover:underline transition-colors cursor-pointer ${
-                          isLight ? 'hover:text-emerald-700 text-slate-900' : 'hover:text-emerald-400 text-white'
-                        }`}
-                        title="ক্লিক করে ডসিয়ার দেখুন (Click to view dossier)"
-                      >
-                        {person.name}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <RankBadge rank={person.rk} trade={person.trade} size="sm" />
+                        <button
+                          type="button"
+                          onClick={() => onViewDossier(person)}
+                          className={`text-left hover:underline transition-colors cursor-pointer ${
+                            isLight ? 'hover:text-emerald-700 text-slate-900' : 'hover:text-emerald-400 text-white'
+                          }`}
+                          title="ক্লিক করে ডসিয়ার দেখুন (Click to view dossier)"
+                        >
+                          {person.name}
+                        </button>
+                      </div>
                     </td>
 
                     {/* 6. Battery */}

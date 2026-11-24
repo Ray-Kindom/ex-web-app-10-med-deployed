@@ -4,6 +4,7 @@ import { StatCard } from '../components/common/StatCard';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
 import { PersonnelTable } from '../components/personnel/PersonnelTable';
 import { Battery, Personnel } from '../types';
+import { RankBadge } from '../components/common/RankBadge';
 import {
   Users,
   CheckCircle2,
@@ -412,7 +413,7 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
                       : 'bg-slate-950 text-slate-400 border-slate-800'
                   }`}>
                     <th className="p-3">BA / P.No</th>
-                    <th className="p-3">Rank & Name</th>
+                    <th className="p-3">Rank, Trade & Name</th>
                     <th className="p-3">Sub-Unit</th>
                     <th className="p-3">Appointment / Role</th>
                     <th className="p-3">Parade Status</th>
@@ -430,13 +431,7 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
                       <td className={`p-3 font-mono font-bold ${isLight ? 'text-indigo-700' : 'text-indigo-300'}`}>{offr.snkNo}</td>
                       <td className={`p-3 font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>
                         <div className="flex items-center gap-2">
-                          <span className={`px-1.5 py-0.5 rounded font-mono text-[11px] font-bold border ${
-                            isLight
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                              : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                          }`}>
-                            {offr.rk}
-                          </span>
+                          <RankBadge rank={offr.rk} trade={offr.trade} size="sm" />
                           <button
                             type="button"
                             onClick={() => onViewDossier(offr)}
@@ -580,7 +575,8 @@ export const OffrDashboardPage: React.FC<OffrDashboardPageProps> = ({
         </div>
 
         <PersonnelTable
-          selectedBattery={selectedBattery}
+          personnel={personnelList}
+          fixedBattery={selectedBattery === 'All' ? undefined : selectedBattery}
           onViewDossier={onViewDossier}
           onOpenAddModal={onOpenAddModal}
         />

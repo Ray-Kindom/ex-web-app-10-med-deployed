@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { StatCard } from '../components/common/StatCard';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
 import { PersonnelTable } from '../components/personnel/PersonnelTable';
-import { Personnel } from '../types';
+import { Personnel, formatRankTradeName } from '../types';
 import {
   Eye,
   Shield,
@@ -194,7 +194,7 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
                   isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
                 }`}>
                   <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                    {p.rk} {p.name} ({p.snkNo})
+                    {formatRankTradeName(p.rk, p.trade, p.name)} ({p.snkNo})
                   </div>
                   <div className={`text-[11px] ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{p.battery} • {p.statusDetails || 'CMH Ward'}</div>
                 </div>
@@ -221,7 +221,7 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
               }`}>
                 <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                  {p.rk} {p.name} ({p.snkNo})
+                  {formatRankTradeName(p.rk, p.trade, p.name)} ({p.snkNo})
                 </div>
                 <div className={`text-[11px] ${isLight ? 'text-cyan-700' : 'text-cyan-400'}`}>{p.battery} • {p.statusDetails || 'Cadre Course'}</div>
               </div>
@@ -247,7 +247,7 @@ export const CoDashboardPage: React.FC<CoDashboardPageProps> = ({
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'
               }`}>
                 <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                  {p.rk} {p.name} ({p.snkNo})
+                  {formatRankTradeName(p.rk, p.trade, p.name)} ({p.snkNo})
                 </div>
                 <div className={`text-[11px] ${isLight ? 'text-purple-700' : 'text-purple-400'}`}>{p.battery} • {p.statusDetails || 'Approved Leave'}</div>
               </div>

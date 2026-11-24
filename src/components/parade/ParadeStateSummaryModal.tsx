@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Battery, ALL_BATTERIES } from '../../types';
+import { Battery, ALL_BATTERIES, normalizeBattery, matchesBatteryFilter } from '../../types';
 import {
   Shield,
   Wrench,
@@ -48,13 +48,15 @@ export const ParadeStateSummaryModal: React.FC<ParadeStateSummaryModalProps> = (
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const activeDate = date || selectedParadeDate;
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
-  const assignedBty = (currentUser.assignedBattery as Battery) || 'P Bty';
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'EME JCO', 'BSM'].includes(currentUser.role);
+  const assignedBty = (normalizeBattery(currentUser.assignedBattery || 'P Bty') || 'P Bty') as Battery;
 
   // Battery tab: default to assignedBty for BSM, otherwise defaultBattery or 'Consolidated'
   const initialBattery: ViewBattery = isBsm
     ? assignedBty
-    : defaultBattery || 'Consolidated';
+    : defaultBattery
+    ? ((defaultBattery === 'Consolidated' ? 'Consolidated' : normalizeBattery(defaultBattery)) as ViewBattery)
+    : 'Consolidated';
 
   const [selectedBty, setSelectedBty] = useState<ViewBattery>(initialBattery);
 
@@ -67,7 +69,7 @@ export const ParadeStateSummaryModal: React.FC<ParadeStateSummaryModalProps> = (
   const btyDuties = useMemo(() => {
     const list = selectedBty === 'Consolidated'
       ? rawDuties
-      : rawDuties.filter((d) => d.battery === selectedBty);
+      : rawDuties.filter((d) => matchesBatteryFilter(d.battery, selectedBty));
 
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
@@ -84,7 +86,7 @@ export const ParadeStateSummaryModal: React.FC<ParadeStateSummaryModalProps> = (
   const btyPersonnel = useMemo(() => {
     return selectedBty === 'Consolidated'
       ? personnelList
-      : personnelList.filter((p) => p.battery === selectedBty);
+      : personnelList.filter((p) => matchesBatteryFilter(p.battery, selectedBty));
   }, [personnelList, selectedBty]);
 
   // 4. Out of Unit personnel
@@ -193,7 +195,7 @@ export const ParadeStateSummaryModal: React.FC<ParadeStateSummaryModalProps> = (
 
             {ALL_BATTERIES.map((bty) => {
               const isSelected = selectedBty === bty;
-              const count = personnelList.filter((p) => p.battery === bty).length;
+              const count = personnelList.filter((p) => matchesBatteryFilter(p.battery, bty)).length;
 
               return (
                 <button

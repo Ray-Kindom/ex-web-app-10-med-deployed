@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Battery, Personnel, ParadeStatus } from '../types';
+import { Battery, Personnel, ParadeStatus, normalizeBattery, matchesBatteryFilter } from '../types';
 import { StatCard } from '../components/common/StatCard';
 import { PersonnelTable } from '../components/personnel/PersonnelTable';
 import { ParadeActionControls } from '../components/parade/ParadeActionControls';
@@ -51,7 +51,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   const isLight = theme === 'light';
 
   const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM', 'EME JCO'].includes(currentUser.role);
-  const assignedBty: Battery =
+  const rawAssignedBty =
     currentUser.assignedBattery ||
     (currentUser.role === 'P BSM'
       ? 'P Bty'
@@ -64,14 +64,18 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
       : currentUser.role === 'EME JCO'
       ? 'EME'
       : 'P Bty');
+  const assignedBty: Battery = (normalizeBattery(rawAssignedBty) || 'P Bty') as Battery;
 
   type ActiveBatteryOption = Battery | 'All Bty';
 
   const [activeBattery, setActiveBattery] = useState<ActiveBatteryOption>(
     isBsm
       ? assignedBty
-      : currentUser.assignedBattery ||
-        (selectedBatteryFilter === 'All' ? 'All Bty' : selectedBatteryFilter || 'All Bty')
+      : currentUser.assignedBattery
+      ? (normalizeBattery(currentUser.assignedBattery) as Battery)
+      : selectedBatteryFilter === 'All' || !selectedBatteryFilter
+      ? 'All Bty'
+      : (normalizeBattery(selectedBatteryFilter) as Battery)
   );
 
   // Modal for showing drilldown list when stat box is clicked
@@ -88,7 +92,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
     } else if (selectedBatteryFilter === 'All') {
       setActiveBattery('All Bty');
     } else if (selectedBatteryFilter) {
-      setActiveBattery(selectedBatteryFilter);
+      setActiveBattery(normalizeBattery(selectedBatteryFilter) as Battery);
     }
   }, [isBsm, assignedBty, selectedBatteryFilter]);
 
@@ -123,7 +127,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
   const btyPersonnel =
     activeBattery === 'All Bty'
       ? personnelList
-      : personnelList.filter((p) => p.battery === activeBattery);
+      : personnelList.filter((p) => matchesBatteryFilter(p.battery, activeBattery));
   const postedCount = btyPersonnel.length;
   const presentCount = btyPersonnel.filter((p) => p.status === 'Present').length;
   const dutyCount = btyPersonnel.filter((p) => p.status === 'On Duty').length;
@@ -493,7 +497,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                   }`}>
                     <tr>
                       <th className="py-2.5 px-3">নাম্বার (Number)</th>
-                      <th className="py-2.5 px-3">পদবি ও নাম (Rank & Name)</th>
+                      <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম (Rank, Trade & Name)</th>
                       <th className="py-2.5 px-3">কোর্সের নাম (Course Name)</th>
                       <th className="py-2.5 px-3">স্থান (Place)</th>
                       <th className="py-2.5 px-3 text-center">মেয়াদ (সপ্তাহ)</th>
@@ -518,7 +522,7 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                           {/* 2. Rank & Name */}
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
-                              <RankBadge rank={p.rk} size="sm" />
+                              <RankBadge rank={p.rk} trade={p.trade} size="sm" />
                               <button
                                 type="button"
                                 onClick={() => onViewDossier(p)}
@@ -588,13 +592,9 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-mono font-bold shrink-0 ${
-                      isLight ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-slate-800 border-slate-700 text-amber-300'
-                    }`}>
-                      {p.rk}
-                    </div>
                     <div className="min-w-0">
                       <div className={`text-xs font-bold flex items-center gap-2 flex-wrap ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        <RankBadge rank={p.rk} trade={p.trade} size="sm" />
                         <span className="truncate">{p.name}</span>
                         {(p.status === 'P/Lve' || p.outOfUnitCategory === 'P/Lve' || p.leaveType === 'P/Lve') && (
                           <span className={`text-[10px] px-1.5 py-0.2 rounded border shrink-0 ${
@@ -615,8 +615,6 @@ export const BatteryDashboardPage: React.FC<BatteryDashboardPageProps> = ({
                         <span className={`font-semibold ${isLight ? 'text-amber-700' : 'text-amber-400'}`}>{p.snkNo}</span>
                         <span>•</span>
                         <span className={`font-medium ${isLight ? 'text-amber-800' : 'text-amber-300/90'}`}>{p.battery}</span>
-                        <span>•</span>
-                        <span>{p.trade}</span>
                         {p.outOfUnitLocation || p.location ? (
                           <>
                             <span>•</span>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { getDisplayTrade } from '../../types';
 
 interface RankBadgeProps {
   rank: string;
@@ -99,9 +100,10 @@ export const RankBadge: React.FC<RankBadgeProps> = ({
   };
 
   const style = getRankStyle(rank || 'Snk');
+  const displayTrade = getDisplayTrade(rank, trade);
 
   return (
-    <div className="inline-flex items-center gap-1.5 font-mono">
+    <div className="inline-flex items-center gap-1 font-mono shrink-0">
       <span
         className={`inline-flex items-center font-bold rounded border ${style.bg} ${
           size === 'sm' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs'
@@ -109,16 +111,16 @@ export const RankBadge: React.FC<RankBadgeProps> = ({
       >
         {rank}
       </span>
-      {trade && (
+      {displayTrade && (
         <span
-          className={`font-medium px-1.5 py-0.5 rounded border ${
+          className={`font-semibold px-1.5 py-0.5 rounded border ${
             isLight
-              ? 'text-slate-700 bg-slate-100 border-slate-300'
-              : 'text-slate-400 bg-slate-800/80 border-slate-700/60'
-          } ${size === 'sm' ? 'text-[9px]' : 'text-[10px]'}`}
-          title={`Trade: ${trade}`}
+              ? 'text-cyan-900 bg-cyan-50 border-cyan-200'
+              : 'text-cyan-300 bg-slate-800/90 border-slate-700'
+          } ${size === 'sm' ? 'text-[10px]' : 'text-[11px]'}`}
+          title={`Trade: ${displayTrade}`}
         >
-          {trade}
+          {displayTrade}
         </span>
       )}
     </div>

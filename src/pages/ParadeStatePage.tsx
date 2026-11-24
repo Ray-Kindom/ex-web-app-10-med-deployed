@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ParadeStateSummaryGrid } from '../components/parade/ParadeStateSummaryGrid';
 import { DailyParadeStateModal } from '../components/parade/DailyParadeStateModal';
 import { ParadeStateSummaryModal } from '../components/parade/ParadeStateSummaryModal';
-import { Personnel, Battery, isOfficerRank } from '../types';
+import { Personnel, Battery, isOfficerRank, normalizeBattery, matchesBatteryFilter } from '../types';
 import {
   Plus,
   PersonStanding,
@@ -80,7 +80,7 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
   const isActualRsm = currentUser.role === 'RSM';
   const isBsm = !isOfficerOrCo && ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM'].includes(currentUser.role);
   const isRsm = !isOfficerOrCo && (currentUser.role === 'RSM' || currentUser.role === 'Admin' || isAdmin);
-  const assignedBty = (currentUser.assignedBattery as Battery) || 'P Bty';
+  const assignedBty = (normalizeBattery(currentUser.assignedBattery || 'P Bty') || 'P Bty') as Battery;
   const isReadOnly = isOfficerOrCo || currentUser.role === 'Guest';
 
   // Filter out soft-deleted/archived parade states for normal display across all dashboards
@@ -149,7 +149,7 @@ export const ParadeStatePage: React.FC<ParadeStatePageProps> = ({
         count = ptCount.offr + ptCount.jco + ptCount.or;
       } else {
         count = personnelList.filter(
-          (p) => p.battery === assignedBty && p.status === 'Present'
+          (p) => matchesBatteryFilter(p.battery, assignedBty) && p.status === 'Present'
         ).length;
       }
       if (rec.lastUpdated && rec.lastUpdated !== 'Not submitted') {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Personnel, Battery, ParadeStatus } from '../../types';
+import { Personnel, Battery, ParadeStatus, normalizeBattery, matchesBatteryFilter, formatRankTradeName } from '../../types';
 import { AddPersonnelModal } from '../personnel/AddPersonnelModal';
 import { PersonnelDossierModal } from '../personnel/PersonnelDossierModal';
 import { PersonnelTable } from '../personnel/PersonnelTable';
@@ -59,10 +59,10 @@ export const PersonnelDatabaseTab: React.FC = () => {
       else if (['Civ', 'Civilian', 'Cook', 'NC(E)', 'NC(U)'].includes(rk)) civilians++;
       else ors++;
 
-      if (p.battery === 'P Bty') pBty++;
-      else if (p.battery === 'Q Bty') qBty++;
-      else if (p.battery === 'R Bty') rBty++;
-      else if (p.battery === 'HQ Bty') hqBty++;
+      if (matchesBatteryFilter(p.battery, 'P Bty')) pBty++;
+      else if (matchesBatteryFilter(p.battery, 'Q Bty')) qBty++;
+      else if (matchesBatteryFilter(p.battery, 'R Bty')) rBty++;
+      else if (matchesBatteryFilter(p.battery, 'HQ Bty')) hqBty++;
     });
 
     return {
@@ -90,9 +90,7 @@ export const PersonnelDatabaseTab: React.FC = () => {
   const handleExportCSV = () => {
     const headers = [
       'Army No / Snk No',
-      'Rank',
-      'Trade',
-      'Name',
+      'Rank, Trade & Name',
       'Battery',
       'Blood Group',
       'Medical Category',
@@ -104,9 +102,7 @@ export const PersonnelDatabaseTab: React.FC = () => {
 
     const rows = sorted.map((p) => [
       `"${p.snkNo}"`,
-      `"${p.rk}"`,
-      `"${p.trade && p.trade !== '-' ? p.trade : '-'}"`,
-      `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${formatRankTradeName(p.rk, p.trade, p.name).replace(/"/g, '""')}"`,
       `"${p.battery}"`,
       `"${p.bloodGroup || 'O+'}"`,
       `"${p.medicalCategory || 'AYE'}"`,
@@ -159,7 +155,7 @@ export const PersonnelDatabaseTab: React.FC = () => {
           const rk = cols[1];
           const name = cols[2];
           const trade = cols[3] || 'GD';
-          const battery = (cols[4] as Battery) || 'P Bty';
+          const battery = (normalizeBattery(cols[4] || 'P Bty') || 'P Bty') as Battery;
           const status = (cols[5] as ParadeStatus) || 'Present';
           const bloodGroup = cols[7] || 'O+';
 

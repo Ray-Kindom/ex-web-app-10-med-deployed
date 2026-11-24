@@ -6,6 +6,9 @@ import {
   LeaveManagementRecord,
   LeaveRecordType,
   Personnel,
+  normalizeBattery,
+  matchesBatteryFilter,
+  formatRankTradeName,
 } from '../types';
 import {
   fetchLeaveManagementFromSupabase,
@@ -32,6 +35,7 @@ import {
   Moon,
   FileCheck2,
   Eye,
+  Check,
 } from 'lucide-react';
 
 interface LeaveManagementPageProps {
@@ -78,13 +82,14 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
   } = useApp();
   const isLight = theme === 'light';
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
-  const assignedBty = currentUser.assignedBattery;
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'EME JCO', 'BSM'].includes(currentUser.role);
+  const rawAssignedBty = currentUser.assignedBattery;
+  const assignedBty = rawAssignedBty ? (normalizeBattery(rawAssignedBty) as Battery) : undefined;
 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | 'All'>(currentYear);
   const [batteryFilter, setBatteryFilter] = useState<Battery | 'All'>(
-    isBsm && assignedBty ? (assignedBty as Battery) : 'All'
+    isBsm && assignedBty ? assignedBty : 'All'
   );
   const [records, setRecords] = useState<LeaveManagementRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,7 +102,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
   const [matrixStatus, setMatrixStatus] = useState<'remaining' | 'availed'>('remaining');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Add / Edit Modal State
+  // Add Leave Modal State (Create New)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<LeaveManagementRecord | null>(null);
   const [selectedSoldierId, setSelectedSoldierId] = useState('');
@@ -109,6 +114,15 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
   const [modalAddress, setModalAddress] = useState('');
   const [modalAuthority, setModalAuthority] = useState('');
   const [modalRemarks, setModalRemarks] = useState('');
+
+  // Inline Row Editing State (No separate popup window, matching Nominal Roll)
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineLeaveType, setInlineLeaveType] = useState<LeaveRecordType>('P/Lve');
+  const [inlineStatus, setInlineStatus] = useState<'Active' | 'Completed'>('Active');
+  const [inlineStartDate, setInlineStartDate] = useState('');
+  const [inlineEndDate, setInlineEndDate] = useState('');
+  const [inlineAddress, setInlineAddress] = useState('');
+  const [inlineAuthority, setInlineAuthority] = useState('');
 
   const loadFromSupabase = useCallback(async () => {
     setIsLoading(true);
@@ -160,8 +174,8 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
         p.trade === 'Civilian' ||
         (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
       if (isCiv || p.status === 'ERE' || p.outOfUnitCategory === 'ERE') return false;
-      if (isBsm && assignedBty && p.battery !== assignedBty) return false;
-      if (batteryFilter !== 'All' && p.battery !== batteryFilter) return false;
+      if (isBsm && assignedBty && !matchesBatteryFilter(p.battery, assignedBty)) return false;
+      if (batteryFilter !== 'All' && !matchesBatteryFilter(p.battery, batteryFilter)) return false;
       seenIds.add(p.id);
       return true;
     });
@@ -183,6 +197,8 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
       const live =
         personnelMap.get(rawRec.personnelId) ||
         personnelMap.get((rawRec.snkNo || '').trim().toLowerCase());
+      const rawBty = live?.battery || rawRec.battery || 'HQ Bty';
+      const normalizedBty = (normalizeBattery(rawBty) || rawBty) as Battery;
       const rec: LeaveManagementRecord = live
         ? {
             ...rawRec,
@@ -190,10 +206,13 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
             snkNo: live.snkNo || rawRec.snkNo,
             rk: live.rk || rawRec.rk,
             name: live.name || rawRec.name,
-            battery: live.battery || rawRec.battery,
+            battery: normalizedBty,
           }
-        : rawRec;
-      if (isBsm && assignedBty && rec.battery !== assignedBty) return;
+        : {
+            ...rawRec,
+            battery: normalizedBty,
+          };
+      if (isBsm && assignedBty && !matchesBatteryFilter(rec.battery, assignedBty)) return;
       if (rec.id && seenIds.has(rec.id)) return;
       if (rec.id) seenIds.add(rec.id);
       merged.push(rec);
@@ -202,7 +221,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
 
     // 2. Existing activityHistory Leave entries from personnelList
     (personnelList || []).forEach((p) => {
-      if (isBsm && assignedBty && p.battery !== assignedBty) return;
+      if (isBsm && assignedBty && !matchesBatteryFilter(p.battery, assignedBty)) return;
       (p.activityHistory || []).forEach((act) => {
         const sub = (act.subType || '').toLowerCase();
         const title = (act.title || '').toLowerCase();
@@ -322,7 +341,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
   const scopedRecords = useMemo(() => {
     return unifiedRecords.filter((r) => {
       if (selectedYear !== 'All' && r.year !== selectedYear) return false;
-      if (batteryFilter !== 'All' && r.battery !== batteryFilter) return false;
+      if (batteryFilter !== 'All' && !matchesBatteryFilter(r.battery, batteryFilter)) return false;
       return true;
     });
   }, [unifiedRecords, selectedYear, batteryFilter]);
@@ -377,10 +396,10 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
           p.rk === 'Civilian' ||
           p.trade === 'Civilian' ||
           (typeof p.rk === 'string' && p.rk.toLowerCase().includes('civ'));
-        return !isCiv && p.status !== 'ERE' && p.outOfUnitCategory !== 'ERE' && p.battery === bty;
+        return !isCiv && p.status !== 'ERE' && p.outOfUnitCategory !== 'ERE' && matchesBatteryFilter(p.battery, bty);
       });
       const btyRecs = unifiedRecords.filter(
-        (r) => r.battery === bty && (selectedYear === 'All' || r.year === selectedYear)
+        (r) => matchesBatteryFilter(r.battery, bty) && (selectedYear === 'All' || r.year === selectedYear)
       );
       const pSet = new Set(btyRecs.filter((r) => r.leaveType === 'P/Lve').map((r) => r.personnelId));
       const cSet = new Set(btyRecs.filter((r) => r.leaveType === 'C/Lve').map((r) => r.personnelId));
@@ -405,7 +424,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
   const activeRecords = useMemo(() => {
     let list = unifiedRecords.filter((r) => {
       if (r.status !== 'Active') return false;
-      if (batteryFilter !== 'All' && r.battery !== batteryFilter) return false;
+      if (batteryFilter !== 'All' && !matchesBatteryFilter(r.battery, batteryFilter)) return false;
       return true;
     });
     if (searchQuery.trim()) {
@@ -506,17 +525,96 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
     setIsModalOpen(true);
   };
 
-  const openEditModal = (rec: LeaveManagementRecord) => {
-    setEditingRecord(rec);
-    setSelectedSoldierId(rec.personnelId);
-    setModalLeaveType(rec.leaveType);
-    setModalStatus(rec.status === 'Active' ? 'Active' : 'Completed');
-    setModalStartDate(rec.startDate || new Date().toISOString().slice(0, 10));
-    setModalEndDate(rec.endDate || '');
-    setModalAddress(rec.addressOrDestination || '');
-    setModalAuthority(rec.authority || '');
-    setModalRemarks(rec.remarks || '');
-    setIsModalOpen(true);
+  const startInlineEdit = (rec: LeaveManagementRecord) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে ছুটি এডিট করা যাবে না।');
+      return;
+    }
+    setInlineEditingId(rec.id);
+    setInlineLeaveType(rec.leaveType);
+    setInlineStatus(rec.status === 'Active' ? 'Active' : 'Completed');
+    setInlineStartDate(rec.startDate || new Date().toISOString().slice(0, 10));
+    setInlineEndDate(rec.endDate || '');
+    setInlineAddress(rec.addressOrDestination || '');
+    setInlineAuthority(rec.authority || '');
+  };
+
+  const cancelInlineEdit = () => {
+    setInlineEditingId(null);
+  };
+
+  const saveInlineEdit = async (rec: LeaveManagementRecord) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে ছুটি এডিট করা যাবে না।');
+      return;
+    }
+    if (!inlineStartDate) {
+      showNotification('শুরুর তারিখ প্রদান করুন।');
+      return;
+    }
+    if (inlineStatus === 'Active' && (inlineLeaveType === 'P/Lve' || inlineLeaveType === 'C/Lve') && !inlineEndDate) {
+      showNotification('P/Lve বা C/Lve-এর ক্ষেত্রে যোগদানের তারিখ (End Date) প্রদান করুন।');
+      return;
+    }
+
+    const person = personnelMap.get(rec.personnelId) || personnelMap.get(rec.snkNo.toLowerCase());
+    const durationDays = calcDaysInclusive(
+      inlineStartDate,
+      inlineEndDate || inlineStartDate,
+      inlineLeaveType === 'Ni Pass' ? 1 : inlineLeaveType === 'C/Lve' ? 5 : 15
+    );
+    const year = getRecordYear(inlineStartDate);
+    const titleStr =
+      inlineLeaveType === 'Ni Pass'
+        ? 'Night Pass (নাইট পাস)'
+        : inlineLeaveType === 'C/Lve'
+        ? 'Casual Leave (নৈমিত্তিক ছুটি)'
+        : 'Privilege Leave (বাৎসরিক ছুটি)';
+
+    const updatedRec: LeaveManagementRecord = {
+      ...rec,
+      leaveType: inlineLeaveType,
+      status: inlineStatus,
+      startDate: inlineStartDate,
+      endDate: inlineEndDate || undefined,
+      durationDays,
+      addressOrDestination: inlineAddress.trim() || undefined,
+      authority: inlineAuthority.trim() || undefined,
+      year,
+    };
+
+    const existsInSaved = records.some((r) => r.id === rec.id);
+    const nextRecords = existsInSaved
+      ? records.map((r) => (r.id === rec.id ? updatedRec : r))
+      : [updatedRec, ...records];
+    await persistRecords(nextRecords);
+
+    if (person) {
+      if (inlineStatus === 'Active' && (inlineLeaveType === 'P/Lve' || inlineLeaveType === 'C/Lve')) {
+        assignOutOfUnit(person.id, inlineLeaveType, {
+          location: inlineAddress.trim() || undefined,
+          startDate: inlineStartDate,
+          endDate: inlineEndDate || undefined,
+          authority: inlineAuthority.trim() || undefined,
+          remarks: rec.remarks,
+        });
+      } else if (rec.activityId) {
+        updatePersonnelActivity(person.id, rec.activityId, {
+          subType: inlineLeaveType,
+          title: titleStr,
+          startDate: inlineStartDate,
+          endDate: inlineEndDate || undefined,
+          durationDays,
+          location: inlineAddress.trim() || undefined,
+          authority: inlineAuthority.trim() || undefined,
+          remarks: rec.remarks,
+          status: inlineStatus === 'Active' ? 'Active' : 'Completed',
+        });
+      }
+    }
+
+    setInlineEditingId(null);
+    showNotification(`${rec.rk} ${rec.name}-এর ছুটি/পাস তথ্য আপডেট করা হয়েছে।`);
   };
 
   const handleSaveLeaveModal = async (e: React.FormEvent) => {
@@ -1237,7 +1335,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                 >
                   <tr>
                     <th className="py-2.5 px-3">সৈনিক নং</th>
-                    <th className="py-2.5 px-3">পদবি ও নাম</th>
+                    <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                     <th className="py-2.5 px-2">ব্যাটারী</th>
                     <th className="py-2.5 px-3">ধরন</th>
                     <th className="py-2.5 px-3">সময়কাল ও দিন</th>
@@ -1248,12 +1346,127 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                 <tbody className={`divide-y ${isLight ? 'divide-slate-200' : 'divide-slate-800/70'}`}>
                   {activeRecords.map((rec, idx) => {
                     const person = personnelMap.get(rec.personnelId) || personnelMap.get(rec.snkNo.toLowerCase());
+                    if (inlineEditingId === rec.id) {
+                      const previewDays = calcDaysInclusive(
+                        inlineStartDate,
+                        inlineEndDate || inlineStartDate,
+                        inlineLeaveType === 'Ni Pass' ? 1 : inlineLeaveType === 'C/Lve' ? 5 : 15
+                      );
+                      return (
+                        <tr
+                          key={`${rec.id}-${idx}`}
+                          className={
+                            isLight
+                              ? 'bg-amber-50 border-y border-amber-300 shadow-inner'
+                              : 'bg-amber-950/40 border-y border-amber-500/60 shadow-inner'
+                          }
+                        >
+                          <td className="py-2 px-3 font-mono font-bold text-amber-500 whitespace-nowrap">{rec.snkNo}</td>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <RankBadge rank={rec.rk} trade={person?.trade} size="sm" />
+                              <span className="font-semibold">{rec.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 font-mono whitespace-nowrap">{rec.battery}</td>
+                          <td className="py-1.5 px-2 whitespace-nowrap">
+                            <select
+                              value={inlineLeaveType}
+                              onChange={(e) => setInlineLeaveType(e.target.value as LeaveRecordType)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEdit(rec);
+                                if (e.key === 'Escape') cancelInlineEdit();
+                              }}
+                              className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono font-bold focus:outline-none cursor-pointer ${
+                                isLight ? 'bg-white text-purple-800' : 'bg-slate-900 text-purple-300'
+                              }`}
+                            >
+                              {LEAVE_TYPES.map((lt) => (
+                                <option key={lt.id} value={lt.id}>
+                                  {lt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-1.5 px-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="date"
+                                autoFocus
+                                value={inlineStartDate}
+                                onChange={(e) => setInlineStartDate(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(rec);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className={`border border-amber-500 rounded px-1 py-0.5 text-[11px] font-mono focus:outline-none ${
+                                  isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                                }`}
+                              />
+                              <span className="text-[10px] text-slate-400">➔</span>
+                              <input
+                                type="date"
+                                value={inlineEndDate}
+                                onChange={(e) => setInlineEndDate(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(rec);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className={`border border-amber-500 rounded px-1 py-0.5 text-[11px] font-mono focus:outline-none ${
+                                  isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                                }`}
+                              />
+                              <span className="text-[10px] font-mono text-emerald-500 font-semibold ml-1">
+                                ({previewDays} দিন)
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input
+                              type="text"
+                              value={inlineAddress}
+                              onChange={(e) => setInlineAddress(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEdit(rec);
+                                if (e.key === 'Escape') cancelInlineEdit();
+                              }}
+                              placeholder="ঠিকানা / গন্তব্য"
+                              className={`w-full min-w-[140px] border border-amber-500 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                                isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                              }`}
+                            />
+                          </td>
+                          <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => saveInlineEdit(rec)}
+                                title="সংরক্ষণ করুন (Enter)"
+                                className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow cursor-pointer transition-colors"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelInlineEdit}
+                                title="বাতিল (Esc)"
+                                className={`p-1.5 rounded cursor-pointer transition-colors ${
+                                  isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                                }`}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
                     return (
                       <tr key={`${rec.id}-${idx}`} className={isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'}>
                         <td className="py-2.5 px-3 font-mono font-bold text-amber-500 whitespace-nowrap">{rec.snkNo}</td>
                         <td className="py-2.5 px-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <RankBadge rank={rec.rk} size="sm" />
+                            <RankBadge rank={rec.rk} trade={person?.trade} size="sm" />
                             <button
                               type="button"
                               onClick={() => person && onViewDossier && onViewDossier(person)}
@@ -1304,9 +1517,9 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => openEditModal(rec)}
+                                  onClick={() => startInlineEdit(rec)}
                                   className="p-1.5 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                                  title="এডিট"
+                                  title="সরাসরি এডিট করুন"
                                 >
                                   <Edit3 className="w-3 h-3" />
                                 </button>
@@ -1386,7 +1599,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                   >
                     <tr>
                       <th className="py-2.5 px-3">সৈনিক নং</th>
-                      <th className="py-2.5 px-3">পদবি ও নাম</th>
+                      <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                       <th className="py-2.5 px-3">ব্যাটারী</th>
                       <th className="py-2.5 px-3">বর্তমান অবস্থা</th>
                       <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
@@ -1435,7 +1648,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                   >
                     <tr>
                       <th className="py-2.5 px-3">সৈনিক নং</th>
-                      <th className="py-2.5 px-3">পদবি ও নাম</th>
+                      <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                       <th className="py-2.5 px-3">ব্যাটারী</th>
                       <th className="py-2.5 px-3 text-center">কতবার কাটিয়েছে</th>
                       <th className="py-2.5 px-3 text-center">মোট দিন</th>
@@ -1520,7 +1733,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                   >
                     <tr>
                       <th className="py-2.5 px-3">সৈনিক নং</th>
-                      <th className="py-2.5 px-3">পদবি ও নাম</th>
+                      <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                       <th className="py-2.5 px-2">ব্যাটারী</th>
                       <th className="py-2.5 px-3">ধরন</th>
                       <th className="py-2.5 px-3">তারিখ ও দিন</th>
@@ -1532,12 +1745,158 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                   <tbody className={`divide-y ${isLight ? 'divide-slate-200' : 'divide-slate-800/70'}`}>
                     {ledgerRecords.map((rec, idx) => {
                       const person = personnelMap.get(rec.personnelId) || personnelMap.get(rec.snkNo.toLowerCase());
+                      if (inlineEditingId === rec.id) {
+                        const previewDays = calcDaysInclusive(
+                          inlineStartDate,
+                          inlineEndDate || inlineStartDate,
+                          inlineLeaveType === 'Ni Pass' ? 1 : inlineLeaveType === 'C/Lve' ? 5 : 15
+                        );
+                        return (
+                          <tr
+                            key={`${rec.id}-${idx}`}
+                            className={
+                              isLight
+                                ? 'bg-amber-50 border-y border-amber-300 shadow-inner'
+                                : 'bg-amber-950/40 border-y border-amber-500/60 shadow-inner'
+                            }
+                          >
+                            <td className="py-2 px-3 font-mono font-bold text-amber-500 whitespace-nowrap">{rec.snkNo}</td>
+                            <td className="py-2 px-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <RankBadge rank={rec.rk} trade={person?.trade} size="sm" />
+                                <span className="font-semibold">{rec.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 font-mono">{rec.battery}</td>
+                            <td className="py-1.5 px-2 whitespace-nowrap">
+                              <select
+                                value={inlineLeaveType}
+                                onChange={(e) => setInlineLeaveType(e.target.value as LeaveRecordType)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(rec);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono font-bold focus:outline-none cursor-pointer ${
+                                  isLight ? 'bg-white text-purple-800' : 'bg-slate-900 text-purple-300'
+                                }`}
+                              >
+                                {LEAVE_TYPES.map((lt) => (
+                                  <option key={lt.id} value={lt.id}>
+                                    {lt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-1.5 px-2 whitespace-nowrap">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="date"
+                                  autoFocus
+                                  value={inlineStartDate}
+                                  onChange={(e) => setInlineStartDate(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveInlineEdit(rec);
+                                    if (e.key === 'Escape') cancelInlineEdit();
+                                  }}
+                                  className={`border border-amber-500 rounded px-1 py-0.5 text-[11px] font-mono focus:outline-none ${
+                                    isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                                  }`}
+                                />
+                                <span className="text-[10px] text-slate-400">➔</span>
+                                <input
+                                  type="date"
+                                  value={inlineEndDate}
+                                  onChange={(e) => setInlineEndDate(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveInlineEdit(rec);
+                                    if (e.key === 'Escape') cancelInlineEdit();
+                                  }}
+                                  className={`border border-amber-500 rounded px-1 py-0.5 text-[11px] font-mono focus:outline-none ${
+                                    isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                                  }`}
+                                />
+                                <span className="text-[10px] font-mono text-emerald-500 font-semibold">
+                                  ({previewDays}দ)
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-1.5 px-2">
+                              <div className="flex flex-col gap-1">
+                                <input
+                                  type="text"
+                                  value={inlineAddress}
+                                  onChange={(e) => setInlineAddress(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveInlineEdit(rec);
+                                    if (e.key === 'Escape') cancelInlineEdit();
+                                  }}
+                                  placeholder="ঠিকানা / গন্তব্য"
+                                  className={`w-full min-w-[130px] border border-amber-500 rounded px-1.5 py-0.5 text-[11px] focus:outline-none ${
+                                    isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                                  }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={inlineAuthority}
+                                  onChange={(e) => setInlineAuthority(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveInlineEdit(rec);
+                                    if (e.key === 'Escape') cancelInlineEdit();
+                                  }}
+                                  placeholder="আদেশ / অথরিটি"
+                                  className={`w-full min-w-[130px] border rounded px-1.5 py-0.5 text-[11px] focus:outline-none ${
+                                    isLight ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-900 border-slate-700 text-slate-300'
+                                  }`}
+                                />
+                              </div>
+                            </td>
+                            <td className="py-1.5 px-2 whitespace-nowrap">
+                              <select
+                                value={inlineStatus}
+                                onChange={(e) => setInlineStatus(e.target.value as 'Active' | 'Completed')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveInlineEdit(rec);
+                                  if (e.key === 'Escape') cancelInlineEdit();
+                                }}
+                                className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-semibold focus:outline-none cursor-pointer ${
+                                  isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                                }`}
+                              >
+                                <option value="Active">চলমান</option>
+                                <option value="Completed">সম্পন্ন</option>
+                              </select>
+                            </td>
+                            <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => saveInlineEdit(rec)}
+                                  title="সংরক্ষণ করুন (Enter)"
+                                  className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow cursor-pointer transition-colors"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelInlineEdit}
+                                  title="বাতিল (Esc)"
+                                  className={`p-1.5 rounded cursor-pointer transition-colors ${
+                                    isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                                  }`}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
                       return (
                         <tr key={`${rec.id}-${idx}`} className={isLight ? 'hover:bg-slate-50' : 'hover:bg-slate-800/40'}>
                           <td className="py-2 px-3 font-mono font-bold text-amber-500 whitespace-nowrap">{rec.snkNo}</td>
                           <td className="py-2 px-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <RankBadge rank={rec.rk} size="sm" />
+                              <RankBadge rank={rec.rk} trade={person?.trade} size="sm" />
                               <button
                                 type="button"
                                 onClick={() => person && onViewDossier && onViewDossier(person)}
@@ -1586,9 +1945,9 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                                 <>
                                   <button
                                     type="button"
-                                    onClick={() => openEditModal(rec)}
+                                    onClick={() => startInlineEdit(rec)}
                                     className="p-1.5 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                                    title="এডিট"
+                                    title="সরাসরি এডিট করুন"
                                   >
                                     <Edit3 className="w-3 h-3" />
                                   </button>
@@ -1667,7 +2026,7 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
                   >
                     {modalSoldierOptions.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.snkNo} — {p.rk} {p.name} ({p.battery})
+                        {p.snkNo} — {formatRankTradeName(p.rk, p.trade, p.name)} ({p.battery})
                       </option>
                     ))}
                   </select>
@@ -1675,7 +2034,13 @@ export const LeaveManagementPage: React.FC<LeaveManagementPageProps> = ({ onView
               ) : (
                 <div className={`p-2.5 rounded-lg border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
                   <span className="font-mono font-bold text-amber-500 mr-2">{editingRecord.snkNo}</span>
-                  <span className="font-bold">{editingRecord.rk} {editingRecord.name}</span> ({editingRecord.battery})
+                  <span className="font-bold">
+                    {formatRankTradeName(
+                      editingRecord.rk,
+                      (personnelMap.get(editingRecord.personnelId) || personnelMap.get(editingRecord.snkNo.toLowerCase()))?.trade,
+                      editingRecord.name
+                    )}
+                  </span> ({editingRecord.battery})
                 </div>
               )}
 

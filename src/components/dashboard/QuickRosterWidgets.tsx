@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Battery, Personnel } from '../../types';
+import { Battery, Personnel, matchesBatteryFilter } from '../../types';
 import { RankBadge } from '../common/RankBadge';
 import { StatusBadge } from '../common/StatusBadge';
 import {
@@ -621,7 +621,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
       // Try to find a suitable candidate from that battery
       const candidate = personnelList.find(
         (p) =>
-          p.battery === defPost.battery &&
+          matchesBatteryFilter(p.battery, defPost.battery) &&
           !usedNos.has((p.snkNo || '').toLowerCase()) &&
           (p.rk === defPost.preferredRank || p.rk === 'Snk' || p.rk === 'Cpl' || p.rk === 'Sgt') &&
           (p.status === 'In Unit' || p.status === 'Present' || p.status === 'On Duty')
@@ -690,7 +690,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
     let result = appointmentHolders;
 
     if (btyFilter !== 'All') {
-      result = result.filter((a) => a.battery === btyFilter);
+      result = result.filter((a) => matchesBatteryFilter(a.battery, btyFilter));
     }
 
     if (categoryFilter !== 'All') {
@@ -718,7 +718,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
     let result = rpPersonnelList;
 
     if (btyFilter !== 'All') {
-      result = result.filter((r) => r.battery === btyFilter);
+      result = result.filter((r) => matchesBatteryFilter(r.battery, btyFilter));
     }
 
     if (categoryFilter !== 'All') {
@@ -1097,7 +1097,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                     <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${isLight ? 'border-slate-200 bg-slate-100/90 text-slate-700' : 'border-slate-800 bg-slate-900/80 text-slate-400'}`}>
                       <th className="py-2.5 px-3 w-10 text-center">#</th>
                       <th className="py-2.5 px-3">সেনা নং / BA No</th>
-                      <th className="py-2.5 px-3">র‍্যাংক ও নাম</th>
+                      <th className="py-2.5 px-3">র‍্যাংক, ট্রেড ও নাম</th>
                       <th className="py-2.5 px-3">অ্যাসাইনকৃত অ্যাপয়েন্টমেন্ট (Appointment)</th>
                       <th className="py-2.5 px-3">ব্যাটারী</th>
                       <th className="py-2.5 px-3">বর্তমান প্যারেড স্টেটাস</th>
@@ -1125,7 +1125,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           {/* Rank & Name */}
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
-                              <RankBadge rank={item.rk} size="sm" />
+                              <RankBadge rank={item.rk} trade={person?.trade} size="sm" />
                               {person ? (
                                 <button
                                   type="button"
@@ -1204,7 +1204,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                     <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${isLight ? 'border-slate-200 bg-slate-100/90 text-slate-700' : 'border-slate-800 bg-slate-900/80 text-slate-400'}`}>
                       <th className="py-2.5 px-3 w-10 text-center">#</th>
                       <th className="py-2.5 px-3">সেনা নং</th>
-                      <th className="py-2.5 px-3">র‍্যাংক ও নাম</th>
+                      <th className="py-2.5 px-3">র‍্যাংক, ট্রেড ও নাম</th>
                       <th className="py-2.5 px-3">আরপি পোস্ট ও দায়িত্ব (RP Duty Post)</th>
                       <th className="py-2.5 px-3">ব্যাটারী</th>
                       <th className="py-2.5 px-3">শিফট / সময়সূচী</th>
@@ -1233,7 +1233,7 @@ export const QuickRosterWidgets: React.FC<QuickRosterWidgetsProps> = ({
                           {/* Rank & Name */}
                           <td className="py-2.5 px-3">
                             <div className="flex items-center gap-2">
-                              <RankBadge rank={item.rk} size="sm" />
+                              <RankBadge rank={item.rk} trade={person?.trade} size="sm" />
                               {person ? (
                                 <button
                                   type="button"

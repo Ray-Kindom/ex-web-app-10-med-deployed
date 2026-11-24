@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as directSupabaseClient } from '../supabaseClient.js';
-import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES, ServiceActivityRecord, ServiceActivityType, FamilyManRecord, LeaveManagementRecord } from '../types/index.ts';
+import { Personnel, UserAccount, DateWiseParadeRecord, ALL_BATTERIES, normalizeBattery, ServiceActivityRecord, ServiceActivityType, FamilyManRecord, LeaveManagementRecord } from '../types/index.ts';
 import { CourseDefinition, CourseQualificationRecord } from '../data/courseQualificationData.ts';
 import { TrgModuleType, TrgModuleDef, TrgRecord, IpftBoardDef, inferIpftBiannual, parseTrgMetaFromRemarks, serializeTrgMetaToRemarks } from '../data/trgStateData.ts';
 
@@ -725,11 +725,11 @@ export const fetchAuthorizedUsersFromSupabase = async (): Promise<{
         name: row.name,
         rank: row.rank,
         role: row.role,
-        assignedBattery: row.assigned_battery,
+        assignedBattery: (row.assigned_battery ? normalizeBattery(row.assigned_battery) : row.assigned_battery) as any,
         assignedBatteries:
           row.role === 'Admin' || row.role === 'CO' || row.role === 'Offr' || row.role === 'RSM'
             ? ALL_BATTERIES
-            : [row.assigned_battery],
+            : [normalizeBattery(row.assigned_battery) as any],
         email: row.email,
         isApproved: row.is_approved !== false,
         approvedBy: parsedApprovedBy,
@@ -862,11 +862,11 @@ export const verifyUserCredentialsInSupabase = async (
       name: matchedRow.name,
       rank: matchedRow.rank,
       role: matchedRow.role,
-      assignedBattery: matchedRow.assigned_battery,
+      assignedBattery: (matchedRow.assigned_battery ? normalizeBattery(matchedRow.assigned_battery) : matchedRow.assigned_battery) as any,
       assignedBatteries:
         matchedRow.role === 'Admin' || matchedRow.role === 'CO' || matchedRow.role === 'Offr' || matchedRow.role === 'RSM'
           ? ALL_BATTERIES
-          : [matchedRow.assigned_battery],
+          : [normalizeBattery(matchedRow.assigned_battery) as any],
       email: matchedRow.email,
       isApproved: true,
       approvedBy: matchedApprovedBy,
@@ -995,7 +995,7 @@ export const fetchPersonnelFromSupabase = async (): Promise<{
         snkNo: row.army_no || row.id,
         rk: row.rank || 'Snk',
         name: row.name || '',
-        battery: row.battery || 'HQ Bty',
+        battery: (normalizeBattery(row.battery || 'HQ Bty') || 'HQ Bty') as any,
         trade: row.trade || 'Gnr',
         status: resolvedStatus,
         statusDetails: rawDetails,
@@ -1359,7 +1359,7 @@ export const fetchCourseCadreFromSupabase = async (): Promise<{
       snkNo: String(row.snk_no || row.army_no || row.snkNo || ''),
       name: String(row.name || ''),
       rk: String(row.rk || row.rank || 'Snk'),
-      battery: (row.battery || 'HQ Bty') as any,
+      battery: (normalizeBattery(row.battery || 'HQ Bty') || 'HQ Bty') as any,
       completionDate: String(row.completion_date || row.completionDate || ''),
       location: String(row.location || ''),
       grade: String(row.grade || 'Qualified'),
@@ -1651,7 +1651,7 @@ export const fetchTrgStateFromSupabase = async (): Promise<{
         snkNo: String(row.snk_no || row.army_no || row.snkNo || ''),
         name: String(row.name || ''),
         rk: String(row.rk || row.rank || 'Snk'),
-        battery: (row.battery || 'HQ Bty') as any,
+        battery: (normalizeBattery(row.battery || 'HQ Bty') || 'HQ Bty') as any,
         grade: String(row.grade || 'Qualified'),
         scoreDetails: String(row.score_details || row.scoreDetails || ''),
         date: String(row.date || ''),
@@ -2069,7 +2069,11 @@ export const fetchFamilyManStateFromSupabase = async (): Promise<{
   if (!res.success) {
     return { success: false, records: [], error: res.error };
   }
-  const list = Array.isArray(res.data?.records) ? res.data.records : Array.isArray(res.data) ? res.data : [];
+  const rawList = Array.isArray(res.data?.records) ? res.data.records : Array.isArray(res.data) ? res.data : [];
+  const list = rawList.map((r: any) => ({
+    ...r,
+    battery: (normalizeBattery(r.battery || 'HQ Bty') || 'HQ Bty') as any,
+  }));
   return { success: true, records: list };
 };
 
@@ -2095,7 +2099,11 @@ export const fetchLeaveManagementFromSupabase = async (): Promise<{
   if (!res.success) {
     return { success: false, records: [], error: res.error };
   }
-  const list = Array.isArray(res.data?.records) ? res.data.records : Array.isArray(res.data) ? res.data : [];
+  const rawList = Array.isArray(res.data?.records) ? res.data.records : Array.isArray(res.data) ? res.data : [];
+  const list = rawList.map((r: any) => ({
+    ...r,
+    battery: (normalizeBattery(r.battery || 'HQ Bty') || 'HQ Bty') as any,
+  }));
   return { success: true, records: list };
 };
 
@@ -2179,7 +2187,7 @@ export const fetchPersonnelDossierFromSupabase = async (
     snkNo: String(row.snk_no || ''),
     name: String(row.name || ''),
     rk: String(row.rk || 'Snk'),
-    battery: (row.battery || 'HQ Bty') as any,
+    battery: (normalizeBattery(row.battery || 'HQ Bty') || 'HQ Bty') as any,
     completionDate: String(row.completion_date || ''),
     location: String(row.location || ''),
     grade: String(row.grade || 'Qualified'),
@@ -2204,7 +2212,7 @@ export const fetchPersonnelDossierFromSupabase = async (
         snkNo: String(row.snk_no || ''),
         name: String(row.name || ''),
         rk: String(row.rk || 'Snk'),
-        battery: (row.battery || 'HQ Bty') as any,
+        battery: (normalizeBattery(row.battery || 'HQ Bty') || 'HQ Bty') as any,
         grade: String(row.grade || 'Qualified'),
         scoreDetails: String(row.score_details || ''),
         date: String(row.date || ''),

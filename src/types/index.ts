@@ -115,6 +115,69 @@ export type Battery = 'P Bty' | 'Q Bty' | 'R Bty' | 'HQ Bty' | 'EME' | 'Civilian
 
 export const ALL_BATTERIES: Battery[] = ['P Bty', 'Q Bty', 'R Bty', 'HQ Bty', 'EME'];
 
+export const normalizeBattery = (raw?: string): Battery | string => {
+  const val = (raw || '').trim();
+  if (!val) return '';
+  const lower = val
+    .toLowerCase()
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (
+    lower === 'hq' ||
+    lower === 'hq bty' ||
+    lower === 'hq battery' ||
+    lower === 'headquarters' ||
+    lower === 'headquarters battery' ||
+    lower === 'headquarter battery' ||
+    lower === 'rhq'
+  ) {
+    return 'HQ Bty';
+  }
+  if (lower === 'p' || lower === 'p bty' || lower === 'p battery' || lower === '1st bty' || lower === '1st gun bty') {
+    return 'P Bty';
+  }
+  if (lower === 'q' || lower === 'q bty' || lower === 'q battery' || lower === '2nd bty' || lower === '2nd gun bty') {
+    return 'Q Bty';
+  }
+  if (lower === 'r' || lower === 'r bty' || lower === 'r battery' || lower === '3rd bty' || lower === '3rd gun bty') {
+    return 'R Bty';
+  }
+  if (
+    lower === 'eme' ||
+    lower === 'eme bty' ||
+    lower === 'eme det' ||
+    lower === 'eme detachment' ||
+    lower === 'wksp' ||
+    lower === 'workshop' ||
+    lower === 'eme wksp' ||
+    lower.startsWith('eme (')
+  ) {
+    return 'EME';
+  }
+  if (
+    lower === 'civilian' ||
+    lower === 'civ' ||
+    lower === 'civillian' ||
+    lower === 'no battery' ||
+    lower === 'civilian (no battery)'
+  ) {
+    return 'Civilian';
+  }
+
+  return val;
+};
+
+export const matchesBatteryFilter = (itemBattery?: string, filter?: string): boolean => {
+  if (!filter) return true;
+  const fLower = filter.trim().toLowerCase();
+  if (fLower === '' || fLower === 'all' || fLower === 'all bty' || fLower === 'all btys' || fLower === 'consolidated') {
+    return true;
+  }
+  return normalizeBattery(itemBattery) === normalizeBattery(filter);
+};
+
 export type MilitaryRank =
   | 'Lt Col'
   | 'Maj'
@@ -1000,5 +1063,19 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       admin_panel: true,
     },
   },
+};
+
+export const getDisplayTrade = (rk?: string, trade?: string): string => {
+  const cleanTrade = (trade || '').trim();
+  const cleanRank = (rk || '').trim();
+  if (!cleanTrade || cleanTrade === '-') return '';
+  if (['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(cleanRank)) return '';
+  if (isNCERank(cleanRank, cleanTrade)) return '';
+  return cleanTrade;
+};
+
+export const formatRankTradeName = (rk?: string, trade?: string, name?: string): string => {
+  const displayTrade = getDisplayTrade(rk, trade);
+  return [(rk || '').trim(), displayTrade, (name || '').trim()].filter(Boolean).join(' ');
 };
 

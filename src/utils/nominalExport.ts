@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Personnel, isNCERank, isCivilianRank } from '../types';
+import { Personnel, isCivilianRank, normalizeBattery, formatRankTradeName } from '../types';
 import { sortBySeniority } from './seniorityUtils';
 
 export interface ExportFilterOptions {
@@ -39,7 +39,9 @@ export const exportNominalRollToPdf = (
   filterInfo: ExportFilterOptions = {},
   title = '10 MEDIUM REGIMENT ARTILLERY'
 ) => {
-  const doc = new jsPDF('landscape', 'pt', 'a4');
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const filterDesc = getFilterDescription(filterInfo);
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', {
@@ -65,39 +67,37 @@ export const exportNominalRollToPdf = (
   const course = safeList.filter((p) => p.status === 'Course/Trg').length;
   const others = total - (present + onDuty + cmh + leave + course);
 
-  // Document Header
+  // Document Header (A4 Portrait)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setTextColor(20, 20, 20);
-  doc.text(title.toUpperCase(), 421, 40, { align: 'center' });
+  doc.text(title.toUpperCase(), pageWidth / 2, 34, { align: 'center' });
 
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(180, 20, 30);
-  doc.text('OFFICIAL FILTERED NOMINAL ROLL & STATE', 421, 56, { align: 'center' });
+  doc.text('OFFICIAL FILTERED NOMINAL ROLL & STATE', pageWidth / 2, 49, { align: 'center' });
 
   // Subheader & Filter Info Box
   doc.setDrawColor(200, 200, 200);
   doc.setFillColor(245, 247, 250);
-  doc.roundedRect(40, 68, 762, 32, 3, 3, 'FD');
+  doc.roundedRect(28, 59, pageWidth - 56, 28, 3, 3, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(40, 50, 70);
-  doc.text(`CRITERIA: ${filterDesc.toUpperCase()}`, 50, 84);
+  doc.text(`CRITERIA: ${filterDesc.toUpperCase()}`, 36, 76);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Generated: ${dateStr} at ${timeStr} hrs`, 790, 84, { align: 'right' });
+  doc.text(`Generated: ${dateStr} at ${timeStr} hrs`, pageWidth - 36, 76, { align: 'right' });
 
-  // Prepare table data with SEPARATE Rank and Trade columns
+  // Prepare table data with Rank, Trade & Name together
   const tableRows = safeList.map((person, index) => [
     (index + 1).toString(),
     person.snkNo || '',
-    person.rk || '',
-    person.trade && person.trade !== '-' && !isNCERank(person.rk, person.trade) && !['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(person.rk) ? person.trade : '-',
-    person.name || '',
+    formatRankTradeName(person.rk, person.trade, person.name),
     isCivilianRank(person.rk, person.trade) || person.battery === 'Civilian' ? 'Civilian' : (person.battery || ''),
     person.status || '',
     person.medicalCategory || 'AYE',
@@ -105,13 +105,13 @@ export const exportNominalRollToPdf = (
   ]);
 
   autoTable(doc, {
-    startY: 110,
-    head: [['SL', 'ARMY / SNK NO', 'RANK', 'TRADE', 'NAME', 'BATTERY', 'PARADE STATE', 'MED CAT', 'BLOOD']],
+    startY: 96,
+    head: [['SL', 'ARMY / SNK NO', 'RANK, TRADE & NAME', 'BATTERY', 'PARADE STATE', 'MED CAT', 'BLOOD']],
     body: tableRows,
     theme: 'grid',
     styles: {
-      fontSize: 8,
-      cellPadding: 4,
+      fontSize: 7.5,
+      cellPadding: 3.5,
       font: 'helvetica',
       textColor: [30, 30, 30],
       lineColor: [210, 215, 225],
@@ -121,58 +121,68 @@ export const exportNominalRollToPdf = (
       fillColor: [30, 41, 59], // Slate 800
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 7.5,
       halign: 'center',
     },
     columnStyles: {
-      0: { cellWidth: 30, halign: 'center' }, // SL
-      1: { cellWidth: 80, fontStyle: 'bold', halign: 'center' }, // Snk No
-      2: { cellWidth: 55, fontStyle: 'bold', halign: 'center' }, // Rank
-      3: { cellWidth: 55, fontStyle: 'bold', halign: 'center' }, // Trade
-      4: { cellWidth: 180, fontStyle: 'bold' }, // Name
-      5: { cellWidth: 65, halign: 'center' }, // Battery
-      6: { cellWidth: 100, halign: 'center' }, // Parade State
-      7: { cellWidth: 60, halign: 'center' }, // Med Cat
-      8: { cellWidth: 50, halign: 'center' }, // Blood
+      0: { cellWidth: 26, halign: 'center' }, // SL
+      1: { cellWidth: 66, fontStyle: 'bold', halign: 'center' }, // Snk No
+      2: { cellWidth: 225, fontStyle: 'bold' }, // Rank, Trade & Name
+      3: { cellWidth: 52, halign: 'center' }, // Battery
+      4: { cellWidth: 80, halign: 'center' }, // Parade State
+      5: { cellWidth: 48, halign: 'center' }, // Med Cat
+      6: { cellWidth: 42, halign: 'center' }, // Blood
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252],
     },
-    margin: { left: 40, right: 40, bottom: 90 },
+    margin: { left: 28, right: 28, bottom: 72, top: 28 },
+    didDrawPage: (data) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Page ${data.pageNumber} • 10 Medium Regiment Artillery • Official Nominal Roll (A4)`,
+        pageWidth / 2,
+        pageHeight - 16,
+        { align: 'center' }
+      );
+    },
   });
 
   // Calculate final Y position
-  const finalY = (doc as any).lastAutoTable.finalY + 15;
+  let finalY = ((doc as any).lastAutoTable?.finalY || 110) + 14;
+  if (finalY + 75 > pageHeight - 28) {
+    doc.addPage();
+    finalY = 36;
+  }
 
-  // Add Summary Box if page space allows, otherwise new page
-  if (finalY < 480) {
-    doc.setDrawColor(200, 200, 200);
-    doc.setFillColor(240, 244, 248);
-    doc.roundedRect(40, finalY, 762, 34, 3, 3, 'FD');
+  doc.setDrawColor(200, 200, 200);
+  doc.setFillColor(240, 244, 248);
+  doc.roundedRect(28, finalY, pageWidth - 56, 30, 3, 3, 'FD');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(30, 40, 60);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 40, 60);
 
-    const statsText = `STRENGTH SUMMARY:  Total: ${total}  |  Present: ${present}  |  On Duty: ${onDuty}  |  CMH/Sick: ${cmh}  |  Leave: ${leave}  |  Course/Trg: ${course}  |  Others: ${others}`;
-    doc.text(statsText, 50, finalY + 21);
+  const statsText = `STRENGTH SUMMARY:  Total: ${total}  |  Present: ${present}  |  On Duty: ${onDuty}  |  CMH/Sick: ${cmh}  |  Leave: ${leave}  |  Course/Trg: ${course}  |  Others: ${others}`;
+  doc.text(statsText, 36, finalY + 19);
 
-    // Signatures block
-    const sigY = finalY + 60;
-    if (sigY < 560) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(60, 60, 60);
+  // Signatures block
+  const sigY = finalY + 56;
+  if (sigY < pageHeight - 24) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(60, 60, 60);
 
-      doc.text('_____________________________', 100, sigY);
-      doc.text('Regimental Havildar Major (RHM)', 100, sigY + 12);
+    doc.text('_________________________', 28, sigY);
+    doc.text('Regimental Havildar Major (RHM)', 28, sigY + 12);
 
-      doc.text('_____________________________', 421, sigY, { align: 'center' });
-      doc.text('Regimental Sergeant Major (RSM)', 421, sigY + 12, { align: 'center' });
+    doc.text('_________________________', pageWidth / 2, sigY, { align: 'center' });
+    doc.text('Regimental Sergeant Major (RSM)', pageWidth / 2, sigY + 12, { align: 'center' });
 
-      doc.text('_____________________________', 710, sigY, { align: 'right' });
-      doc.text('Adjutant / Commanding Officer', 710, sigY + 12, { align: 'right' });
-    }
+    doc.text('_________________________', pageWidth - 28, sigY, { align: 'right' });
+    doc.text('Adjutant / Commanding Officer', pageWidth - 28, sigY + 12, { align: 'right' });
   }
 
   // Generate clean filename
@@ -219,9 +229,7 @@ export const exportNominalRollToWord = (
       <tr style="${idx % 2 === 1 ? 'background-color: #f8fafc;' : 'background-color: #ffffff;'}">
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${idx + 1}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-family: monospace; font-weight: bold; font-size: 11px;">${p.snkNo || ''}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px;">${p.rk || ''}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; font-size: 11px; color: #0284c7;">${p.trade && p.trade !== '-' && !isNCERank(p.rk, p.trade) && !['Lt Col', 'Maj', 'Capt', 'Lt', '2Lt'].includes(p.rk) ? p.trade : '-'}</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; font-size: 11px;">${p.name || ''}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px; font-weight: bold; font-size: 11px;">${formatRankTradeName(p.rk, p.trade, p.name)}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${isCivilianRank(p.rk, p.trade) || p.battery === 'Civilian' ? 'Civilian' : (p.battery || '')}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px; font-weight: 500;">${p.status || ''}</td>
         <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 11px;">${p.medicalCategory || 'AYE'}</td>
@@ -324,13 +332,11 @@ export const exportNominalRollToWord = (
       <table>
         <thead>
           <tr>
-            <th style="width: 4%;">SL</th>
+            <th style="width: 5%;">SL</th>
             <th style="width: 14%;">ARMY / SNK NO</th>
-            <th style="width: 10%;">RANK</th>
-            <th style="width: 10%;">TRADE</th>
-            <th style="width: 25%;">NAME</th>
-            <th style="width: 10%;">BATTERY</th>
-            <th style="width: 13%;">PARADE STATE</th>
+            <th style="width: 42%;">RANK, TRADE &amp; NAME</th>
+            <th style="width: 11%;">BATTERY</th>
+            <th style="width: 14%;">PARADE STATE</th>
             <th style="width: 7%;">MED CAT</th>
             <th style="width: 7%;">BLOOD</th>
           </tr>
@@ -383,3 +389,222 @@ export const exportNominalRollToWord = (
   document.body.removeChild(link);
   URL.revokeObjectURL(link.href);
 };
+
+export interface CoursePdfRecordItem {
+  snkNo: string;
+  rk: string;
+  trade?: string;
+  name: string;
+  battery: string;
+  currentStatus: string;
+  completionDate: string;
+  location: string;
+  grade: string;
+  authority?: string;
+}
+
+export interface CoursePdfOptions {
+  courseName: string;
+  courseCode?: string;
+  category?: string;
+  duration?: string;
+  batteryFilter?: string;
+  searchQuery?: string;
+}
+
+export const exportCourseRosterToPdf = (
+  items: CoursePdfRecordItem[],
+  options: CoursePdfOptions
+) => {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+  const timeStr = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const btyScope =
+    options.batteryFilter && options.batteryFilter !== 'All'
+      ? options.batteryFilter
+      : 'All Batteries';
+  const searchNote = options.searchQuery?.trim()
+    ? ` | Search: "${options.searchQuery.trim()}"`
+    : '';
+
+  // Official Regimental Header (A4 Portrait)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(15, 23, 42);
+  doc.text('10 MEDIUM REGIMENT ARTILLERY', pageWidth / 2, 34, { align: 'center' });
+
+  doc.setFontSize(10);
+  doc.setTextColor(5, 150, 105);
+  doc.text(
+    `COURSE & CADRE QUALIFICATION ROLL — ${options.courseName.toUpperCase()}`,
+    pageWidth / 2,
+    49,
+    { align: 'center' }
+  );
+
+  // Meta Info Box
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(28, 59, pageWidth - 56, 26, 3, 3, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 41, 59);
+  doc.text(
+    `SCOPE: ${btyScope.toUpperCase()}${searchNote}   |   TOTAL QUALIFIED: ${items.length} PERSONS`,
+    36,
+    75
+  );
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Generated: ${dateStr} at ${timeStr} hrs`, pageWidth - 36, 75, {
+    align: 'right',
+  });
+
+  const tableRows = items.map((item, idx) => [
+    String(idx + 1),
+    item.snkNo || '-',
+    formatRankTradeName(item.rk, item.trade, item.name) || '-',
+    (item.battery || '-').replace(' Bty', ''),
+    item.currentStatus || '-',
+    item.completionDate || '-',
+    item.location || '-',
+    item.grade || '-',
+  ]);
+
+  autoTable(doc, {
+    startY: 94,
+    head: [
+      [
+        'SL',
+        'ARMY NO',
+        'RANK, TRADE & NAME',
+        'BTY',
+        'CUR STATUS',
+        'DATE',
+        'INSTITUTION / LOCATION',
+        'RESULT / GRADE',
+      ],
+    ],
+    body: tableRows,
+    theme: 'grid',
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 3.5,
+      font: 'helvetica',
+      textColor: [15, 23, 42],
+      lineColor: [203, 213, 225],
+      lineWidth: 0.5,
+    },
+    headStyles: {
+      fillColor: [15, 23, 42],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 7.5,
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { cellWidth: 24, halign: 'center' },
+      1: { cellWidth: 58, halign: 'center', fontStyle: 'bold' },
+      2: { cellWidth: 146, fontStyle: 'bold' },
+      3: { cellWidth: 36, halign: 'center' },
+      4: { cellWidth: 56, halign: 'center' },
+      5: { cellWidth: 52, halign: 'center' },
+      6: { cellWidth: 95 },
+      7: { cellWidth: 72, halign: 'center', fontStyle: 'bold' },
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
+    },
+    margin: { left: 28, right: 28, bottom: 64, top: 28 },
+    didDrawPage: (data) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Page ${data.pageNumber} • 10 Medium Regiment Artillery • Course & Cadre Qualification Roll (A4)`,
+        pageWidth / 2,
+        pageHeight - 16,
+        { align: 'center' }
+      );
+    },
+  });
+
+  const finalY = ((doc as any).lastAutoTable?.finalY || 110) + 14;
+  let sigY = finalY;
+
+  if (!options.batteryFilter || options.batteryFilter === 'All') {
+    const btyCounts: Record<string, number> = {
+      'HQ Bty': 0,
+      'P Bty': 0,
+      'Q Bty': 0,
+      'R Bty': 0,
+      EME: 0,
+    };
+    items.forEach((it) => {
+      const norm = normalizeBattery(it.battery);
+      if (btyCounts[norm] !== undefined) btyCounts[norm]++;
+    });
+
+    if (sigY + 80 > pageHeight - 28) {
+      doc.addPage();
+      sigY = 44;
+    }
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(28, sigY, pageWidth - 56, 26, 3, 3, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
+    doc.text(
+      `BATTERY SUMMARY:   Total: ${items.length}   |   HQ: ${btyCounts['HQ Bty']}   |   P: ${btyCounts['P Bty']}   |   Q: ${btyCounts['Q Bty']}   |   R: ${btyCounts['R Bty']}   |   EME: ${btyCounts.EME}`,
+      36,
+      sigY + 16
+    );
+    sigY += 42;
+  } else if (sigY + 50 > pageHeight - 28) {
+    doc.addPage();
+    sigY = 44;
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+
+  doc.text('_________________________', 28, sigY + 18);
+  doc.text('Prepared by (Trg Clk)', 28, sigY + 30);
+
+  doc.text('_________________________', pageWidth / 2, sigY + 18, { align: 'center' });
+  doc.text('Checked by (RSM)', pageWidth / 2, sigY + 30, { align: 'center' });
+
+  doc.text('_________________________', pageWidth - 28, sigY + 18, { align: 'right' });
+  doc.text('Adjutant / Commanding Officer', pageWidth - 28, sigY + 30, { align: 'right' });
+
+  const cleanCourse = (options.courseCode || options.courseName || 'Course')
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32);
+  const cleanBty =
+    options.batteryFilter && options.batteryFilter !== 'All'
+      ? `_${options.batteryFilter.replace(/\s+/g, '')}`
+      : '_AllBty';
+  doc.save(`10MedRegt_${cleanCourse || 'Course'}${cleanBty}_${getTimestamp()}.pdf`);
+};
+

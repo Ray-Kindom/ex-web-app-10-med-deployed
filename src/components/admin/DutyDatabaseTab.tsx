@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ParadeDutyCategory, ParadeDutyAssignment, Battery } from '../../types';
+import { ParadeDutyCategory, ParadeDutyAssignment, Battery, formatRankTradeName } from '../../types';
+import { RankBadge } from '../common/RankBadge';
 import {
   Clock,
   Calendar,
@@ -153,19 +154,23 @@ export const DutyDatabaseTab: React.FC = () => {
 
   // Export Duty List to CSV
   const handleExportCSV = () => {
-    const headers = ['Army No', 'Rank', 'Name', 'Battery', 'Category', 'Duty Name', 'Shift Time', 'Post / Location', 'Weapon / Ammo', 'Remarks'];
-    const rows = (filteredAssignments || []).map((a) => [
-      `"${a.snkNo || ''}"`,
-      `"${a.rank || ''}"`,
-      `"${a.name || ''}"`,
-      `"${a.battery || ''}"`,
-      `"${a.category || ''}"`,
-      `"${a.dutyName || ''}"`,
-      `"${a.dutyTime || ''}"`,
-      `"${a.location || ''}"`,
-      `"${a.weaponOrAmmo || ''}"`,
-      `"${a.remarks || ''}"`,
-    ]);
+    const headers = ['Army No', 'Rank, Trade & Name', 'Battery', 'Category', 'Duty Name', 'Shift Time', 'Post / Location', 'Weapon / Ammo', 'Remarks'];
+    const rows = (filteredAssignments || []).map((a) => {
+      const live = (personnelList || []).find(
+        (p) => p && (p.id === a.personnelId || (p.snkNo && a.snkNo && p.snkNo.trim().toLowerCase() === a.snkNo.trim().toLowerCase()))
+      );
+      return [
+        `"${a.snkNo || ''}"`,
+        `"${formatRankTradeName(live?.rk || a.rank, live?.trade, live?.name || a.name).replace(/"/g, '""')}"`,
+        `"${a.battery || ''}"`,
+        `"${a.category || ''}"`,
+        `"${a.dutyName || ''}"`,
+        `"${a.dutyTime || ''}"`,
+        `"${a.location || ''}"`,
+        `"${a.weaponOrAmmo || ''}"`,
+        `"${a.remarks || ''}"`,
+      ];
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const link = document.createElement('a');
@@ -310,8 +315,7 @@ export const DutyDatabaseTab: React.FC = () => {
               <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 font-mono text-[11px] uppercase tracking-wider">
                 <th className="py-3 px-3 text-center w-12">SL</th>
                 <th className="py-3 px-3 text-center">Army No</th>
-                <th className="py-3 px-3 text-center">Rank</th>
-                <th className="py-3 px-4">Soldier Name</th>
+                <th className="py-3 px-4">Rank, Trade & Name</th>
                 <th className="py-3 px-3 text-center">Battery</th>
                 <th className="py-3 px-3 text-center">Category</th>
                 <th className="py-3 px-4">Duty / Post</th>
@@ -323,7 +327,7 @@ export const DutyDatabaseTab: React.FC = () => {
             <tbody className="divide-y divide-slate-800/60 font-sans">
               {filteredAssignments.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-500 bg-slate-950/40">
+                  <td colSpan={9} className="py-12 text-center text-slate-500 bg-slate-950/40">
                     <Clock className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                     <p className="font-semibold text-slate-400">
                       No duty assignments recorded for {selectedDate} ({selectedSession}).
@@ -339,7 +343,11 @@ export const DutyDatabaseTab: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredAssignments.map((duty, idx) => (
+                filteredAssignments.map((duty, idx) => {
+                  const live = (personnelList || []).find(
+                    (p) => p && (p.id === duty.personnelId || (p.snkNo && duty.snkNo && p.snkNo.trim().toLowerCase() === duty.snkNo.trim().toLowerCase()))
+                  );
+                  return (
                   <tr key={duty.id} className="hover:bg-slate-850/80 transition-colors">
                     <td className="py-2.5 px-3 text-center font-mono text-slate-500 text-[11px]">
                       {idx + 1}
@@ -347,11 +355,11 @@ export const DutyDatabaseTab: React.FC = () => {
                     <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-200">
                       {duty.snkNo}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono font-bold text-amber-400">
-                      {duty.rank}
-                    </td>
                     <td className="py-2.5 px-4 font-semibold text-white">
-                      {duty.name}
+                      <div className="flex items-center gap-2">
+                        <RankBadge rank={live?.rk || duty.rank} trade={live?.trade} size="sm" />
+                        <span>{live?.name || duty.name}</span>
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-center font-mono text-xs">
                       <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
@@ -398,7 +406,8 @@ export const DutyDatabaseTab: React.FC = () => {
                       </button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -435,7 +444,7 @@ export const DutyDatabaseTab: React.FC = () => {
                   <option value="">-- Choose Soldier from Nominal Roll --</option>
                   {(personnelList || []).map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.rk} {p.name} ({p.snkNo}) - {p.battery} [{p.status}]
+                      {formatRankTradeName(p.rk, p.trade, p.name)} ({p.snkNo}) - {p.battery} [{p.status}]
                     </option>
                   ))}
                 </select>

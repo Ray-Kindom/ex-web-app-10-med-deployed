@@ -6,6 +6,9 @@ import {
   FamilyManRecord,
   LivingCategory,
   Personnel,
+  normalizeBattery,
+  matchesBatteryFilter,
+  formatRankTradeName,
 } from '../types';
 import {
   fetchFamilyManStateFromSupabase,
@@ -37,8 +40,9 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
   const { personnelList, ranksList, currentUser, isGuest, showNotification, theme } = useApp();
   const isLight = theme === 'light';
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
-  const assignedBty = currentUser.assignedBattery;
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'EME JCO', 'BSM'].includes(currentUser.role);
+  const rawAssignedBty = currentUser.assignedBattery;
+  const assignedBty = rawAssignedBty ? (normalizeBattery(rawAssignedBty) as Battery) : undefined;
 
   const [records, setRecords] = useState<FamilyManRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,7 +51,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
   // Two Primary Options: "In Living" vs "Out Living"
   const [activeLivingTab, setActiveLivingTab] = useState<LivingCategory>('In Living');
   const [batteryFilter, setBatteryFilter] = useState<Battery | 'All'>(
-    isBsm && assignedBty ? (assignedBty as Battery) : 'All'
+    isBsm && assignedBty ? assignedBty : 'All'
   );
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -64,8 +68,8 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
     isBsm && assignedBty ? (assignedBty as Battery) : 'All'
   );
 
-  // Inline Edit Modal / State for single record details
-  const [editingRecord, setEditingRecord] = useState<FamilyManRecord | null>(null);
+  // Inline row editing state (No separate popup window, matching Nominal Roll)
+  const [inlineEditingRecordId, setInlineEditingRecordId] = useState<string | null>(null);
   const [editQuarter, setEditQuarter] = useState('');
   const [editSinceDate, setEditSinceDate] = useState('');
   const [editExpiryDate, setEditExpiryDate] = useState('');
@@ -126,7 +130,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
     const map = new Map<string, Personnel>();
     (personnelList || []).forEach((p) => {
       map.set(p.id, p);
-      if (p.snkNo) map.set(p.snkNo.toLowerCase(), p);
+      if (p.snkNo) map.set(p.snkNo.trim().toLowerCase(), p);
     });
     return map;
   }, [personnelList]);
@@ -137,14 +141,21 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
       const live =
         personnelMap.get(r.personnelId) ||
         personnelMap.get((r.snkNo || '').trim().toLowerCase());
-      if (!live) return r;
+      const rawBty = live?.battery || r.battery || 'HQ Bty';
+      const normalizedBty = (normalizeBattery(rawBty) || rawBty) as Battery;
+      if (!live) {
+        return {
+          ...r,
+          battery: normalizedBty,
+        };
+      }
       return {
         ...r,
         personnelId: live.id,
         snkNo: live.snkNo || r.snkNo,
         rk: live.rk || r.rk,
         name: live.name || r.name,
-        battery: live.battery || r.battery,
+        battery: normalizedBty,
         trade: live.trade || r.trade || '-',
       };
     });
@@ -153,28 +164,30 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
   // Scoped records (respect BSM battery restriction if applicable)
   const scopedRecords = useMemo(() => {
     if (isBsm && assignedBty) {
-      return syncedRecords.filter((r) => r.battery === assignedBty);
+      return syncedRecords.filter((r) => matchesBatteryFilter(r.battery, assignedBty));
     }
     return syncedRecords;
   }, [syncedRecords, isBsm, assignedBty]);
 
+  // Apply active battery filter so KPI cards & header total also reflect the chosen battery
+  const batteryScopedRecords = useMemo(() => {
+    if (batteryFilter === 'All') return scopedRecords;
+    return scopedRecords.filter((r) => matchesBatteryFilter(r.battery, batteryFilter));
+  }, [scopedRecords, batteryFilter]);
+
   const inLivingCount = useMemo(
-    () => scopedRecords.filter((r) => r.livingType === 'In Living').length,
-    [scopedRecords]
+    () => batteryScopedRecords.filter((r) => r.livingType === 'In Living').length,
+    [batteryScopedRecords]
   );
 
   const outLivingCount = useMemo(
-    () => scopedRecords.filter((r) => r.livingType === 'Out Living').length,
-    [scopedRecords]
+    () => batteryScopedRecords.filter((r) => r.livingType === 'Out Living').length,
+    [batteryScopedRecords]
   );
 
   // Filtered list for activeLivingTab ("In Living" or "Out Living")
   const filteredRoster = useMemo(() => {
-    let list = scopedRecords.filter((r) => r.livingType === activeLivingTab);
-
-    if (batteryFilter !== 'All') {
-      list = list.filter((r) => r.battery === batteryFilter);
-    }
+    let list = batteryScopedRecords.filter((r) => r.livingType === activeLivingTab);
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -183,6 +196,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
           (r.snkNo || '').toLowerCase().includes(q) ||
           (r.name || '').toLowerCase().includes(q) ||
           (r.rk || '').toLowerCase().includes(q) ||
+          (r.battery || '').toLowerCase().includes(q) ||
           (r.sinceDate || '').toLowerCase().includes(q) ||
           (r.expiryDate || '').toLowerCase().includes(q) ||
           (r.quarterOrAddress || '').toLowerCase().includes(q) ||
@@ -192,23 +206,25 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
 
     // Sort by seniority using ranksList
     return [...list].sort((a, b) => {
-      const pA = personnelMap.get(a.personnelId) || personnelMap.get((a.snkNo || '').toLowerCase());
-      const pB = personnelMap.get(b.personnelId) || personnelMap.get((b.snkNo || '').toLowerCase());
+      const pA = personnelMap.get(a.personnelId) || personnelMap.get((a.snkNo || '').trim().toLowerCase());
+      const pB = personnelMap.get(b.personnelId) || personnelMap.get((b.snkNo || '').trim().toLowerCase());
       if (pA && pB) {
         const sorted = sortBySeniority([pA, pB], ranksList);
         return sorted[0].id === pA.id ? -1 : 1;
       }
       return (a.snkNo || '').localeCompare(b.snkNo || '');
     });
-  }, [scopedRecords, activeLivingTab, batteryFilter, searchQuery, personnelMap, ranksList]);
+  }, [batteryScopedRecords, activeLivingTab, searchQuery, personnelMap, ranksList]);
 
   // Available personnel in picker (excluding those already in records or showing status)
   const existingPersonnelIds = useMemo(() => new Set(records.map((r) => r.personnelId)), [records]);
 
   const filteredPickerSoldiers = useMemo(() => {
     let list = personnelList || [];
-    if (pickerBattery !== 'All') {
-      list = list.filter((p) => p.battery === pickerBattery);
+    if (isBsm && assignedBty) {
+      list = list.filter((p) => matchesBatteryFilter(p.battery, assignedBty));
+    } else if (pickerBattery !== 'All') {
+      list = list.filter((p) => matchesBatteryFilter(p.battery, pickerBattery));
     }
     if (pickerSearch.trim()) {
       const q = pickerSearch.toLowerCase().trim();
@@ -217,11 +233,12 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
           (p.snkNo || '').toLowerCase().includes(q) ||
           (p.name || '').toLowerCase().includes(q) ||
           (p.rk || '').toLowerCase().includes(q) ||
-          (p.trade || '').toLowerCase().includes(q)
+          (p.trade || '').toLowerCase().includes(q) ||
+          (p.battery || '').toLowerCase().includes(q)
       );
     }
     return sortBySeniority(list, ranksList);
-  }, [personnelList, pickerBattery, pickerSearch, ranksList]);
+  }, [personnelList, isBsm, assignedBty, pickerBattery, pickerSearch, ranksList]);
 
   const handleOpenAddModal = () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -232,6 +249,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
     setModalExpiryDate('');
     setModalRemarks('');
     setPickerSearch('');
+    setPickerBattery(isBsm && assignedBty ? assignedBty : batteryFilter);
     setIsAddModalOpen(true);
   };
 
@@ -266,7 +284,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
         snkNo: p.snkNo,
         rk: p.rk,
         name: p.name,
-        battery: p.battery,
+        battery: (normalizeBattery(p.battery || 'HQ Bty') || p.battery || 'HQ Bty') as Battery,
         trade: p.trade || '-',
         livingType: modalLivingType,
         quarterOrAddress: modalQuarterOrAddress.trim(),
@@ -312,8 +330,12 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
     showNotification(`${record.rk} ${record.name}-কে তালিকা থেকে বাদ দেওয়া হয়েছে।`);
   };
 
-  const handleOpenEditRecord = (record: FamilyManRecord) => {
-    setEditingRecord(record);
+  const startInlineEditRecord = (record: FamilyManRecord) => {
+    if (isGuest) {
+      showNotification('গেস্ট মোডে তথ্য পরিবর্তন করা যাবে না।');
+      return;
+    }
+    setInlineEditingRecordId(record.id);
     setEditLivingType(record.livingType);
     setEditQuarter(record.quarterOrAddress || '');
     setEditSinceDate(record.sinceDate || '');
@@ -321,11 +343,14 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
     setEditRemarks(record.remarks || '');
   };
 
-  const handleSaveEditRecord = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingRecord || isGuest) return;
+  const cancelInlineEditRecord = () => {
+    setInlineEditingRecordId(null);
+  };
+
+  const saveInlineEditRecord = async (record: FamilyManRecord) => {
+    if (isGuest) return;
     const nextList = records.map((r) =>
-      r.id === editingRecord.id
+      r.id === record.id
         ? {
             ...r,
             livingType: editLivingType,
@@ -338,7 +363,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
         : r
     );
     await persistRecords(nextList);
-    setEditingRecord(null);
+    setInlineEditingRecordId(null);
     showNotification('ফ্যামিলি ম্যান তথ্য আপডেট করা হয়েছে।');
   };
 
@@ -551,7 +576,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
               <button
                 key={b}
                 type="button"
-                disabled={isBsm && Boolean(assignedBty) && b !== assignedBty}
+                disabled={isBsm && Boolean(assignedBty) && !matchesBatteryFilter(b, assignedBty)}
                 onClick={() => setBatteryFilter(b)}
                 className={`px-2.5 py-1 rounded font-medium transition-colors cursor-pointer disabled:opacity-40 ${
                   batteryFilter === b
@@ -608,21 +633,43 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
           >
             <Home className="w-8 h-8 text-slate-400 mx-auto" />
             <p className={`text-sm font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-              {activeLivingTab} তালিকায় কোনো সৈনিক যুক্ত নেই
+              {(batteryFilter !== 'All' && !(isBsm && assignedBty)) || searchQuery.trim()
+                ? `${batteryFilter !== 'All' ? `${batteryFilter}-তে ` : ''}${activeLivingTab} তালিকায় কোনো সৈনিক পাওয়া যায়নি`
+                : `${activeLivingTab} তালিকায় কোনো সৈনিক যুক্ত নেই`}
             </p>
             <p className="text-xs text-slate-400">
-              উপরে &ldquo;সৈনিক যুক্ত করুন&rdquo; বাটনে ক্লিক করে {activeLivingTab} তালিকাভুক্ত সৈনিক যোগ করুন।
+              {(batteryFilter !== 'All' && !(isBsm && assignedBty)) || searchQuery.trim()
+                ? 'নির্বাচিত ব্যাটারী বা সার্চ ফিল্টারে কোনো তথ্য নেই। ফিল্টার রিসেট করে সব দেখতে পারেন অথবা নতুন সৈনিক যোগ করুন।'
+                : `উপরে “সৈনিক যুক্ত করুন” বাটনে ক্লিক করে ${activeLivingTab} তালিকাভুক্ত সৈনিক যোগ করুন।`}
             </p>
-            {!isGuest && (
-              <button
-                type="button"
-                onClick={handleOpenAddModal}
-                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{activeLivingTab}-এ সৈনিক যুক্ত করুন</span>
-              </button>
-            )}
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {((batteryFilter !== 'All' && !(isBsm && assignedBty)) || searchQuery.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!(isBsm && assignedBty)) setBatteryFilter('All');
+                    setSearchQuery('');
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer ${
+                    isLight
+                      ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                      : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  ফিল্টার রিসেট করুন
+                </button>
+              )}
+              {!isGuest && (
+                <button
+                  type="button"
+                  onClick={handleOpenAddModal}
+                  className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{activeLivingTab}-এ সৈনিক যুক্ত করুন</span>
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className={`overflow-x-auto rounded-lg border ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
@@ -637,9 +684,8 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                 >
                   <th className="py-2.5 px-3 text-center w-10">#</th>
                   <th className="py-2.5 px-3">সেনা নং</th>
-                  <th className="py-2.5 px-3">পদবি ও নাম</th>
+                  <th className="py-2.5 px-3">পদবি, ট্রেড ও নাম</th>
                   <th className="py-2.5 px-3 text-center">ব্যাটারী</th>
-                  <th className="py-2.5 px-3 text-center">ট্রেড</th>
                   <th className="py-2.5 px-3">কোয়ার্টার / বাসস্থানের ঠিকানা</th>
                   <th className="py-2.5 px-3">বাসায় ওঠার তারিখ</th>
                   <th className="py-2.5 px-3">বাসার মেয়াদ শেষ হওয়ার সময়</th>
@@ -652,6 +698,132 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                   const livePerson =
                     personnelMap.get(item.personnelId) ||
                     personnelMap.get((item.snkNo || '').toLowerCase());
+
+                  if (inlineEditingRecordId === item.id) {
+                    return (
+                      <tr
+                        key={item.id || idx}
+                        className={
+                          isLight
+                            ? 'bg-amber-50 border-y border-amber-300 shadow-inner'
+                            : 'bg-amber-950/40 border-y border-amber-500/60 shadow-inner'
+                        }
+                      >
+                        <td className="py-2 px-3 text-center font-mono text-slate-500">
+                          {idx + 1}.
+                        </td>
+                        <td className="py-2 px-3 font-mono font-bold text-indigo-500 whitespace-nowrap">
+                          {item.snkNo}
+                        </td>
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <RankBadge rank={livePerson?.rk || item.rk} trade={livePerson?.trade || item.trade} size="sm" />
+                            <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {livePerson?.name || item.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 text-center font-mono font-semibold whitespace-nowrap">
+                          {livePerson?.battery || item.battery}
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editQuarter}
+                            onChange={(e) => setEditQuarter(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            placeholder={editLivingType === 'In Living' ? 'Family Qtr' : 'বাসার ঠিকানা'}
+                            className={`w-full min-w-[140px] border border-amber-500 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 whitespace-nowrap">
+                          <input
+                            type="date"
+                            value={editSinceDate}
+                            onChange={(e) => setEditSinceDate(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 whitespace-nowrap">
+                          <input
+                            type="date"
+                            value={editExpiryDate}
+                            onChange={(e) => setEditExpiryDate(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-2">
+                          <input
+                            type="text"
+                            value={editRemarks}
+                            onChange={(e) => setEditRemarks(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveInlineEditRecord(item);
+                              if (e.key === 'Escape') cancelInlineEditRecord();
+                            }}
+                            placeholder="মন্তব্য..."
+                            className={`w-full min-w-[110px] border border-amber-500 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                            }`}
+                          />
+                        </td>
+                        <td className="py-1.5 px-3 text-right whitespace-nowrap print:hidden">
+                          <div className="inline-flex items-center gap-1">
+                            <select
+                              value={editLivingType}
+                              onChange={(e) => setEditLivingType(e.target.value as LivingCategory)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEditRecord(item);
+                                if (e.key === 'Escape') cancelInlineEditRecord();
+                              }}
+                              className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono font-bold focus:outline-none cursor-pointer ${
+                                isLight ? 'bg-white text-amber-800' : 'bg-slate-900 text-amber-300'
+                              }`}
+                            >
+                              <option value="In Living">In Living</option>
+                              <option value="Out Living">Out Living</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => saveInlineEditRecord(item)}
+                              title="সংরক্ষণ করুন (Enter)"
+                              className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow cursor-pointer transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelInlineEditRecord}
+                              title="বাতিল (Esc)"
+                              className={`p-1.5 rounded cursor-pointer transition-colors ${
+                                isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
 
                   return (
                     <tr
@@ -668,7 +840,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2">
-                          <RankBadge rank={livePerson?.rk || item.rk} size="sm" />
+                          <RankBadge rank={livePerson?.rk || item.rk} trade={livePerson?.trade || item.trade} size="sm" />
                           {onViewDossier && livePerson ? (
                             <button
                               type="button"
@@ -687,9 +859,6 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                       </td>
                       <td className="py-2.5 px-3 text-center font-mono font-semibold">
                         {livePerson?.battery || item.battery}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-mono text-slate-400">
-                        {livePerson?.trade || item.trade || '-'}
                       </td>
                       <td className="py-2.5 px-3">
                         {item.quarterOrAddress ? (
@@ -763,9 +932,9 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleOpenEditRecord(item)}
+                              onClick={() => startInlineEditRecord(item)}
                               className="p-1.5 rounded hover:bg-slate-700/30 text-slate-400 hover:text-indigo-400 cursor-pointer"
-                              title="তথ্য এডিট করুন"
+                              title="সরাসরি এডিট করুন"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
@@ -949,8 +1118,9 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                       <button
                         key={b}
                         type="button"
+                        disabled={isBsm && Boolean(assignedBty) && !matchesBatteryFilter(b, assignedBty)}
                         onClick={() => setPickerBattery(b)}
-                        className={`px-2 py-1 rounded text-[11px] font-mono cursor-pointer ${
+                        className={`px-2 py-1 rounded text-[11px] font-mono cursor-pointer disabled:opacity-40 ${
                           pickerBattery === b
                             ? 'bg-indigo-600 text-white font-bold'
                             : isLight
@@ -958,7 +1128,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                             : 'bg-slate-800 text-slate-400'
                         }`}
                       >
-                        {b}
+                        {b === 'All' ? 'All' : b.replace(' Bty', '')}
                       </button>
                     ))}
                   </div>
@@ -995,7 +1165,7 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
                           />
                           <span className="font-mono font-bold text-indigo-500">{s.snkNo}</span>
                           <span className="font-semibold truncate">
-                            {s.rk} {s.name}
+                            {formatRankTradeName(s.rk, s.trade, s.name)}
                           </span>
                           <span className="text-[10px] font-mono text-slate-400">({s.battery})</span>
                         </div>
@@ -1047,127 +1217,6 @@ export const FamilyManStatePage: React.FC<FamilyManStatePageProps> = ({ onViewDo
         </div>
       )}
 
-      {/* 5. EDIT RECORD MODAL */}
-      {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs print:hidden">
-          <div
-            className={`w-full max-w-md border rounded-xl shadow-2xl p-5 space-y-4 ${
-              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
-            }`}
-          >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/40">
-              <h3 className="text-sm font-bold">
-                {editingRecord.rk} {editingRecord.name} — তথ্য আপডেট
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingRecord(null)}
-                className="text-slate-400 hover:text-rose-500 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditRecord} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                {(['In Living', 'Out Living'] as const).map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setEditLivingType(type)}
-                    className={`py-2 px-3 rounded-lg border font-bold cursor-pointer ${
-                      editLivingType === type
-                        ? type === 'In Living'
-                          ? 'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-amber-600 text-white border-amber-600'
-                        : isLight
-                        ? 'bg-slate-100 text-slate-700 border-slate-300'
-                        : 'bg-slate-950 text-slate-400 border-slate-800'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">কোয়ার্টার / বাসার ঠিকানা</label>
-                <input
-                  type="text"
-                  value={editQuarter}
-                  onChange={(e) => setEditQuarter(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:border-indigo-500 ${
-                    isLight
-                      ? 'bg-slate-50 border-slate-300 text-slate-900'
-                      : 'bg-slate-950 border-slate-800 text-white'
-                  }`}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">বাসায় ওঠার তারিখ</label>
-                  <input
-                    type="date"
-                    value={editSinceDate}
-                    onChange={(e) => setEditSinceDate(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:border-indigo-500 ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900'
-                        : 'bg-slate-950 border-slate-800 text-white'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">বাসার মেয়াদ শেষ হওয়ার সময়</label>
-                  <input
-                    type="date"
-                    value={editExpiryDate}
-                    onChange={(e) => setEditExpiryDate(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:border-indigo-500 ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900'
-                        : 'bg-slate-950 border-slate-800 text-white'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">মন্তব্য</label>
-                <input
-                  type="text"
-                  value={editRemarks}
-                  onChange={(e) => setEditRemarks(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border focus:outline-none focus:border-indigo-500 ${
-                    isLight
-                      ? 'bg-slate-50 border-slate-300 text-slate-900'
-                      : 'bg-slate-950 border-slate-800 text-white'
-                  }`}
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingRecord(null)}
-                  className={`px-3 py-1.5 rounded-lg cursor-pointer ${
-                    isLight ? 'bg-slate-100 text-slate-700' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold cursor-pointer"
-                >
-                  সংরক্ষণ করুন
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { Personnel, ParadeDutyAssignment, Battery } from '../types';
+import { Personnel, ParadeDutyAssignment, Battery, matchesBatteryFilter } from '../types';
 
 export interface SoldierDutyHistory {
   personnelId: string;
@@ -128,7 +128,7 @@ export function getRegimentalDutyFrequencyStats(
   const scoped =
     !batteryFilter || batteryFilter === 'Consolidated'
       ? personnelList
-      : personnelList.filter((p) => p.battery === batteryFilter);
+      : personnelList.filter((p) => matchesBatteryFilter(p.battery, batteryFilter));
 
   return scoped.map((person) => {
     const history = getSoldierDutyHistory(person.id, currentDateStr, allDutyAssignments);

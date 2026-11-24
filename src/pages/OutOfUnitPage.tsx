@@ -6,8 +6,11 @@ import {
   Battery,
   ALL_BATTERIES,
   Personnel,
+  normalizeBattery,
+  matchesBatteryFilter,
 } from '../types';
 import { sortBySeniority } from '../utils/seniorityUtils';
+import { RankBadge } from '../components/common/RankBadge';
 import {
   ArrowRightLeft,
   Plus,
@@ -46,14 +49,15 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
   } = useApp();
   const isLight = theme === 'light';
 
-  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'BSM'].includes(currentUser.role);
-  const assignedBty = currentUser.assignedBattery;
+  const isBsm = ['P BSM', 'Q BSM', 'R BSM', 'HQ BSM', 'EME JCO', 'BSM'].includes(currentUser.role);
+  const rawAssignedBty = currentUser.assignedBattery;
+  const assignedBty = rawAssignedBty ? (normalizeBattery(rawAssignedBty) as Battery) : undefined;
 
   const [currentCategory, setCurrentCategory] = useState<OutOfUnitCategory | 'ALL'>(
     activeOutOfUnitCategory || 'ALL'
   );
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'All'>(
-    isBsm && assignedBty ? (assignedBty as Battery) : 'All'
+    isBsm && assignedBty ? assignedBty : 'All'
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingSoldier, setIsAddingSoldier] = useState(false);
@@ -217,7 +221,7 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
 
     (personnelList || []).forEach((p) => {
       if (!p) return;
-      if (selectedBattery !== 'All' && p.battery !== selectedBattery) return;
+      if (selectedBattery !== 'All' && !matchesBatteryFilter(p.battery, selectedBattery)) return;
 
       const details = (p.statusDetails || '').toLowerCase();
       const loc = (p.outOfUnitLocation || '').toLowerCase();
@@ -323,7 +327,7 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
       if (!matchesCategory) return false;
 
       // Battery filter
-      if (selectedBattery !== 'All' && p.battery !== selectedBattery) {
+      if (selectedBattery !== 'All' && !matchesBatteryFilter(p.battery, selectedBattery)) {
         return false;
       }
 
@@ -351,10 +355,10 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
   const baseSoldiers = useMemo(() => {
     const raw = (personnelList || []).filter((p) => {
       if (!p) return false;
-      if (isBsm && assignedBty && p.battery !== assignedBty) {
+      if (isBsm && assignedBty && !matchesBatteryFilter(p.battery, assignedBty)) {
         return false;
       }
-      if (selectedBattery !== 'All' && p.battery !== selectedBattery) return false;
+      if (selectedBattery !== 'All' && !matchesBatteryFilter(p.battery, selectedBattery)) return false;
       return true;
     });
     return sortBySeniority(raw, ranksList);
@@ -409,7 +413,7 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
     }
 
     const targetPerson = personnelList.find((p) => p.id === selectedPersonnelId);
-    if (isBsm && assignedBty && targetPerson && targetPerson.battery !== assignedBty) {
+    if (isBsm && assignedBty && targetPerson && !matchesBatteryFilter(targetPerson.battery, assignedBty)) {
       alert(`⚠️ এই সদস্য ${targetPerson.battery}-এর। আপনি ${currentUser.role} হিসেবে শুধুমাত্র ${assignedBty}-এর তথ্য পরিবর্তন করতে পারবেন।`);
       return;
     }
@@ -746,14 +750,9 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                               <span className="font-mono font-bold text-cyan-400 text-xs shrink-0">
                                 {s.snkNo}
                               </span>
-                              <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono font-bold text-rose-300 shrink-0">
-                                {s.rk}
-                              </span>
+                              <RankBadge rank={s.rk} trade={s.trade} size="sm" />
                               <span className="font-bold text-white text-xs truncate">
                                 {s.name}
-                              </span>
-                              <span className="text-[10px] font-mono text-slate-400 hidden sm:inline truncate">
-                                ({s.trade})
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -785,9 +784,7 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                        {selectedSoldier.rk}
-                      </span>
+                      <RankBadge rank={selectedSoldier.rk} trade={selectedSoldier.trade} size="sm" />
                       <span className="text-white font-bold text-sm">
                         {selectedSoldier.name}
                       </span>
@@ -797,8 +794,6 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 flex-wrap">
                       <span>ব্যাটারি: <strong className="text-white">{selectedSoldier.battery}</strong></span>
-                      <span>•</span>
-                      <span>ট্রেড: <strong className="text-white">{selectedSoldier.trade}</strong></span>
                       <span>•</span>
                       <span>বর্তমান অবস্থান: <strong className="text-emerald-400">{selectedSoldier.status || 'Active'}</strong></span>
                       {selectedSoldier.outOfUnitCategory && (
@@ -966,7 +961,7 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
             }`}>
               <th className="py-2.5 px-3 text-center w-12">#</th>
               <th className="py-2.5 px-3">Army No</th>
-              <th className="py-2.5 px-3">Rank & Name</th>
+              <th className="py-2.5 px-3">Rank, Trade & Name</th>
               <th className="py-2.5 px-3">Battery</th>
               <th className="py-2.5 px-3">Category</th>
               <th className="py-2.5 px-3">Location / Unit</th>
@@ -1041,15 +1036,12 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                         {person.snkNo}
                       </td>
 
-                      {/* 3. Rank & Name */}
+                      {/* 3. Rank, Trade & Name */}
                       <td className="py-2 px-3">
-                        <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                          <span className="text-rose-500 font-mono mr-1.5">{person.rk}</span>
+                        <div className={`flex items-center gap-1.5 font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+                          <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                           <span>{person.name}</span>
                         </div>
-                        <span className={`text-[10px] font-mono ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
-                          {person.trade}
-                        </span>
                       </td>
 
                       {/* 4. Battery */}
@@ -1202,8 +1194,8 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                       {person.snkNo}
                     </td>
                     <td className="py-2.5 px-3">
-                      <div className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
-                        <span className="text-rose-500 font-mono mr-1.5">{person.rk}</span>
+                      <div className={`flex items-center gap-1.5 font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+                        <RankBadge rank={person.rk} trade={person.trade} size="sm" />
                         {onViewDossier ? (
                           <button
                             type="button"
@@ -1219,9 +1211,6 @@ export const OutOfUnitPage: React.FC<OutOfUnitPageProps> = ({ onViewDossier, onO
                           <span>{person.name}</span>
                         )}
                       </div>
-                      <span className={`text-[10px] font-mono ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
-                        {person.trade}
-                      </span>
                     </td>
                     <td className="py-2.5 px-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${

@@ -34,7 +34,15 @@ import {
   CustomTeam,
   ServiceActivityRecord,
   ServiceActivityType,
+  normalizeBattery,
+  matchesBatteryFilter,
 } from '../types';
+
+const normalizePersonnelBatteryList = (list: Personnel[]): Personnel[] =>
+  list.map((p) => ({
+    ...p,
+    battery: (normalizeBattery(p.battery || 'HQ Bty') || 'HQ Bty') as Battery,
+  }));
 import {
   CIVILIAN_PERSONNEL,
   INITIAL_USERS,
@@ -2744,10 +2752,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const res = await fetchPersonnelFromSupabase();
           if (!isMounted) return;
           if (res.success && res.personnel && res.personnel.length > 0) {
-            setPersonnelList(res.personnel);
+            const normalizedList = normalizePersonnelBatteryList(res.personnel);
+            setPersonnelList(normalizedList);
             setIsPersonnelLoading(false);
             try {
-              localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(res.personnel));
+              localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(normalizedList));
             } catch (e) {}
             return;
           }
@@ -2762,10 +2771,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const sData = await sRes.json();
         if (!isMounted) return;
         if (sData.success && Array.isArray(sData.data) && sData.data.length > 0) {
-          setPersonnelList(sData.data);
+          const normalizedServerList = normalizePersonnelBatteryList(sData.data);
+          setPersonnelList(normalizedServerList);
           setIsPersonnelLoading(false);
           try {
-            localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(sData.data));
+            localStorage.setItem('10med_personnel_cache_v2', JSON.stringify(normalizedServerList));
           } catch (e) {}
           return;
         }
@@ -2779,7 +2789,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0 && isMounted) {
-            setPersonnelList(parsed);
+            setPersonnelList(normalizePersonnelBatteryList(parsed));
           }
         }
       } catch (e) {}
@@ -3832,7 +3842,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showNotification(`Supabase PostgreSQL থেকে তথ্য রিফ্রেশ করা হচ্ছে...`);
         const res = await fetchPersonnelFromSupabase();
         if (res.success && res.personnel) {
-          setPersonnelList(res.personnel);
+          setPersonnelList(normalizePersonnelBatteryList(res.personnel));
           setCloudPermissionDenied(false);
           showNotification(`সফলভাবে ${res.personnel.length} জন সদস্য Supabase থেকে লোড হয়েছে!`);
         } else {
@@ -4012,9 +4022,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem(STORAGE_KEYS.SYSTEM_SETTINGS, JSON.stringify(backupData.systemSettings));
       }
       if (Array.isArray(backupData.personnelList)) {
-        setPersonnelList(backupData.personnelList);
+        const normalizedImport = normalizePersonnelBatteryList(backupData.personnelList);
+        setPersonnelList(normalizedImport);
         if (isSupabaseConfigured()) {
-          syncPersonnelToSupabase(backupData.personnelList).catch(() => {});
+          syncPersonnelToSupabase(normalizedImport).catch(() => {});
         }
       }
       if (Array.isArray(backupData.usersList)) {
@@ -4397,7 +4408,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return !isNaN(n) && n > acc ? n : acc;
     }, 0);
     const newId = (maxId + 1).toString();
-    const newPerson: Personnel = { ...person, id: newId };
+    const newPerson: Personnel = {
+      ...person,
+      battery: (normalizeBattery(person.battery || 'HQ Bty') || 'HQ Bty') as Battery,
+      id: newId,
+    };
     setPersonnelList((prev) => {
       const next = [newPerson, ...prev];
       try {
@@ -4441,7 +4456,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPersonnelList((prev) => {
       const next = prev.map((p) => {
         if (p.id === id) {
-          updatedRecord = applyPersonnelHistoryHook(p, updated, actorName);
+          const normalizedUpdate: Partial<Personnel> = updated.battery
+            ? { ...updated, battery: (normalizeBattery(updated.battery) || updated.battery) as Battery }
+            : updated;
+          updatedRecord = applyPersonnelHistoryHook(p, normalizedUpdate, actorName);
           return updatedRecord;
         }
         return p;
@@ -5417,7 +5435,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const getBatterySummaries = (): BatteryParadeSummary[] => {
     const batteries: Battery[] = ALL_BATTERIES;
     return batteries.map((bty) => {
-      const btyMembers = personnelList.filter((p) => p.battery === bty);
+      const btyMembers = personnelList.filter((p) => matchesBatteryFilter(p.battery, bty));
       const totalPersonnel = btyMembers.length;
 
       // Civilian & ERE
@@ -5486,7 +5504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const totalOut = leave + course + sick + tempDuty + fdmn + absent;
       // Present in Unit: held - totalOut
       const present = Math.max(0, held - totalOut);
-      const onDuty = dutyRoster.filter((d) => d.battery === bty).length;
+      const onDuty = dutyRoster.filter((d) => matchesBatteryFilter(d.battery, bty)).length;
 
       const btyStatus = paradeBatteryStatus[bty] || { status: 'Pending', lastUpdated: '0630 HRS' };
 
