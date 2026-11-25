@@ -171,53 +171,86 @@ export const DailyParadeStateModal: React.FC<DailyParadeStateModalProps> = ({
     return buffer;
   });
 
-  // Keep buffer in sync when modal opens or dynamic points/date/session update
+  const lastBufferKeyRef = React.useRef<string>('');
+
+  // Keep buffer in sync when modal opens or date/session changes; do not overwrite active edits on background polls
   React.useEffect(() => {
-    const buffer: Record<string, Partial<Record<Battery, ParadePointCount>>> = {};
+    if (!isOpen) {
+      lastBufferKeyRef.current = '';
+      return;
+    }
 
-    // 1. First try loading saved record for this date and session
-    ALL_BATTERIES.forEach((bty) => {
-      const rec = getParadeRecord(activeDate, sessionType, bty);
-      if (rec && rec.counts) {
-        Object.entries(rec.counts).forEach(([ptId, cnt]) => {
-          if (!buffer[ptId]) {
-            buffer[ptId] = {
-              'P Bty': { offr: 0, jco: 0, or: 0 },
-              'Q Bty': { offr: 0, jco: 0, or: 0 },
-              'R Bty': { offr: 0, jco: 0, or: 0 },
-              'HQ Bty': { offr: 0, jco: 0, or: 0 },
-              'EME': { offr: 0, jco: 0, or: 0 },
+    const bufferKey = `${activeDate}__${sessionType}`;
+    const isFullResetNeeded = lastBufferKeyRef.current !== bufferKey;
+    lastBufferKeyRef.current = bufferKey;
+
+    if (isFullResetNeeded) {
+      const buffer: Record<string, Partial<Record<Battery, ParadePointCount>>> = {};
+
+      // 1. First try loading saved record for this date and session
+      ALL_BATTERIES.forEach((bty) => {
+        const rec = getParadeRecord(activeDate, sessionType, bty);
+        if (rec && rec.counts) {
+          Object.entries(rec.counts).forEach(([ptId, cnt]) => {
+            if (!buffer[ptId]) {
+              buffer[ptId] = {
+                'P Bty': { offr: 0, jco: 0, or: 0 },
+                'Q Bty': { offr: 0, jco: 0, or: 0 },
+                'R Bty': { offr: 0, jco: 0, or: 0 },
+                'HQ Bty': { offr: 0, jco: 0, or: 0 },
+                'EME': { offr: 0, jco: 0, or: 0 },
+              };
+            }
+            const safeCnt = cnt as ParadePointCount;
+            buffer[ptId][bty] = {
+              offr: safeCnt?.offr || 0,
+              jco: safeCnt?.jco || 0,
+              or: safeCnt?.or || 0,
             };
-          }
-          const safeCnt = cnt as ParadePointCount;
-          buffer[ptId][bty] = {
-            offr: safeCnt?.offr || 0,
-            jco: safeCnt?.jco || 0,
-            or: safeCnt?.or || 0,
-          };
-        });
-      }
-    });
+          });
+        }
+      });
 
-    // 2. Ensure all dynamic points are present
-    dynamicParadePoints.forEach((pt) => {
-      if (!buffer[pt.id]) {
-        buffer[pt.id] = {
-          'P Bty': { ...(pt.counts['P Bty'] || { offr: 0, jco: 0, or: 0 }) },
-          'Q Bty': { ...(pt.counts['Q Bty'] || { offr: 0, jco: 0, or: 0 }) },
-          'R Bty': { ...(pt.counts['R Bty'] || { offr: 0, jco: 0, or: 0 }) },
-          'HQ Bty': { ...(pt.counts['HQ Bty'] || { offr: 0, jco: 0, or: 0 }) },
-          'EME': { ...(pt.counts['EME'] || { offr: 0, jco: 0, or: 0 }) },
-        };
-      } else {
-        ALL_BATTERIES.forEach((bty) => {
-          if (!buffer[pt.id][bty]) {
-            buffer[pt.id][bty] = { ...(pt.counts[bty] || { offr: 0, jco: 0, or: 0 }) };
-          }
-        });
-      }
+      // 2. Ensure all dynamic points are present
+      dynamicParadePoints.forEach((pt) => {
+        if (!buffer[pt.id]) {
+          buffer[pt.id] = {
+            'P Bty': { ...(pt.counts['P Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'Q Bty': { ...(pt.counts['Q Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'R Bty': { ...(pt.counts['R Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'HQ Bty': { ...(pt.counts['HQ Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'EME': { ...(pt.counts['EME'] || { offr: 0, jco: 0, or: 0 }) },
+          };
+        } else {
+          ALL_BATTERIES.forEach((bty) => {
+            if (!buffer[pt.id][bty]) {
+              buffer[pt.id][bty] = { ...(pt.counts[bty] || { offr: 0, jco: 0, or: 0 }) };
+            }
+          });
+        }
+      });
+      setCountsBuffer(buffer);
+      return;
+    }
+
+    // While already open on the same date/session, only merge newly added points without overwriting active edits
+    setCountsBuffer((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      dynamicParadePoints.forEach((pt) => {
+        if (!next[pt.id]) {
+          changed = true;
+          next[pt.id] = {
+            'P Bty': { ...(pt.counts['P Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'Q Bty': { ...(pt.counts['Q Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'R Bty': { ...(pt.counts['R Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'HQ Bty': { ...(pt.counts['HQ Bty'] || { offr: 0, jco: 0, or: 0 }) },
+            'EME': { ...(pt.counts['EME'] || { offr: 0, jco: 0, or: 0 }) },
+          };
+        }
+      });
+      return changed ? next : prev;
     });
-    setCountsBuffer(buffer);
   }, [isOpen, dynamicParadePoints, activeDate, sessionType]);
 
   // Full-screen state (defaults to true as requested)

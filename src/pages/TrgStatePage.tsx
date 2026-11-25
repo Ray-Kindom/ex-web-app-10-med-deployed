@@ -130,11 +130,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       setBoardDefs(res.boardDefs || []);
       setCustomModuleDefs(res.moduleDefs || []);
       setTableMissing(false);
-    } else {
+    } else if (res.tableMissing) {
       setRecords([]);
       setBoardDefs([]);
       setCustomModuleDefs([]);
-      setTableMissing(Boolean(res.tableMissing));
+      setTableMissing(true);
     }
     setIsLoading(false);
   }, []);
@@ -1284,7 +1284,11 @@ export const TrgStatePage: React.FC<TrgStatePageProps> = ({
       if (r.date) allDates.add(r.date.trim());
     });
     const sorted = Array.from(allDates).sort((a, b) => b.localeCompare(a));
-    setZeroViewTargetDate(sorted[0] || getDefaultDateForSpdMarchYear(selectedSpdMarchYear));
+    setZeroViewTargetDate((prev) =>
+      prev && sorted.includes(prev)
+        ? prev
+        : sorted[0] || getDefaultDateForSpdMarchYear(selectedSpdMarchYear)
+    );
   }, [isSpdMarchSelected, selectedSpdMarchYear, spdMarchRecordsInYear, customSpdDatesByYear]);
 
   // Date-wise grouping inside selected Spd March year (newest date first)

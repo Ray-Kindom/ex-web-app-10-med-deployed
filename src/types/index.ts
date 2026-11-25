@@ -653,6 +653,7 @@ export interface CustomTeam {
 }
 
 export type LivingCategory = 'In Living' | 'Out Living';
+export type FamilyManRankGroup = 'জেসিও' | 'অন্যান্য পদবী' | 'এনসি (ই)';
 
 export interface FamilyManRecord {
   id: string;
@@ -663,10 +664,15 @@ export interface FamilyManRecord {
   battery: Battery;
   trade?: string;
   livingType: LivingCategory;
-  quarterOrAddress?: string;
-  sinceDate?: string;
-  expiryDate?: string;
-  remarks?: string;
+  rankCategory?: FamilyManRankGroup;
+  banglaFullTitle?: string;
+  applicationDate?: string; // আবেদন এর তারিখ (YYYY-MM-DD or text)
+  allotmentDate?: string; // স্টেশন কর্তৃক বরাদ্দের তারিখ (YYYY-MM-DD)
+  quarterOrAddress?: string; // বাসা নম্বর / ঠিকানা
+  sinceDate?: string; // দখলের তারিখ (YYYY-MM-DD)
+  expiryDate?: string; // খালির তারিখ (YYYY-MM-DD)
+  remarks?: string; // মন্তব্য
+  serialOrder?: number;
   updatedAt?: string;
 }
 

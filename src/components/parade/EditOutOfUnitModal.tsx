@@ -52,71 +52,83 @@ export const EditOutOfUnitModal: React.FC<EditOutOfUnitModalProps> = ({
   const [authority, setAuthority] = useState('');
   const [remarks, setRemarks] = useState('');
 
+  const lastInitKeyRef = React.useRef<string>('');
+  const personnelRef = React.useRef(personnel);
+  personnelRef.current = personnel;
+
+  const modalPersonKey = isOpen && personnel ? (personnel.id || personnel.snkNo || '') : '';
+
   useEffect(() => {
-    if (personnel && isOpen) {
-      const initialCat = getInitialCategory(personnel);
-      setCategory(initialCat);
+    const p = personnelRef.current;
+    if (!isOpen || !p) {
+      lastInitKeyRef.current = '';
+      return;
+    }
+    if (lastInitKeyRef.current === modalPersonKey) return;
+    lastInitKeyRef.current = modalPersonKey;
 
-      const loc =
-        personnel.outOfUnitLocation ||
-        personnel.location ||
-        personnel.leaveAddress ||
-        personnel.courseName ||
-        personnel.hospitalName ||
-        personnel.comdAssignment ||
-        '';
-      setLocation(loc);
+    const initialCat = getInitialCategory(p);
+    setCategory(initialCat);
 
-      const start =
-        personnel.outOfUnitStartDate ||
-        personnel.startDate ||
-        personnel.leaveFrom ||
-        personnel.courseFrom ||
-        personnel.admissionDate ||
-        personnel.comdFrom ||
-        new Date().toISOString().split('T')[0];
-      setStartDate(start);
+    const loc =
+      p.outOfUnitLocation ||
+      p.location ||
+      p.leaveAddress ||
+      p.courseName ||
+      p.hospitalName ||
+      p.comdAssignment ||
+      '';
+    setLocation(loc);
 
-      const end =
-        personnel.outOfUnitEndDate ||
-        personnel.endDate ||
-        personnel.leaveTo ||
-        personnel.courseTo ||
-        personnel.comdTo ||
-        '';
-      setEndDate(end);
+    const start =
+      p.outOfUnitStartDate ||
+      p.startDate ||
+      p.leaveFrom ||
+      p.courseFrom ||
+      p.admissionDate ||
+      p.comdFrom ||
+      new Date().toISOString().split('T')[0];
+    setStartDate(start);
 
-      const auth =
-        personnel.outOfUnitAuthority ||
-        personnel.authority ||
-        personnel.comdAuthority ||
-        '';
-      setAuthority(auth);
+    const end =
+      p.outOfUnitEndDate ||
+      p.endDate ||
+      p.leaveTo ||
+      p.courseTo ||
+      p.comdTo ||
+      '';
+    setEndDate(end);
 
-      const rmk =
-        personnel.outOfUnitRemarks ||
-        personnel.remarks ||
-        personnel.rmk ||
-        personnel.diagnosis ||
-        '';
-      setRemarks(rmk);
+    const auth =
+      p.outOfUnitAuthority ||
+      p.authority ||
+      p.comdAuthority ||
+      '';
+    setAuthority(auth);
 
-      // Duration
-      if (personnel.durationDays) {
-        setDurationDays(personnel.durationDays);
-      } else if (start && end) {
-        const d1 = new Date(start).getTime();
-        const d2 = new Date(end).getTime();
-        if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
-          setDurationDays(Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1));
-        } else {
-          setDurationDays('');
-        }
+    const rmk =
+      p.outOfUnitRemarks ||
+      p.remarks ||
+      p.rmk ||
+      p.diagnosis ||
+      '';
+    setRemarks(rmk);
+
+    // Duration
+    if (p.durationDays) {
+      setDurationDays(p.durationDays);
+    } else if (start && end) {
+      const d1 = new Date(start).getTime();
+      const d2 = new Date(end).getTime();
+      if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+        setDurationDays(Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1));
       } else {
         setDurationDays('');
       }
+    } else {
+      setDurationDays('');
     }
-  }, [personnel, isOpen]);
+  }, [isOpen, modalPersonKey]);
 
   if (!isOpen || !personnel) return null;
 

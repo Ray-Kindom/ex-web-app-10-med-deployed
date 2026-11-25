@@ -240,21 +240,26 @@ export const ParadeDutyHeadingBoxes: React.FC<ParadeDutyHeadingBoxesProps> = ({
     return Array.from(new Set(activeBoxDef?.defaultRoles || []));
   }, [activeCategory, customTeams, activeBoxDef]);
 
-  // When active category changes or available roles change, set selected duty option
+  // Reset search/custom inputs only when activeCategory actually changes
+  useEffect(() => {
+    if (!activeCategory) return;
+    setIsCustomDuty(false);
+    setCustomDutyInput('');
+    setSearchQuery('');
+    setIsSearchOpen(false);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 80);
+  }, [activeCategory]);
+
+  // Keep selectedDutyName valid within availableRoles without resetting inputs/focus on background sync
   useEffect(() => {
     if (activeCategory && availableRoles.length > 0) {
       if (!selectedDutyName || !availableRoles.includes(selectedDutyName)) {
         setSelectedDutyName(availableRoles[0]);
       }
-      setIsCustomDuty(false);
-      setCustomDutyInput('');
-      setSearchQuery('');
-      setIsSearchOpen(false);
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 80);
     }
-  }, [activeCategory, availableRoles]);
+  }, [activeCategory, availableRoles, selectedDutyName]);
 
   // Team object matching current selected role (prefer newest year record)
   const currentTeamObj = useMemo(() => {

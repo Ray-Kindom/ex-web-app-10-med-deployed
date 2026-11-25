@@ -30,9 +30,13 @@ export const DutyRotationStatsModal: React.FC<DutyRotationStatsModalProps> = ({
 }) => {
   const { personnelList, paradeDutyAssignments } = useApp();
   const [selectedBattery, setSelectedBattery] = useState<Battery | 'Consolidated'>(initialBattery);
+  const wasOpenRef = React.useRef(false);
   useEffect(() => {
-    setSelectedBattery(initialBattery);
-  }, [initialBattery]);
+    if (isOpen && !wasOpenRef.current) {
+      setSelectedBattery(initialBattery);
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, initialBattery]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterFatigue, setFilterFatigue] = useState<'all' | 'fresh' | 'fatigued'>('all');
 

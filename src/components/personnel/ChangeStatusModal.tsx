@@ -40,59 +40,71 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
   const [authority, setAuthority] = useState('');
   const [remarks, setRemarks] = useState('');
 
-  useEffect(() => {
-    if (personnel && isOpen) {
-      const normalized = normalizePersonnelStatus(
-        personnel.status,
-        personnel.outOfUnitCategory,
-        personnel.rk,
-        personnel.trade,
-        personnel.statusDetails
-      );
-      setStatus(normalized);
-      setLocation(personnel.location || personnel.outOfUnitLocation || '');
-      setStartDate(
-        personnel.startDate ||
-          personnel.outOfUnitStartDate ||
-          personnel.leaveFrom ||
-          personnel.courseFrom ||
-          personnel.comdFrom ||
-          new Date().toISOString().split('T')[0]
-      );
-      setEndDate(
-        personnel.endDate ||
-          personnel.outOfUnitEndDate ||
-          personnel.leaveTo ||
-          personnel.courseTo ||
-          personnel.comdTo ||
-          ''
-      );
-      setAuthority(
-        personnel.authority ||
-          personnel.outOfUnitAuthority ||
-          personnel.comdAuthority ||
-          ''
-      );
-      setRemarks(
-        personnel.remarks ||
-          personnel.outOfUnitRemarks ||
-          personnel.rmk ||
-          ''
-      );
+  const lastInitKeyRef = React.useRef<string>('');
+  const personnelRef = React.useRef(personnel);
+  personnelRef.current = personnel;
 
-      if (personnel.durationDays) {
-        setDurationDays(personnel.durationDays);
-      } else if (personnel.outOfUnitStartDate && personnel.outOfUnitEndDate) {
-        const d1 = new Date(personnel.outOfUnitStartDate).getTime();
-        const d2 = new Date(personnel.outOfUnitEndDate).getTime();
-        if (!isNaN(d1) && !isNaN(d2)) {
-          setDurationDays(Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1));
-        }
-      } else {
-        setDurationDays('');
-      }
+  const modalPersonKey = isOpen && personnel ? (personnel.id || personnel.snkNo || '') : '';
+
+  useEffect(() => {
+    const p = personnelRef.current;
+    if (!isOpen || !p) {
+      lastInitKeyRef.current = '';
+      return;
     }
-  }, [personnel, isOpen]);
+    if (lastInitKeyRef.current === modalPersonKey) return;
+    lastInitKeyRef.current = modalPersonKey;
+
+    const normalized = normalizePersonnelStatus(
+      p.status,
+      p.outOfUnitCategory,
+      p.rk,
+      p.trade,
+      p.statusDetails
+    );
+    setStatus(normalized);
+    setLocation(p.location || p.outOfUnitLocation || '');
+    setStartDate(
+      p.startDate ||
+        p.outOfUnitStartDate ||
+        p.leaveFrom ||
+        p.courseFrom ||
+        p.comdFrom ||
+        new Date().toISOString().split('T')[0]
+    );
+    setEndDate(
+      p.endDate ||
+        p.outOfUnitEndDate ||
+        p.leaveTo ||
+        p.courseTo ||
+        p.comdTo ||
+        ''
+    );
+    setAuthority(
+      p.authority ||
+        p.outOfUnitAuthority ||
+        p.comdAuthority ||
+        ''
+    );
+    setRemarks(
+      p.remarks ||
+        p.outOfUnitRemarks ||
+        p.rmk ||
+        ''
+    );
+
+    if (p.durationDays) {
+      setDurationDays(p.durationDays);
+    } else if (p.outOfUnitStartDate && p.outOfUnitEndDate) {
+      const d1 = new Date(p.outOfUnitStartDate).getTime();
+      const d2 = new Date(p.outOfUnitEndDate).getTime();
+      if (!isNaN(d1) && !isNaN(d2)) {
+        setDurationDays(Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1));
+      }
+    } else {
+      setDurationDays('');
+    }
+  }, [isOpen, modalPersonKey]);
 
   // Recalculate duration when startDate or endDate changes
   const handleStartDateChange = (val: string) => {

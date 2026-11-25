@@ -1340,7 +1340,8 @@ export const fetchCourseCadreFromSupabase = async (): Promise<{
     const { data, error } = await client
       .from('course_cadre')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(0, 4999);
 
     if (error) {
       return {
@@ -1547,6 +1548,55 @@ export const deleteCourseDefinitionFromSupabase = async (
 
   try {
     const { error } = await client.from('course_definitions').delete().eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+};
+
+const COURSE_CADRE_TYPE_MAP_ID = 'course_cadre_type_map';
+
+export const fetchCourseCadreTypesFromSupabase = async (): Promise<
+  Record<string, 'course' | 'cadre'>
+> => {
+  const client = getSupabaseClient();
+  if (!client) return {};
+  try {
+    const { data, error } = await client
+      .from('parade_records')
+      .select('summary')
+      .eq('id', COURSE_CADRE_TYPE_MAP_ID)
+      .maybeSingle();
+    if (error || !data?.summary || typeof data.summary !== 'object') return {};
+    const rawMap = (data.summary as any).typeMap || {};
+    const out: Record<string, 'course' | 'cadre'> = {};
+    Object.entries(rawMap).forEach(([k, v]) => {
+      if (v === 'course' || v === 'cadre') out[k] = v;
+    });
+    return out;
+  } catch {
+    return {};
+  }
+};
+
+export const saveCourseCadreTypesToSupabase = async (
+  typeMap: Record<string, 'course' | 'cadre'>
+): Promise<{ success: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client is not configured.' };
+  try {
+    const payload = {
+      id: COURSE_CADRE_TYPE_MAP_ID,
+      date: '2000-01-02',
+      battery: 'ALL',
+      submitted_by: 'System',
+      status: 'Active',
+      summary: { typeMap, updatedAt: new Date().toISOString() },
+    };
+    const { error } = await client
+      .from('parade_records')
+      .upsert([payload], { onConflict: 'id' });
     if (error) throw error;
     return { success: true };
   } catch (err: any) {

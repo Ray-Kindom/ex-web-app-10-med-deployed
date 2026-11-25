@@ -6,7 +6,9 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import {
   COURSE_DEFINITIONS,
   CourseDefinition,
+  CourseOrCadreType,
   CourseQualificationRecord,
+  inferCourseType,
 } from '../data/courseQualificationData';
 import {
   fetchCourseCadreFromSupabase,
@@ -17,6 +19,8 @@ import {
   fetchCourseDefinitionsFromSupabase,
   upsertCourseDefinitionToSupabase,
   deleteCourseDefinitionFromSupabase,
+  fetchCourseCadreTypesFromSupabase,
+  saveCourseCadreTypesToSupabase,
 } from '../lib/supabase';
 import {
   GraduationCap,
@@ -50,6 +54,8 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
 
   // 1. Course Definitions (UI interface catalog, overridden/extended by Supabase `course_definitions` if present)
   const [courseDefinitions, setCourseDefinitions] = useState<CourseDefinition[]>(COURSE_DEFINITIONS);
+  const [courseTypeOverrides, setCourseTypeOverrides] = useState<Record<string, CourseOrCadreType>>({});
+  const [activeDirectoryTab, setActiveDirectoryTab] = useState<CourseOrCadreType>('cadre');
 
   // 2. Course Cadre records strictly from Supabase `course_cadre`
   const [courseRecords, setCourseRecords] = useState<CourseQualificationRecord[]>([]);
@@ -58,18 +64,21 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   const [tableMissing, setTableMissing] = useState(false);
 
   const loadFromSupabase = useCallback(async () => {
-    const [cadreRes, defsRes] = await Promise.all([
+    const [cadreRes, defsRes, typeMap] = await Promise.all([
       fetchCourseCadreFromSupabase(),
       fetchCourseDefinitionsFromSupabase(),
+      fetchCourseCadreTypesFromSupabase(),
     ]);
+
+    setCourseTypeOverrides(typeMap);
 
     const supabaseRecords = cadreRes.success ? cadreRes.records : [];
     if (cadreRes.success) {
       setCourseRecords(supabaseRecords);
       setTableMissing(false);
-    } else {
+    } else if (cadreRes.tableMissing) {
       setCourseRecords([]);
-      setTableMissing(Boolean(cadreRes.tableMissing));
+      setTableMissing(true);
     }
 
     // Build course definitions: Supabase `course_definitions` if populated, else base UI catalog + any custom course_id from `course_cadre`
@@ -78,10 +87,14 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
         ? defsRes.definitions
         : COURSE_DEFINITIONS;
 
-    const mergedDefs = [...baseDefs];
+    const mergedDefs: CourseDefinition[] = baseDefs.map((d) => ({
+      ...d,
+      type: inferCourseType(d, typeMap),
+    }));
+
     supabaseRecords.forEach((rec) => {
       if (!mergedDefs.some((d) => d.id === rec.courseId)) {
-        mergedDefs.push({
+        const draft: CourseDefinition = {
           id: rec.courseId,
           name: rec.courseName || rec.courseId,
           bengaliName: rec.courseName || rec.courseId,
@@ -89,7 +102,9 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
           category: 'Artillery Specialist',
           defaultDuration: '4 Weeks',
           defaultLocation: rec.location || '10 Med Regimental Trg Ground',
-        });
+        };
+        draft.type = inferCourseType(draft, typeMap);
+        mergedDefs.push(draft);
       }
     });
     setCourseDefinitions(mergedDefs);
@@ -111,12 +126,18 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     return COURSE_DEFINITIONS[0]?.id || 'bgc';
   });
 
-  // Safeguard: if selected course was deleted, select first available
+  // Safeguard: keep selectedCourseId inside activeDirectoryTab when available
   useEffect(() => {
-    if (courseDefinitions.length > 0 && !courseDefinitions.some((c) => c.id === selectedCourseId)) {
+    if (courseDefinitions.length === 0) return;
+    const inTab = courseDefinitions.filter(
+      (c) => inferCourseType(c, courseTypeOverrides) === activeDirectoryTab
+    );
+    if (inTab.length > 0 && !inTab.some((c) => c.id === selectedCourseId)) {
+      setSelectedCourseId(inTab[0].id);
+    } else if (!courseDefinitions.some((c) => c.id === selectedCourseId)) {
       setSelectedCourseId(courseDefinitions[0].id);
     }
-  }, [courseDefinitions, selectedCourseId]);
+  }, [courseDefinitions, courseTypeOverrides, activeDirectoryTab, selectedCourseId]);
 
   const [courseSearchQuery, setCourseSearchQuery] = useState('');
   const [rosterSearch, setRosterSearch] = useState('');
@@ -157,6 +178,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
   const [inlineEditDate, setInlineEditDate] = useState('');
   const [inlineEditLocation, setInlineEditLocation] = useState('');
   const [inlineEditGrade, setInlineEditGrade] = useState('');
+  const [inlineEditRemarks, setInlineEditRemarks] = useState('');
 
   // Inline Course Directory Item Editing State
   const [inlineEditingCourseId, setInlineEditingCourseId] = useState<string | null>(null);
@@ -173,6 +195,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     category: CourseDefinition['category'];
     defaultDuration: string;
     defaultLocation: string;
+    type: CourseOrCadreType;
   }>({
     id: '',
     name: '',
@@ -181,6 +204,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     category: 'Artillery Specialist',
     defaultDuration: '4 Weeks',
     defaultLocation: '',
+    type: 'cadre',
   });
 
   // Live lookup map for main personnel database
@@ -369,7 +393,15 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
 
     const items = listToPrint.map((cr) => {
       const live = findPerson(cr.snkNo, cr.personnelId);
-      const currentStatus = live?.outOfUnitCategory || live?.status || 'In Unit';
+      const isRetired =
+        !live ||
+        (cr.remarks || '').toLowerCase().includes('retired') ||
+        (cr.remarks || '').includes('রিটায়ার্ড');
+      const currentStatus = live
+        ? live.outOfUnitCategory || live.status || 'In Unit'
+        : isRetired
+        ? 'Retired'
+        : 'Out of Roll';
       return {
         snkNo: cr.snkNo,
         rk: cr.rk,
@@ -377,7 +409,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
         name: cr.name,
         battery: cr.battery,
         currentStatus,
-        completionDate: cr.completionDate,
+        completionDate: cr.completionDate || '—',
         location: cr.location,
         grade: cr.grade,
         authority: cr.authority,
@@ -398,18 +430,43 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     );
   };
 
-  // Filtered Course Directory
+  // Directory type counts (Course vs Cadre)
+  const courseTypeCounts = useMemo(() => {
+    let course = 0;
+    let cadre = 0;
+    courseDefinitions.forEach((c) => {
+      if (inferCourseType(c, courseTypeOverrides) === 'cadre') cadre++;
+      else course++;
+    });
+    return { course, cadre };
+  }, [courseDefinitions, courseTypeOverrides]);
+
+  const handleSwitchDirectoryTab = (tab: CourseOrCadreType) => {
+    setActiveDirectoryTab(tab);
+    setRosterSearch('');
+    const firstInTab = courseDefinitions.find(
+      (c) => inferCourseType(c, courseTypeOverrides) === tab
+    );
+    if (firstInTab) {
+      setSelectedCourseId(firstInTab.id);
+    }
+  };
+
+  // Filtered Course Directory (filtered by active Course/Cadre tab + search query)
   const filteredCourses = useMemo(() => {
-    if (!courseSearchQuery.trim()) return courseDefinitions;
+    const tabList = courseDefinitions.filter(
+      (c) => inferCourseType(c, courseTypeOverrides) === activeDirectoryTab
+    );
+    if (!courseSearchQuery.trim()) return tabList;
     const q = courseSearchQuery.toLowerCase().trim();
-    return courseDefinitions.filter(
+    return tabList.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.bengaliName.toLowerCase().includes(q) ||
         c.shortCode.toLowerCase().includes(q) ||
         c.category.toLowerCase().includes(q)
     );
-  }, [courseDefinitions, courseSearchQuery]);
+  }, [courseDefinitions, courseTypeOverrides, activeDirectoryTab, courseSearchQuery]);
 
   // Open Add Soldier Qualification Modal
   const handleOpenAddModal = (courseId?: string) => {
@@ -435,9 +492,10 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       return;
     }
     setInlineEditingRecordId(record.id);
-    setInlineEditDate(record.completionDate || new Date().toISOString().slice(0, 10));
+    setInlineEditDate(record.completionDate || '');
     setInlineEditLocation(record.location || '');
     setInlineEditGrade(record.grade || 'Qualified (Grade A)');
+    setInlineEditRemarks(record.remarks || '');
   };
 
   const cancelInlineEditRecord = () => {
@@ -449,10 +507,6 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       showNotification('গেস্ট মোডে কোনো পরিবর্তন সংরক্ষণ করা সম্ভব নয়।');
       return;
     }
-    if (!inlineEditDate) {
-      showNotification('অনুগ্রহ করে তারিখ প্রদান করুন!');
-      return;
-    }
     const cleanGrade = inlineEditGrade.trim();
     if (!cleanGrade) {
       showNotification('অনুগ্রহ করে ফলাফল / গ্রেড লিখুন!');
@@ -461,9 +515,10 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
 
     const updatedRecord: CourseQualificationRecord = {
       ...record,
-      completionDate: inlineEditDate,
+      completionDate: inlineEditDate.trim(),
       location: inlineEditLocation.trim() || currentCourseDef.defaultLocation,
       grade: cleanGrade,
+      remarks: inlineEditRemarks.trim(),
     };
 
     setIsSaving(true);
@@ -535,13 +590,14 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     }
     setIsCreatingNewCourse(true);
     setCourseEditForm({
-      id: `course_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: `${activeDirectoryTab === 'cadre' ? 'cadre' : 'course'}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       name: '',
       bengaliName: '',
       shortCode: '',
       category: 'Artillery Specialist',
       defaultDuration: '4 Weeks',
       defaultLocation: '10 Med Regimental Trg Ground',
+      type: activeDirectoryTab,
     });
     setIsCourseEditModalOpen(true);
   };
@@ -556,7 +612,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
 
     const trimmedName = courseEditForm.name.trim();
     if (!trimmedName) {
-      showNotification('অনুগ্রহ করে কোর্সের নাম প্রদান করুন!');
+      showNotification('অনুগ্রহ করে কোর্স বা ক্যাডারের নাম প্রদান করুন!');
       return;
     }
 
@@ -568,14 +624,25 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
       category: courseEditForm.category,
       defaultDuration: courseEditForm.defaultDuration.trim() || '4 Weeks',
       defaultLocation: courseEditForm.defaultLocation.trim() || '10 Med Regimental Trg Ground',
+      type: courseEditForm.type,
     };
 
-    await upsertCourseDefinitionToSupabase(updatedCourse);
+    const nextTypeMap = {
+      ...courseTypeOverrides,
+      [updatedCourse.id]: courseEditForm.type,
+    };
+    setCourseTypeOverrides(nextTypeMap);
+
+    await Promise.all([
+      upsertCourseDefinitionToSupabase(updatedCourse),
+      saveCourseCadreTypesToSupabase(nextTypeMap),
+    ]);
 
     if (isCreatingNewCourse) {
       setCourseDefinitions((prev) => [...prev, updatedCourse]);
+      setActiveDirectoryTab(courseEditForm.type);
       setSelectedCourseId(updatedCourse.id);
-      showNotification(`নতুন কোর্স "${updatedCourse.name}" সফলভাবে যুক্ত করা হয়েছে।`);
+      showNotification(`নতুন ${courseEditForm.type === 'cadre' ? 'ক্যাডার' : 'কোর্স'} "${updatedCourse.name}" সফলভাবে যুক্ত করা হয়েছে।`);
     } else {
       const oldCourse = courseDefinitions.find((c) => c.id === updatedCourse.id);
       setCourseDefinitions((prev) =>
@@ -592,7 +659,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
           )
         );
       }
-      showNotification(`কোর্সের নাম ও বিবরণ সফলভাবে আপডেট করা হয়েছে: "${updatedCourse.name}"`);
+      showNotification(`নাম ও বিবরণ সফলভাবে আপডেট করা হয়েছে: "${updatedCourse.name}"`);
     }
 
     setIsCourseEditModalOpen(false);
@@ -639,20 +706,10 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
     showNotification(`"${targetCourse.name}" কোর্সটি মুছে ফেলা হয়েছে।`);
   };
 
-  // Reset to Factory Default Courses
+  // Reload/Sync Course & Cadre Directory from Supabase + Official Catalog
   const handleResetDefaultCourses = async () => {
-    if (isGuest) {
-      showNotification('গেস্ট মোডে রিসেট করা সম্ভব নয়।');
-      return;
-    }
-    const confirmed = window.confirm(
-      'আপনি কি কোর্স তালিকা মূল অফিশিয়াল ডিফল্ট (১১টি কোর্স) এ ফিরিয়ে আনতে চান?'
-    );
-    if (!confirmed) return;
-
-    setCourseDefinitions(COURSE_DEFINITIONS);
-    setSelectedCourseId(COURSE_DEFINITIONS[0].id);
-    showNotification('কোর্স তালিকা সফলভাবে ডিফল্ট অবস্থায় ফিরিয়ে আনা হয়েছে।');
+    await loadFromSupabase();
+    showNotification('কোর্স ও ক্যাডার তালিকা Supabase থেকে রিফ্রেশ করা হয়েছে।');
   };
 
   // Save Soldier Qualification Record to Supabase `course_cadre`
@@ -796,7 +853,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                 title="নতুন কোর্স বা ক্যাডার তৈরি করুন"
               >
                 <Plus className="w-3 h-3" />
-                <span>+ নতুন কোর্স</span>
+                <span>{activeDirectoryTab === 'cadre' ? 'নতুন ক্যাডার' : 'নতুন কোর্স'}</span>
               </button>
               <button
                 type="button"
@@ -806,11 +863,68 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     ? 'border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100'
                     : 'border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
-                title="মূল ডিফল্ট কোর্স তালিকায় ফিরিয়ে আনুন"
+                title="Supabase থেকে তালিকা রিফ্রেশ করুন"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+
+          {/* Two Toggle Buttons: Course (কোর্স) & Cadre (ক্যাডার) */}
+          <div
+            className={`grid grid-cols-2 gap-1.5 p-1 rounded-lg border ${
+              isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => handleSwitchDirectoryTab('course')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeDirectoryTab === 'course'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <span>কোর্স (Course)</span>
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                  activeDirectoryTab === 'course'
+                    ? 'bg-emerald-700/80 text-emerald-50'
+                    : isLight
+                    ? 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                {courseTypeCounts.course}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSwitchDirectoryTab('cadre')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeDirectoryTab === 'cadre'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : isLight
+                  ? 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <span>ক্যাডার (Cadre)</span>
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                  activeDirectoryTab === 'cadre'
+                    ? 'bg-emerald-700/80 text-emerald-50'
+                    : isLight
+                    ? 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                {courseTypeCounts.cadre}
+              </span>
+            </button>
           </div>
 
           {/* Mobile Course Dropdown Selector (< lg) */}
@@ -1386,29 +1500,36 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     <th className="py-2.5 px-3">কবে করেছে (তারিখ)</th>
                     <th className="py-2.5 px-3">কোথায় করেছে (স্থান / প্রতিষ্ঠান)</th>
                     <th className="py-2.5 px-3">ফলাফল / গ্রেড</th>
+                    <th className="py-2.5 px-3">মন্তব্য</th>
                     <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${isLight ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60 text-slate-200'}`}>
                   {selectedCourseRoster.map((item, idx) => {
-                    const person = findPerson(item.snkNo, item.personnelId) || {
+                    const livePerson = findPerson(item.snkNo, item.personnelId);
+                    const isRetired =
+                      !livePerson ||
+                      (item.remarks || '').toLowerCase().includes('retired') ||
+                      (item.remarks || '').includes('রিটায়ার্ড');
+                    const person = livePerson || {
                       id: item.id,
                       snkNo: item.snkNo,
                       rk: item.rk,
                       trade: '-',
                       name: item.name,
                       battery: item.battery,
-                      status: 'In Unit',
+                      status: 'In Unit' as const,
                       phone: '',
                     };
-                    const liveLocationDetails =
-                      person.outOfUnitLocation ||
-                      person.location ||
-                      person.leaveAddress ||
-                      person.courseName ||
-                      person.hospitalName ||
-                      person.comdAssignment ||
-                      person.statusDetails;
+                    const liveLocationDetails = livePerson
+                      ? livePerson.outOfUnitLocation ||
+                        livePerson.location ||
+                        livePerson.leaveAddress ||
+                        livePerson.courseName ||
+                        livePerson.hospitalName ||
+                        livePerson.comdAssignment ||
+                        livePerson.statusDetails
+                      : undefined;
 
                     if (inlineEditingRecordId === item.id) {
                       return (
@@ -1444,16 +1565,26 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                             </span>
                           </td>
                           <td className="py-2 px-3">
-                            <StatusBadge
-                              status={person.status}
-                              outOfUnitCategory={person.outOfUnitCategory}
-                              details={liveLocationDetails}
-                              size="sm"
-                            />
+                            {isRetired ? (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border whitespace-nowrap ${
+                                isLight
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                              }`}>
+                                Retired (রিটায়ার্ড)
+                              </span>
+                            ) : (
+                              <StatusBadge
+                                status={person.status}
+                                outOfUnitCategory={person.outOfUnitCategory}
+                                details={liveLocationDetails}
+                                size="sm"
+                              />
+                            )}
                           </td>
                           <td className="py-1.5 px-2 whitespace-nowrap">
                             <input
-                              type="date"
+                              type="text"
                               autoFocus
                               value={inlineEditDate}
                               onChange={(e) => setInlineEditDate(e.target.value)}
@@ -1461,7 +1592,8 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                                 if (e.key === 'Enter') saveInlineEditRecord(item);
                                 if (e.key === 'Escape') cancelInlineEditRecord();
                               }}
-                              className={`border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              placeholder="তারিখ / সময়কাল"
+                              className={`w-full min-w-[125px] border border-amber-500 rounded px-1.5 py-1 text-[11px] font-mono focus:outline-none focus:ring-1 focus:ring-amber-400 ${
                                 isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
                               }`}
                             />
@@ -1476,7 +1608,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                                 if (e.key === 'Escape') cancelInlineEditRecord();
                               }}
                               placeholder="প্রতিষ্ঠান / স্থান"
-                              className={`w-full min-w-[140px] border border-amber-500 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              className={`w-full min-w-[130px] border border-amber-500 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
                                 isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
                               }`}
                             />
@@ -1492,7 +1624,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                                 if (e.key === 'Escape') cancelInlineEditRecord();
                               }}
                               placeholder="গ্রেড / ফলাফল"
-                              className={`w-full min-w-[120px] border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                              className={`w-full min-w-[110px] border border-amber-500 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400 ${
                                 isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
                               }`}
                             />
@@ -1503,7 +1635,26 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                               <option value="2nd Class" />
                               <option value="Qualified" />
                               <option value="Instructor Grade" />
+                              <option value="Pass (পাশ)" />
+                              <option value="B+ (বি+)" />
+                              <option value="B (বি)" />
+                              <option value="A (এ)" />
                             </datalist>
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <input
+                              type="text"
+                              value={inlineEditRemarks}
+                              onChange={(e) => setInlineEditRemarks(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveInlineEditRecord(item);
+                                if (e.key === 'Escape') cancelInlineEditRecord();
+                              }}
+                              placeholder="মন্তব্য (e.g. Retired)"
+                              className={`w-full min-w-[120px] border border-amber-500 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 ${
+                                isLight ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+                              }`}
+                            />
                           </td>
                           <td className="py-1.5 px-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
@@ -1542,7 +1693,11 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                         </td>
 
                         {/* Army No */}
-                        <td className={`py-2.5 px-3 font-mono font-bold whitespace-nowrap ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                        <td className={`py-2.5 px-3 font-mono font-bold whitespace-nowrap ${
+                          isRetired
+                            ? isLight ? 'text-rose-700' : 'text-rose-400'
+                            : isLight ? 'text-emerald-700' : 'text-emerald-400'
+                        }`}>
                           {item.snkNo}
                         </td>
 
@@ -1552,11 +1707,17 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                             <RankBadge rank={item.rk} trade={person.trade} size="sm" />
                             <button
                               type="button"
-                              onClick={() => onViewDossier(person)}
+                              onClick={() => {
+                                if (livePerson) {
+                                  onViewDossier(livePerson);
+                                } else {
+                                  showNotification(`${item.name} (${item.snkNo}) বর্তমান ইউনিট নমিনাল রোলে নেই — Retired / অবসরপ্রাপ্ত।`);
+                                }
+                              }}
                               className={`font-medium hover:underline cursor-pointer text-left transition-colors ${
                                 isLight ? 'text-slate-900 hover:text-emerald-700' : 'text-white hover:text-emerald-400'
                               }`}
-                              title="ক্লিক করে ডসিয়ার দেখুন"
+                              title={livePerson ? 'ক্লিক করে ডসিয়ার দেখুন' : 'রিটায়ার্ড / বর্তমান নমিনালে নেই'}
                             >
                               {item.name}
                             </button>
@@ -1574,21 +1735,31 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                           </span>
                         </td>
 
-                        {/* Live Status (In Unit / ERE / Lve / Att / Msn / Course / CMH) */}
+                        {/* Live Status or Retired Badge */}
                         <td className="py-2.5 px-3">
-                          <StatusBadge
-                            status={person.status}
-                            outOfUnitCategory={person.outOfUnitCategory}
-                            details={liveLocationDetails}
-                            size="sm"
-                          />
+                          {isRetired ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border whitespace-nowrap ${
+                              isLight
+                                ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                            }`}>
+                              Retired (রিটায়ার্ড)
+                            </span>
+                          ) : (
+                            <StatusBadge
+                              status={person.status}
+                              outOfUnitCategory={person.outOfUnitCategory}
+                              details={liveLocationDetails}
+                              size="sm"
+                            />
+                          )}
                         </td>
 
                         {/* Completion Date */}
                         <td className={`py-2.5 px-3 font-mono whitespace-nowrap ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                           <div className="flex items-center gap-1 text-[11px]">
                             <Calendar className="w-3 h-3 text-emerald-500 shrink-0" />
-                            <span>{item.completionDate}</span>
+                            <span>{item.completionDate || '—'}</span>
                           </div>
                         </td>
 
@@ -1596,8 +1767,8 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                         <td className={`py-2.5 px-3 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                           <div className="flex items-center gap-1 text-[11px]">
                             <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="truncate max-w-[200px]" title={item.location}>
-                              {item.location}
+                            <span className="truncate max-w-[180px]" title={item.location}>
+                              {item.location || '—'}
                             </span>
                           </div>
                         </td>
@@ -1611,6 +1782,17 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                           }`}>
                             <Award className="w-3 h-3 text-emerald-500" />
                             <span>{item.grade}</span>
+                          </span>
+                        </td>
+
+                        {/* Remarks */}
+                        <td className={`py-2.5 px-3 text-[11px] max-w-[200px] ${
+                          isRetired
+                            ? isLight ? 'text-rose-700 font-medium' : 'text-rose-300 font-medium'
+                            : isLight ? 'text-slate-600' : 'text-slate-400'
+                        }`}>
+                          <span className="block truncate" title={item.remarks || ''}>
+                            {item.remarks || '—'}
                           </span>
                         </td>
 
@@ -1922,16 +2104,52 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
             </div>
 
             <form onSubmit={handleSaveCourseDefinition} className="space-y-4 text-xs">
-              {/* Course Name Only */}
+              {/* Type Selection (Course vs Cadre) */}
               <div>
                 <label className="block text-slate-300 font-semibold mb-1.5">
-                  কোর্সের নাম (Course Name) <span className="text-rose-400">*</span>
+                  তালিকার ধরন (Category Type)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCourseEditForm({ ...courseEditForm, type: 'course' })}
+                    className={`py-2 px-3 rounded-lg border font-bold text-xs cursor-pointer transition-colors ${
+                      courseEditForm.type === 'course'
+                        ? 'bg-emerald-600 border-emerald-500 text-white'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    কোর্স (Course)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCourseEditForm({ ...courseEditForm, type: 'cadre' })}
+                    className={`py-2 px-3 rounded-lg border font-bold text-xs cursor-pointer transition-colors ${
+                      courseEditForm.type === 'cadre'
+                        ? 'bg-emerald-600 border-emerald-500 text-white'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ক্যাডার (Cadre)
+                  </button>
+                </div>
+              </div>
+
+              {/* Course / Cadre Name */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1.5">
+                  {courseEditForm.type === 'cadre' ? 'ক্যাডারের নাম (Cadre Name)' : 'কোর্সের নাম (Course Name)'}{' '}
+                  <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
                   value={courseEditForm.name}
                   onChange={(e) => setCourseEditForm({ ...courseEditForm, name: e.target.value })}
-                  placeholder="e.g. Basic Gunner Cadre (BGC)"
+                  placeholder={
+                    courseEditForm.type === 'cadre'
+                      ? 'e.g. Kote & Mag Cdr / MG Cadre'
+                      : 'e.g. Army Cdo Course / JNGSC'
+                  }
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   required
                   autoFocus
@@ -1947,7 +2165,7 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>কোর্স মুছুন</span>
+                    <span>মুছে ফেলুন</span>
                   </button>
                 ) : <div />}
 
@@ -1964,7 +2182,13 @@ export const CourseQualificationPage: React.FC<CourseQualificationPageProps> = (
                     className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold cursor-pointer shadow-sm transition-colors inline-flex items-center gap-1.5"
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>{isCreatingNewCourse ? 'কোর্স তৈরি করুন' : 'পরিবর্তন সংরক্ষণ করুন'}</span>
+                    <span>
+                      {isCreatingNewCourse
+                        ? courseEditForm.type === 'cadre'
+                          ? 'ক্যাডার তৈরি করুন'
+                          : 'কোর্স তৈরি করুন'
+                        : 'পরিবর্তন সংরক্ষণ করুন'}
+                    </span>
                   </button>
                 </div>
               </div>

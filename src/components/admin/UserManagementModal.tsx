@@ -151,25 +151,38 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [email, setEmail] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  const lastInitKeyRef = React.useRef<string>('');
+  const editUserRef = React.useRef(editUser);
+  editUserRef.current = editUser;
+  const modalUserKey = isOpen ? (editUser?.id || '__new__') : '';
+
   useEffect(() => {
-    if (editUser) {
-      setName(editUser.name || '');
-      setRank(editUser.rank || 'Lt');
-      setRole(editUser.role || 'Offr');
-      setAccessLevel(editUser.accessLevel || '');
-      setUsername(editUser.username || '');
-      setPassword(editUser.password || '');
-      setEmail(editUser.email || '');
-      setSnkNo(editUser.snkNo || '');
-      setAvatar(editUser.avatar || undefined);
-      if (editUser.assignedBatteries && editUser.assignedBatteries.length > 0) {
-        setAssignedBatteries(editUser.assignedBatteries);
-      } else if (editUser.assignedBattery) {
-        setAssignedBatteries([editUser.assignedBattery]);
+    if (!isOpen) {
+      lastInitKeyRef.current = '';
+      return;
+    }
+    if (lastInitKeyRef.current === modalUserKey) return;
+    lastInitKeyRef.current = modalUserKey;
+
+    const u = editUserRef.current;
+    if (u) {
+      setName(u.name || '');
+      setRank(u.rank || 'Lt');
+      setRole(u.role || 'Offr');
+      setAccessLevel(u.accessLevel || '');
+      setUsername(u.username || '');
+      setPassword(u.password || '');
+      setEmail(u.email || '');
+      setSnkNo(u.snkNo || '');
+      setAvatar(u.avatar || undefined);
+      if (u.assignedBatteries && u.assignedBatteries.length > 0) {
+        setAssignedBatteries(u.assignedBatteries);
+      } else if (u.assignedBattery) {
+        setAssignedBatteries([u.assignedBattery]);
       } else {
         setAssignedBatteries([...ALL_BATTERIES]);
       }
-      setSelectedTradeInfo(isOfficerRank(editUser.rank) ? 'No Trade (Officer)' : '');
+      setSelectedTradeInfo(isOfficerRank(u.rank) ? 'No Trade (Officer)' : '');
       setSearchFeedback(null);
     } else {
       // Default new user state
@@ -189,7 +202,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setSearchQuery('');
     setShowPassword(false);
     setErrors({});
-  }, [editUser, isOpen]);
+  }, [isOpen, modalUserKey]);
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

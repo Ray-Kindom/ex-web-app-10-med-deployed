@@ -32,19 +32,30 @@ export const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({
   const [mobileNo, setMobileNo] = useState('');
   const [remarks, setRemarks] = useState('');
 
+  const lastInitKeyRef = React.useRef<string>('');
+  const personnelRef = React.useRef(personnel);
+  personnelRef.current = personnel;
+  const modalPersonKey = isOpen && personnel ? (personnel.id || personnel.snkNo || '') : '';
+
   useEffect(() => {
-    if (personnel) {
-      setSnkNo(personnel.snkNo || '');
-      setRank(personnel.rk || '');
-      setTrade(personnel.trade || 'GD');
-      setName(personnel.name || '');
-      setBattery(personnel.battery || 'P Bty');
-      setBloodGroup(personnel.bloodGroup || 'O+');
-      setMedicalCategory(personnel.medicalCategory || 'AYE');
-      setMobileNo(personnel.mobileNo || personnel.phone || '');
-      setRemarks(personnel.remarks || personnel.rmk || '');
+    const p = personnelRef.current;
+    if (!isOpen || !p) {
+      lastInitKeyRef.current = '';
+      return;
     }
-  }, [personnel]);
+    if (lastInitKeyRef.current === modalPersonKey) return;
+    lastInitKeyRef.current = modalPersonKey;
+
+    setSnkNo(p.snkNo || '');
+    setRank(p.rk || '');
+    setTrade(p.trade || 'GD');
+    setName(p.name || '');
+    setBattery(p.battery || 'P Bty');
+    setBloodGroup(p.bloodGroup || 'O+');
+    setMedicalCategory(p.medicalCategory || 'AYE');
+    setMobileNo(p.mobileNo || p.phone || '');
+    setRemarks(p.remarks || p.rmk || '');
+  }, [isOpen, modalPersonKey]);
 
   if (!isOpen || !personnel) return null;
 

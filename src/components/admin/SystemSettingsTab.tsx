@@ -53,20 +53,27 @@ export const SystemSettingsTab: React.FC = () => {
   const [showResetModal, setShowResetModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Sync state if systemSettings changes externally
+  const isDirtyRef = React.useRef(false);
+
+  // Sync state if systemSettings changes externally and admin is not actively editing
   React.useEffect(() => {
-    setFormData({ ...systemSettings });
+    if (!isDirtyRef.current) {
+      setFormData({ ...systemSettings });
+    }
   }, [systemSettings]);
 
   const handleTextChange = (field: keyof SystemSettings, val: any) => {
+    isDirtyRef.current = true;
     setFormData((prev) => ({ ...prev, [field]: val }));
   };
 
   const handleToggle = (field: keyof SystemSettings) => {
+    isDirtyRef.current = true;
     setFormData((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
   const handleModulePermissionToggle = (role: string, moduleKey: string) => {
+    isDirtyRef.current = true;
     setFormData((prev) => {
       const currentRolePerms = prev.modulePermissions?.[role] || {};
       const nextRolePerms = {
@@ -90,6 +97,9 @@ export const SystemSettingsTab: React.FC = () => {
     }
     setIsSaving(true);
     const ok = updateSystemSettings(formData);
+    if (ok) {
+      isDirtyRef.current = false;
+    }
     setTimeout(() => {
       setIsSaving(false);
       if (ok) {

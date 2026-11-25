@@ -102,12 +102,16 @@ export const AddPersonnelModal: React.FC<AddPersonnelModalProps> = ({
     }
   }, [rk, availableTrades]);
 
+  const wasOpenRef = React.useRef(false);
   useEffect(() => {
-    if (defaultBattery) {
-      setBattery(defaultBattery);
-    } else if (currentUser.assignedBattery) {
-      setBattery(currentUser.assignedBattery as Battery);
+    if (isOpen && !wasOpenRef.current) {
+      if (defaultBattery) {
+        setBattery(defaultBattery);
+      } else if (currentUser.assignedBattery) {
+        setBattery(currentUser.assignedBattery as Battery);
+      }
     }
+    wasOpenRef.current = isOpen;
   }, [defaultBattery, currentUser.assignedBattery, isOpen]);
 
   if (!isOpen) return null;

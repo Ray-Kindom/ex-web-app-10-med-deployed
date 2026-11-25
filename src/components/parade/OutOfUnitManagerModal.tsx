@@ -194,7 +194,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     setInlineEditingPersonId(null);
   };
 
-  // Synchronize category immediately when defaultCategory or activeOutOfUnitCategory changes
+  // Synchronize category only when modal opens or defaultCategory prop changes
   const [prevDefaultCategory, setPrevDefaultCategory] = useState(defaultCategory);
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
@@ -203,6 +203,7 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     if (isOpen) {
       const targetCat = defaultCategory || activeOutOfUnitCategory || 'Comd';
       setCurrentCategory(targetCat);
+      setPrevDefaultCategory(defaultCategory);
       setIsAddingSoldier(false);
       setSearchQuery('');
     }
@@ -210,14 +211,6 @@ export const OutOfUnitManagerModal: React.FC<OutOfUnitManagerModalProps> = ({
     setPrevDefaultCategory(defaultCategory);
     setCurrentCategory(defaultCategory);
   }
-
-  useEffect(() => {
-    if (defaultCategory) {
-      setCurrentCategory(defaultCategory);
-    } else if (activeOutOfUnitCategory) {
-      setCurrentCategory(activeOutOfUnitCategory);
-    }
-  }, [defaultCategory, activeOutOfUnitCategory, isOpen]);
 
   // Form State for Adding Soldier to Category
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
